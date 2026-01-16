@@ -84,6 +84,15 @@ export default function Live() {
     }
   }, [serverPlayer, currentStep, rallyDetails.s_player_id]);
 
+  // Sincronizar currentStep com a fase atual - quando phase > 1, não há serve/reception
+  useEffect(() => {
+    if (gameState && gameState.currentPhase > 1) {
+      if (currentStep === 'serve' || currentStep === 'reception') {
+        setCurrentStep('setter');
+      }
+    }
+  }, [gameState?.currentPhase, currentStep]);
+
   const resetWizard = () => {
     setCurrentStep('serve');
     setManualOutcome({ winner: null, reason: null });
