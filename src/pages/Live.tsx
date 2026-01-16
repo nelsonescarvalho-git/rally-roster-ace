@@ -43,6 +43,7 @@ export default function Live() {
   const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
   const [detailedMode, setDetailedMode] = useState(false);
   const [manualOutcome, setManualOutcome] = useState<{ winner: Side | null; reason: Reason | null }>({ winner: null, reason: null });
+  const [attackSideOverride, setAttackSideOverride] = useState<Side | null>(null); // Only for phase > 1
   
   // Rally details state
   const [rallyDetails, setRallyDetails] = useState<RallyDetails>({
@@ -80,6 +81,7 @@ export default function Live() {
   const resetWizard = () => {
     setCurrentStep('serve');
     setManualOutcome({ winner: null, reason: null });
+    setAttackSideOverride(null);
     setRallyDetails({
       s_player_id: serverPlayer?.id || null,
       s_code: null,
@@ -96,8 +98,30 @@ export default function Live() {
     });
   };
 
+  // Compute sides for each action
   const servePlayers = gameState ? getPlayersForSide(gameState.serveSide) : [];
   const recvPlayers = gameState ? getPlayersForSide(gameState.recvSide) : [];
+  
+  // Attack side: phase 1 = recv_side, phase > 1 = toggle override
+  const isLaterPhase = gameState && gameState.currentPhase > 1;
+  const attackSide: Side = isLaterPhase && attackSideOverride 
+    ? attackSideOverride 
+    : (gameState?.recvSide || 'CASA');
+  const defSide: Side = attackSide === 'CASA' ? 'FORA' : 'CASA';
+  
+  // Compute filtered players - use unique by id
+  const attackPlayers = gameState ? getPlayersForSide(attackSide) : [];
+  const blockDefPlayers = gameState ? getPlayersForSide(defSide) : [];
+  
+  // Helper to remove duplicate players by id
+  const uniquePlayers = (players: Player[]): Player[] => {
+    const seen = new Set<string>();
+    return players.filter(p => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  };
 
   // Compute auto outcome based on current rally details
   const autoOutcome = useMemo((): AutoOutcome | null => {
@@ -290,8 +314,7 @@ export default function Live() {
     resetWizard();
   };
 
-  // Check if in a later phase (block serve/recv editing)
-  const isLaterPhase = gameState && gameState.currentPhase > 1;
+  // isLaterPhase is now computed above
 
   if (loading || !match || !gameState) {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
@@ -395,12 +418,12 @@ export default function Live() {
             {currentStep === 'serve' && (
               <WizardSection
                 title="Serviço"
-                players={servePlayers}
+                players={uniquePlayers(servePlayers)}
                 selectedPlayer={rallyDetails.s_player_id}
                 selectedCode={rallyDetails.s_code}
                 onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, s_player_id: id }))}
                 onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, s_code: code }))}
-                disabled={isLaterPhase}
+                disabled={!!isLaterPhase}
               />
             )}
 
@@ -408,34 +431,58 @@ export default function Live() {
             {currentStep === 'reception' && (
               <WizardSection
                 title="Receção"
-                players={recvPlayers}
+                players={uniquePlayers(recvPlayers)}
                 selectedPlayer={rallyDetails.r_player_id}
                 selectedCode={rallyDetails.r_code}
                 onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, r_player_id: id }))}
                 onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, r_code: code }))}
                 optional
-                disabled={isLaterPhase}
+                disabled={!!isLaterPhase}
               />
             )}
 
             {/* ATTACK STEP */}
             {currentStep === 'attack' && (
-              <WizardSection
-                title="Ataque"
-                players={[...servePlayers, ...recvPlayers]}
-                selectedPlayer={rallyDetails.a_player_id}
-                selectedCode={rallyDetails.a_code}
-                onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, a_player_id: id }))}
-                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code }))}
-                optional
-              />
+              <div className="space-y-3">
+                {/* Attack side toggle for phase > 1 */}
+                {isLaterPhase && (
+                  <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/50">
+                    <span className="text-sm">Ataque é de:</span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant={attackSide === 'CASA' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAttackSideOverride('CASA')}
+                      >
+                        {match.home_name}
+                      </Button>
+                      <Button
+                        variant={attackSide === 'FORA' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAttackSideOverride('FORA')}
+                      >
+                        {match.away_name}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <WizardSection
+                  title="Ataque"
+                  players={uniquePlayers(attackPlayers)}
+                  selectedPlayer={rallyDetails.a_player_id}
+                  selectedCode={rallyDetails.a_code}
+                  onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, a_player_id: id }))}
+                  onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code }))}
+                  optional
+                />
+              </div>
             )}
 
             {/* BLOCK STEP */}
             {currentStep === 'block' && (
               <WizardSectionBlock
                 title="Bloco"
-                players={[...servePlayers, ...recvPlayers]}
+                players={uniquePlayers(blockDefPlayers)}
                 selectedPlayer1={rallyDetails.b1_player_id}
                 selectedPlayer2={rallyDetails.b2_player_id}
                 selectedPlayer3={rallyDetails.b3_player_id}
@@ -452,7 +499,7 @@ export default function Live() {
             {currentStep === 'defense' && (
               <WizardSection
                 title="Defesa"
-                players={[...servePlayers, ...recvPlayers]}
+                players={uniquePlayers(blockDefPlayers)}
                 selectedPlayer={rallyDetails.d_player_id}
                 selectedCode={rallyDetails.d_code}
                 onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, d_player_id: id }))}
@@ -693,7 +740,7 @@ function WizardSectionBlock({
             <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                #{p.jersey_number}
+                #{p.jersey_number} {p.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -709,7 +756,7 @@ function WizardSectionBlock({
             <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                #{p.jersey_number}
+                #{p.jersey_number} {p.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -725,7 +772,7 @@ function WizardSectionBlock({
             <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                #{p.jersey_number}
+                #{p.jersey_number} {p.name}
               </SelectItem>
             ))}
           </SelectContent>
