@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
+import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { Side, Reason, Player, Rally } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
@@ -612,6 +613,9 @@ export default function Live() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Step Help */}
+        <WizardStepHelp currentStep={currentStep} />
 
         {/* Undo Button */}
         {gameState.currentRally > 1 && currentStep === 'serve' && (
