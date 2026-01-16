@@ -119,11 +119,26 @@ export default function Live() {
   const servePlayers = gameState ? getPlayersForSide(gameState.serveSide) : [];
   const recvPlayers = gameState ? getPlayersForSide(gameState.recvSide) : [];
   
-  // Attack side: phase 1 = recv_side, phase > 1 = toggle override
+  // Attack side alternates by phase:
+  // - Odd phases (1, 3, 5...): recvSide attacks
+  // - Even phases (2, 4, 6...): serveSide counter-attacks
   const isLaterPhase = gameState && gameState.currentPhase > 1;
+  
+  const computeDefaultAttackSide = (): Side => {
+    if (!gameState) return 'CASA';
+    const phase = gameState.currentPhase;
+    // Odd phase = recv attacks, Even phase = serve attacks
+    if (phase % 2 === 1) {
+      return gameState.recvSide;
+    } else {
+      return gameState.serveSide;
+    }
+  };
+  
+  const defaultAttackSide = computeDefaultAttackSide();
   const attackSide: Side = isLaterPhase && attackSideOverride 
     ? attackSideOverride 
-    : (gameState?.recvSide || 'CASA');
+    : defaultAttackSide;
   const defSide: Side = attackSide === 'CASA' ? 'FORA' : 'CASA';
   
   // Compute filtered players - use unique by id
