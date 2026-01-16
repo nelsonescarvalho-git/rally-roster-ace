@@ -13,22 +13,6 @@ interface RecentPlaysProps {
   currentSet: number;
 }
 
-const REASON_LABELS: Record<Reason, string> = {
-  ACE: 'Ace',
-  SE: 'Erro Serv.',
-  KILL: 'Kill',
-  AE: 'Erro Atq.',
-  BLK: 'Bloco',
-  DEF: 'Defesa',
-  OP: 'Outro',
-};
-
-function getPlayerLabel(playerId: string | null, players: (Player | MatchPlayer)[]): string {
-  if (!playerId) return '-';
-  const player = players.find(p => p.id === playerId);
-  return player ? `#${player.jersey_number}` : '-';
-}
-
 function getCodeBadgeClass(code: number | null): string {
   switch (code) {
     case 0: return 'bg-destructive/20 text-destructive border-destructive/30';
@@ -36,6 +20,75 @@ function getCodeBadgeClass(code: number | null): string {
     case 2: return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30';
     case 3: return 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30';
     default: return 'bg-muted text-muted-foreground border-muted';
+  }
+}
+
+interface ActionInfo {
+  actorLabel: string;
+  actionText: string;
+  isError: boolean;
+  winnerLabel: string;
+}
+
+function getActionInfo(rally: Rally, homeName: string, awayName: string): ActionInfo {
+  const homeLabel = homeName.slice(0, 3).toUpperCase();
+  const awayLabel = awayName.slice(0, 3).toUpperCase();
+  const winnerLabel = rally.point_won_by === 'CASA' ? homeLabel : awayLabel;
+  const loserLabel = rally.point_won_by === 'CASA' ? awayLabel : homeLabel;
+  const serverLabel = rally.serve_side === 'CASA' ? homeLabel : awayLabel;
+
+  switch (rally.reason) {
+    case 'SE':
+      // Serve Error - servidor errou, adversário ganhou
+      return { 
+        actorLabel: serverLabel,
+        actionText: 'errou serv.',
+        isError: true,
+        winnerLabel
+      };
+    case 'AE':
+      // Attack Error - atacante errou (quem NÃO ganhou)
+      return { 
+        actorLabel: loserLabel,
+        actionText: 'errou atq.',
+        isError: true,
+        winnerLabel
+      };
+    case 'ACE':
+      return { 
+        actorLabel: winnerLabel,
+        actionText: 'Ace',
+        isError: false,
+        winnerLabel
+      };
+    case 'KILL':
+      return { 
+        actorLabel: winnerLabel,
+        actionText: 'Kill',
+        isError: false,
+        winnerLabel
+      };
+    case 'BLK':
+      return { 
+        actorLabel: winnerLabel,
+        actionText: 'Bloco',
+        isError: false,
+        winnerLabel
+      };
+    case 'DEF':
+      return { 
+        actorLabel: winnerLabel,
+        actionText: 'Defesa',
+        isError: false,
+        winnerLabel
+      };
+    default:
+      return { 
+        actorLabel: winnerLabel,
+        actionText: 'Outro',
+        isError: false,
+        winnerLabel
+      };
   }
 }
 
@@ -87,64 +140,85 @@ export function RecentPlays({ rallies, players, homeName, awayName, currentSet }
         <CollapsibleContent>
           <CardContent className="pt-0 pb-3 px-3">
             <div className="space-y-1.5">
-              {completedRallies.map((rally) => (
-                <div 
-                  key={rally.id}
-                  className={`flex items-center gap-2 p-2 rounded-md border text-xs ${
-                    rally.point_won_by === 'CASA'
-                      ? 'bg-home/10 border-home/20'
-                      : 'bg-away/10 border-away/20'
-                  }`}
-                >
-                  {/* Rally number */}
-                  <span className="font-mono text-muted-foreground w-6 text-center">
-                    #{rally.rally_no}
-                  </span>
-                  
-                  {/* Winner badge */}
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                    rally.point_won_by === 'CASA'
-                      ? 'bg-home/20 text-home'
-                      : 'bg-away/20 text-away'
-                  }`}>
-                    {rally.point_won_by === 'CASA' ? homeName.slice(0, 3).toUpperCase() : awayName.slice(0, 3).toUpperCase()}
-                  </span>
+              {completedRallies.map((rally) => {
+                const actionInfo = getActionInfo(rally, homeName, awayName);
+                
+                return (
+                  <div 
+                    key={rally.id}
+                    className={`flex items-center gap-2 p-2 rounded-md border text-xs ${
+                      rally.point_won_by === 'CASA'
+                        ? 'bg-home/10 border-home/20'
+                        : 'bg-away/10 border-away/20'
+                    }`}
+                  >
+                    {/* Rally number */}
+                    <span className="font-mono text-muted-foreground w-6 text-center">
+                      #{rally.rally_no}
+                    </span>
+                    
+                    {/* Action description */}
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      {actionInfo.isError ? (
+                        <>
+                          <span className="text-destructive font-medium">
+                            {actionInfo.actorLabel}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {actionInfo.actionText}
+                          </span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className={`font-medium ${
+                            rally.point_won_by === 'CASA' ? 'text-home' : 'text-away'
+                          }`}>
+                            +{actionInfo.winnerLabel}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className={`font-medium ${
+                            rally.point_won_by === 'CASA' ? 'text-home' : 'text-away'
+                          }`}>
+                            +{actionInfo.actorLabel}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {actionInfo.actionText}
+                          </span>
+                        </>
+                      )}
+                    </div>
 
-                  {/* Reason */}
-                  <span className="text-muted-foreground">
-                    {rally.reason ? REASON_LABELS[rally.reason] : '-'}
-                  </span>
-
-                  {/* Stats summary */}
-                  <div className="flex items-center gap-1 ml-auto">
-                    {rally.s_code !== null && (
-                      <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.s_code)}`}>
-                        S{rally.s_code}
-                      </span>
-                    )}
-                    {rally.r_code !== null && (
-                      <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.r_code)}`}>
-                        R{rally.r_code}
-                      </span>
-                    )}
-                    {rally.a_code !== null && (
-                      <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.a_code)}`}>
-                        A{rally.a_code}
-                      </span>
-                    )}
-                    {rally.b_code !== null && (
-                      <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.b_code)}`}>
-                        B{rally.b_code}
-                      </span>
-                    )}
-                    {rally.d_code !== null && (
-                      <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.d_code)}`}>
-                        D{rally.d_code}
-                      </span>
-                    )}
+                    {/* Stats summary */}
+                    <div className="flex items-center gap-1 ml-auto">
+                      {rally.s_code !== null && (
+                        <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.s_code)}`}>
+                          S{rally.s_code}
+                        </span>
+                      )}
+                      {rally.r_code !== null && (
+                        <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.r_code)}`}>
+                          R{rally.r_code}
+                        </span>
+                      )}
+                      {rally.a_code !== null && (
+                        <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.a_code)}`}>
+                          A{rally.a_code}
+                        </span>
+                      )}
+                      {rally.b_code !== null && (
+                        <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.b_code)}`}>
+                          B{rally.b_code}
+                        </span>
+                      )}
+                      {rally.d_code !== null && (
+                        <span className={`px-1 py-0.5 rounded border text-[10px] font-mono ${getCodeBadgeClass(rally.d_code)}`}>
+                          D{rally.d_code}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </CollapsibleContent>
