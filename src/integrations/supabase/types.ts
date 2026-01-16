@@ -66,42 +66,42 @@ export type Database = {
             foreignKeyName: "lineups_rot1_fkey"
             columns: ["rot1"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lineups_rot2_fkey"
             columns: ["rot2"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lineups_rot3_fkey"
             columns: ["rot3"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lineups_rot4_fkey"
             columns: ["rot4"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lineups_rot5_fkey"
             columns: ["rot5"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "lineups_rot6_fkey"
             columns: ["rot6"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
         ]
