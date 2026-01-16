@@ -120,11 +120,16 @@ export function useMatch(matchId: string | null) {
     // Check if there's an ongoing multi-phase rally
     const maxRallyNo = Math.max(...setRallies.map(r => r.rally_no));
     const currentRallyPhases = setRallies.filter(r => r.rally_no === maxRallyNo);
-    const hasOngoingPhase = currentRallyPhases.some(r => !r.point_won_by);
+    
+    // Find the LAST phase of the current rally (highest phase number)
+    const maxPhase = Math.max(...currentRallyPhases.map(r => r.phase));
+    const lastPhaseRally = currentRallyPhases.find(r => r.phase === maxPhase);
+    
+    // Rally is ongoing ONLY if the LAST phase doesn't have point_won_by
+    const hasOngoingPhase = lastPhaseRally && !lastPhaseRally.point_won_by;
 
     if (hasOngoingPhase) {
       const ongoingRally = currentRallyPhases[0];
-      const maxPhase = Math.max(...currentRallyPhases.map(r => r.phase));
       return {
         matchId: match.id,
         currentSet: setNo,
