@@ -24,6 +24,7 @@ interface RallyDetails {
   r_code: number | null;
   setter_player_id: string | null;
   pass_destination: PassDestination | null;
+  pass_code: number | null;
   a_player_id: string | null;
   a_code: number | null;
   b1_player_id: string | null;
@@ -59,6 +60,7 @@ export default function Live() {
     r_code: null,
     setter_player_id: null,
     pass_destination: null,
+    pass_code: null,
     a_player_id: null,
     a_code: null,
     b1_player_id: null,
@@ -106,6 +108,7 @@ export default function Live() {
       r_code: null,
       setter_player_id: null,
       pass_destination: null,
+      pass_code: null,
       a_player_id: null,
       a_code: null,
       b1_player_id: null,
@@ -361,6 +364,7 @@ export default function Live() {
       d_code: rallyDetails.d_code,
       setter_player_id: rallyDetails.setter_player_id,
       pass_destination: rallyDetails.pass_destination,
+      pass_code: rallyDetails.pass_code,
     };
 
     const success = await saveRally(rallyData);
@@ -374,6 +378,7 @@ export default function Live() {
           r_code: null,
           setter_player_id: null,
           pass_destination: null,
+          pass_code: null,
           a_player_id: null,
           a_code: null,
           b1_player_id: null,
@@ -578,8 +583,10 @@ export default function Live() {
                 players={uniquePlayers(attackPlayers)}
                 selectedSetter={rallyDetails.setter_player_id}
                 selectedDestination={rallyDetails.pass_destination}
+                selectedPassCode={rallyDetails.pass_code}
                 onSetterChange={(id) => setRallyDetails(prev => ({ ...prev, setter_player_id: id }))}
                 onDestinationChange={(dest) => setRallyDetails(prev => ({ ...prev, pass_destination: dest }))}
+                onPassCodeChange={(code) => setRallyDetails(prev => ({ ...prev, pass_code: code }))}
               />
             )}
 
@@ -948,16 +955,20 @@ interface SetterSectionProps {
   players: Player[];
   selectedSetter: string | null;
   selectedDestination: PassDestination | null;
+  selectedPassCode: number | null;
   onSetterChange: (id: string | null) => void;
   onDestinationChange: (dest: PassDestination | null) => void;
+  onPassCodeChange: (code: number | null) => void;
 }
 
 function SetterSection({
   players,
   selectedSetter,
   selectedDestination,
+  selectedPassCode,
   onSetterChange,
   onDestinationChange,
+  onPassCodeChange,
 }: SetterSectionProps) {
   return (
     <div className="space-y-3">
@@ -983,6 +994,23 @@ function SetterSection({
           ))}
         </SelectContent>
       </Select>
+      
+      <div className="text-xs text-muted-foreground">Qualidade do passe:</div>
+      <div className="grid grid-cols-4 gap-2">
+        {CODES.map((code) => (
+          <Button
+            key={code}
+            variant={selectedPassCode === code ? 'default' : 'outline'}
+            className="h-10 text-lg"
+            onClick={() => onPassCodeChange(selectedPassCode === code ? null : code)}
+          >
+            {code}
+          </Button>
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground text-center">
+        3=excelente • 2=positivo • 1=negativo • 0=erro
+      </div>
       
       <div className="text-xs text-muted-foreground">Destino da distribuição:</div>
       <div className="grid grid-cols-4 gap-2">

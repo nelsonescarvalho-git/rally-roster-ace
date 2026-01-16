@@ -272,6 +272,7 @@ export type Database = {
           id: string
           k_phase: string | null
           match_id: string
+          pass_code: number | null
           pass_destination: string | null
           phase: number
           point_won_by: string | null
@@ -308,6 +309,7 @@ export type Database = {
           id?: string
           k_phase?: string | null
           match_id: string
+          pass_code?: number | null
           pass_destination?: string | null
           phase?: number
           point_won_by?: string | null
@@ -344,6 +346,7 @@ export type Database = {
           id?: string
           k_phase?: string | null
           match_id?: string
+          pass_code?: number | null
           pass_destination?: string | null
           phase?: number
           point_won_by?: string | null
