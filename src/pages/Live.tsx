@@ -505,6 +505,29 @@ export default function Live() {
           ))}
         </div>
 
+        {/* Attack Indicator - shows which team is attacking this phase */}
+        <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/50 border">
+          <span className="text-sm text-muted-foreground">Fase {gameState.currentPhase}:</span>
+          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium text-sm ${
+            attackSide === 'CASA' 
+              ? 'bg-home/20 text-home border border-home/30' 
+              : 'bg-away/20 text-away border border-away/30'
+          }`}>
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                attackSide === 'CASA' ? 'bg-home' : 'bg-away'
+              }`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                attackSide === 'CASA' ? 'bg-home' : 'bg-away'
+              }`}></span>
+            </span>
+            <span>{attackSide === 'CASA' ? match.home_name : match.away_name} ataca</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            ({defSide === 'CASA' ? match.home_name : match.away_name} defende)
+          </span>
+        </div>
+
         {/* Wizard Steps */}
         <Card>
           <CardContent className="py-4 space-y-4">
