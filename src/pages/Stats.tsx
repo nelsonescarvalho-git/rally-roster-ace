@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Download } from 'lucide-react';
 import { Side } from '@/types/volleyball';
+import { DistributionTab } from '@/components/DistributionTab';
 
 export default function Stats() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -105,6 +106,7 @@ export default function Stats() {
           <TabsList className="w-full">
             <TabsTrigger value="players" className="flex-1">Jogadores</TabsTrigger>
             <TabsTrigger value="rotations" className="flex-1">Rotações</TabsTrigger>
+            <TabsTrigger value="distribution" className="flex-1">Distribuição</TabsTrigger>
           </TabsList>
 
           <TabsContent value="players">
@@ -175,6 +177,16 @@ export default function Stats() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="distribution">
+            <DistributionTab
+              rallies={rallies}
+              players={effectivePlayers}
+              match={match}
+              selectedSet={selectedSet}
+              getRalliesForSet={getRalliesForSet}
+            />
           </TabsContent>
         </Tabs>
       </div>

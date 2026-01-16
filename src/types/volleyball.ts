@@ -71,6 +71,8 @@ export interface Lineup {
   created_at: string;
 }
 
+export type PassDestination = 'P2' | 'P3' | 'P4' | 'OP' | 'PIPE' | 'BACK' | 'OUTROS';
+
 export interface Rally {
   id: string;
   match_id: string;
@@ -103,6 +105,8 @@ export interface Rally {
   d_player_id: string | null;
   d_no: number | null;
   d_code: number | null;
+  setter_player_id: string | null;
+  pass_destination: PassDestination | null;
   created_at: string;
 }
 

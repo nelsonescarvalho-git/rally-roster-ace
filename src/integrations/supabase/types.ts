@@ -272,6 +272,7 @@ export type Database = {
           id: string
           k_phase: string | null
           match_id: string
+          pass_destination: string | null
           phase: number
           point_won_by: string | null
           r_code: number | null
@@ -287,6 +288,7 @@ export type Database = {
           serve_rot: number
           serve_side: string
           set_no: number
+          setter_player_id: string | null
         }
         Insert: {
           a_code?: number | null
@@ -306,6 +308,7 @@ export type Database = {
           id?: string
           k_phase?: string | null
           match_id: string
+          pass_destination?: string | null
           phase?: number
           point_won_by?: string | null
           r_code?: number | null
@@ -321,6 +324,7 @@ export type Database = {
           serve_rot: number
           serve_side: string
           set_no: number
+          setter_player_id?: string | null
         }
         Update: {
           a_code?: number | null
@@ -340,6 +344,7 @@ export type Database = {
           id?: string
           k_phase?: string | null
           match_id?: string
+          pass_destination?: string | null
           phase?: number
           point_won_by?: string | null
           r_code?: number | null
@@ -355,6 +360,7 @@ export type Database = {
           serve_rot?: number
           serve_side?: string
           set_no?: number
+          setter_player_id?: string | null
         }
         Relationships: [
           {
@@ -409,6 +415,13 @@ export type Database = {
           {
             foreignKeyName: "rallies_s_player_id_fkey"
             columns: ["s_player_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rallies_setter_player_id_fkey"
+            columns: ["setter_player_id"]
             isOneToOne: false
             referencedRelation: "match_players"
             referencedColumns: ["id"]
