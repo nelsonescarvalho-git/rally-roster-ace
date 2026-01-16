@@ -346,6 +346,12 @@ export default function Live() {
       return;
     }
 
+    // Validate kill_type is selected when a_code = 3 (KILL)
+    if (rallyDetails.a_code === 3 && rallyDetails.kill_type === null) {
+      toast({ title: 'Selecione o tipo de Kill (Chão ou Block-out)', variant: 'destructive' });
+      return;
+    }
+
     const effectivePlayers = getEffectivePlayers();
     const sPlayer = effectivePlayers.find(p => p.id === rallyDetails.s_player_id);
     const rPlayer = effectivePlayers.find(p => p.id === rallyDetails.r_player_id);
@@ -388,7 +394,7 @@ export default function Live() {
       setter_player_id: rallyDetails.setter_player_id,
       pass_destination: rallyDetails.pass_destination,
       pass_code: rallyDetails.pass_code,
-      kill_type: rallyDetails.a_code === 3 ? (rallyDetails.kill_type || 'FLOOR') : null,
+      kill_type: rallyDetails.a_code === 3 ? rallyDetails.kill_type : null,
     };
 
     const success = await saveRally(rallyData);
@@ -653,16 +659,20 @@ export default function Live() {
                   selectedPlayer={rallyDetails.a_player_id}
                   selectedCode={rallyDetails.a_code}
                   onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, a_player_id: id }))}
-                  onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code, kill_type: code === 3 ? (prev.kill_type || 'FLOOR') : null }))}
+                  onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code, kill_type: code === 3 ? null : null }))}
                   optional
                 />
-                {/* Kill Type Selection - Only show when a_code = 3 (KILL) */}
+                {/* Kill Type Selection - Only show when a_code = 3 (KILL) - REQUIRED */}
                 {rallyDetails.a_code === 3 && (
-                  <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/50">
-                    <span className="text-sm">Tipo de Kill:</span>
+                  <div className={`flex items-center justify-between p-2 border rounded-lg ${
+                    rallyDetails.kill_type === null ? 'bg-destructive/10 border-destructive/50' : 'bg-muted/50'
+                  }`}>
+                    <span className="text-sm">
+                      Tipo de Kill: <span className="text-destructive">*</span>
+                    </span>
                     <div className="flex gap-1">
                       <Button
-                        variant={rallyDetails.kill_type === 'FLOOR' || rallyDetails.kill_type === null ? 'default' : 'outline'}
+                        variant={rallyDetails.kill_type === 'FLOOR' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setRallyDetails(prev => ({ ...prev, kill_type: 'FLOOR' }))}
                       >
