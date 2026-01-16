@@ -2,11 +2,11 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, TrendingUp, Target, Award, Loader2, Zap, Shield } from 'lucide-react';
+import { BarChart3, TrendingUp, Target, Award, Loader2, Zap, Shield, Users } from 'lucide-react';
 import { useGlobalStats } from '@/hooks/useGlobalStats';
 
 export default function KPIs() {
-  const { loading, summary, topAttackers, topReceivers, topServers, topBlockers } = useGlobalStats();
+  const { loading, summary, topAttackers, topReceivers, topServers, topBlockers, topSetters } = useGlobalStats();
 
   if (loading) {
     return (
@@ -65,6 +65,15 @@ export default function KPIs() {
               <span className="text-xs text-muted-foreground">Blocos/Jogo</span>
             </CardContent>
           </Card>
+          <Card className="col-span-2">
+            <CardContent className="flex flex-col items-center py-4">
+              <Users className="mb-1 h-5 w-5 text-primary" />
+              <span className="text-2xl font-bold">
+                {hasData && summary.avgPassQuality > 0 ? summary.avgPassQuality.toFixed(2) : '—'}
+              </span>
+              <span className="text-xs text-muted-foreground">Média Qualidade Passe</span>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Stats summary */}
@@ -97,7 +106,7 @@ export default function KPIs() {
           </Card>
         ) : (
           <Tabs defaultValue="attack" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="attack" className="text-xs">
                 <Zap className="mr-1 h-3 w-3" />
                 Ataque
@@ -113,6 +122,10 @@ export default function KPIs() {
               <TabsTrigger value="block" className="text-xs">
                 <Shield className="mr-1 h-3 w-3" />
                 Bloco
+              </TabsTrigger>
+              <TabsTrigger value="setter" className="text-xs">
+                <Users className="mr-1 h-3 w-3" />
+                Setter
               </TabsTrigger>
             </TabsList>
 
@@ -315,6 +328,55 @@ export default function KPIs() {
                             <TableCell className="text-right">{player.blkAttempts}</TableCell>
                             <TableCell className="text-right text-success">{player.blkPoints}</TableCell>
                             <TableCell className="text-right text-destructive">{player.blkErrors}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="setter" className="mt-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Top Setters (Qualidade de Passe)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Jogador</TableHead>
+                        <TableHead className="text-right">Passes</TableHead>
+                        <TableHead className="text-right">Média</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topSetters.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
+                            Dados insuficientes (min. 3 passes registados)
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        topSetters.map((setter, idx) => (
+                          <TableRow key={setter.playerId}>
+                            <TableCell className="font-medium">{idx + 1}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  #{setter.jerseyNumber} {setter.playerName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {setter.teamName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">{setter.totalPasses}</TableCell>
+                            <TableCell className="text-right font-bold">
+                              {setter.passAvg.toFixed(2)}
+                            </TableCell>
                           </TableRow>
                         ))
                       )}
