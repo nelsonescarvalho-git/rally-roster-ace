@@ -3,7 +3,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { History, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
-import { Rally, MatchPlayer, Player, Side, Reason } from '@/types/volleyball';
+import { Rally, MatchPlayer, Player, Side, Reason, KillType } from '@/types/volleyball';
 
 interface RecentPlaysProps {
   rallies: Rally[];
@@ -62,9 +62,10 @@ function getActionInfo(rally: Rally, homeName: string, awayName: string): Action
         winnerLabel
       };
     case 'KILL':
+      const killTypeText = rally.kill_type === 'BLOCKOUT' ? 'Kill (b.out)' : 'Kill (chão)';
       return { 
         actorLabel: winnerLabel,
-        actionText: 'Kill',
+        actionText: killTypeText,
         isError: false,
         winnerLabel
       };

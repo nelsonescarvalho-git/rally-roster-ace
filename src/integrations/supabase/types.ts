@@ -271,6 +271,7 @@ export type Database = {
           d_player_id: string | null
           id: string
           k_phase: string | null
+          kill_type: string | null
           match_id: string
           pass_code: number | null
           pass_destination: string | null
@@ -308,6 +309,7 @@ export type Database = {
           d_player_id?: string | null
           id?: string
           k_phase?: string | null
+          kill_type?: string | null
           match_id: string
           pass_code?: number | null
           pass_destination?: string | null
@@ -345,6 +347,7 @@ export type Database = {
           d_player_id?: string | null
           id?: string
           k_phase?: string | null
+          kill_type?: string | null
           match_id?: string
           pass_code?: number | null
           pass_destination?: string | null

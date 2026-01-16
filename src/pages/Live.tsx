@@ -9,7 +9,7 @@ import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucid
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { WizardLegend } from '@/components/WizardLegend';
 import { RecentPlays } from '@/components/RecentPlays';
-import { Side, Reason, Player, MatchPlayer, Rally, PassDestination } from '@/types/volleyball';
+import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -38,6 +38,7 @@ interface RallyDetails {
   pass_code: number | null;
   a_player_id: string | null;
   a_code: number | null;
+  kill_type: KillType | null;
   b1_player_id: string | null;
   b2_player_id: string | null;
   b3_player_id: string | null;
@@ -75,6 +76,7 @@ export default function Live() {
     pass_code: null,
     a_player_id: null,
     a_code: null,
+    kill_type: null,
     b1_player_id: null,
     b2_player_id: null,
     b3_player_id: null,
@@ -131,6 +133,7 @@ export default function Live() {
       pass_code: null,
       a_player_id: null,
       a_code: null,
+      kill_type: null,
       b1_player_id: null,
       b2_player_id: null,
       b3_player_id: null,
@@ -385,6 +388,7 @@ export default function Live() {
       setter_player_id: rallyDetails.setter_player_id,
       pass_destination: rallyDetails.pass_destination,
       pass_code: rallyDetails.pass_code,
+      kill_type: rallyDetails.a_code === 3 ? (rallyDetails.kill_type || 'FLOOR') : null,
     };
 
     const success = await saveRally(rallyData);
@@ -401,6 +405,7 @@ export default function Live() {
           pass_code: null,
           a_player_id: null,
           a_code: null,
+          kill_type: null,
           b1_player_id: null,
           b2_player_id: null,
           b3_player_id: null,
@@ -648,9 +653,31 @@ export default function Live() {
                   selectedPlayer={rallyDetails.a_player_id}
                   selectedCode={rallyDetails.a_code}
                   onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, a_player_id: id }))}
-                  onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code }))}
+                  onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code, kill_type: code === 3 ? (prev.kill_type || 'FLOOR') : null }))}
                   optional
                 />
+                {/* Kill Type Selection - Only show when a_code = 3 (KILL) */}
+                {rallyDetails.a_code === 3 && (
+                  <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/50">
+                    <span className="text-sm">Tipo de Kill:</span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant={rallyDetails.kill_type === 'FLOOR' || rallyDetails.kill_type === null ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setRallyDetails(prev => ({ ...prev, kill_type: 'FLOOR' }))}
+                      >
+                        🏐 Chão
+                      </Button>
+                      <Button
+                        variant={rallyDetails.kill_type === 'BLOCKOUT' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setRallyDetails(prev => ({ ...prev, kill_type: 'BLOCKOUT' }))}
+                      >
+                        🚫 Block-out
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -30,6 +30,16 @@ interface GlobalSummary {
   avgPassQuality: number;
 }
 
+interface TeamDefenseStats {
+  teamName: string;
+  side: Side;
+  killsSuffered: number;
+  floorKillsSuffered: number;
+  blockoutKillsSuffered: number;
+  floorPct: number;
+  blockoutPct: number;
+}
+
 export function useGlobalStats() {
   const [rallies, setRallies] = useState<Rally[]>([]);
   const [players, setPlayers] = useState<MatchPlayer[]>([]);
@@ -106,6 +116,8 @@ export function useGlobalStats() {
             attAttempts: 0,
             attPoints: 0,
             attErrors: 0,
+            attFloorKills: 0,
+            attBlockoutKills: 0,
             attAvg: 0,
             attEfficiency: 0,
             blkAttempts: 0,
@@ -155,7 +167,15 @@ export function useGlobalStats() {
         const key = playerIdToKey[rally.a_player_id];
         if (key && playerMap[key]) {
           playerMap[key].stats.attAttempts++;
-          if (rally.a_code === 3) playerMap[key].stats.attPoints++;
+          if (rally.a_code === 3) {
+            playerMap[key].stats.attPoints++;
+            // Track kill type
+            if (rally.kill_type === 'FLOOR') {
+              playerMap[key].stats.attFloorKills++;
+            } else if (rally.kill_type === 'BLOCKOUT') {
+              playerMap[key].stats.attBlockoutKills++;
+            }
+          }
           if (rally.a_code === 0) playerMap[key].stats.attErrors++;
         }
       }
@@ -369,6 +389,81 @@ export function useGlobalStats() {
     return setterStats.slice(0, 10);
   }, [setterStats]);
 
+  // Team defense stats - kills suffered by each team (defensive perspective)
+  const teamDefenseStats = useMemo((): TeamDefenseStats[] => {
+    // Group rallies by match_id to get team names for each side
+    const teamStatsMap: Record<string, TeamDefenseStats> = {};
+
+    // Get final phases only
+    const finalPhases = rallies.reduce((acc, rally) => {
+      const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
+      if (!acc[key] || rally.phase > acc[key].phase) {
+        acc[key] = rally;
+      }
+      return acc;
+    }, {} as Record<string, Rally>);
+
+    // Initialize team stats based on matches
+    matches.forEach(match => {
+      const homeKey = `${match.id}-CASA`;
+      const awayKey = `${match.id}-FORA`;
+      
+      if (!teamStatsMap[match.home_name]) {
+        teamStatsMap[match.home_name] = {
+          teamName: match.home_name,
+          side: 'CASA',
+          killsSuffered: 0,
+          floorKillsSuffered: 0,
+          blockoutKillsSuffered: 0,
+          floorPct: 0,
+          blockoutPct: 0,
+        };
+      }
+      if (!teamStatsMap[match.away_name]) {
+        teamStatsMap[match.away_name] = {
+          teamName: match.away_name,
+          side: 'FORA',
+          killsSuffered: 0,
+          floorKillsSuffered: 0,
+          blockoutKillsSuffered: 0,
+          floorPct: 0,
+          blockoutPct: 0,
+        };
+      }
+    });
+
+    // Process rallies to count kills suffered
+    Object.values(finalPhases).forEach(rally => {
+      if (rally.reason === 'KILL' && rally.point_won_by) {
+        const match = matches.find(m => m.id === rally.match_id);
+        if (!match) return;
+
+        // The team that lost the point is the one who suffered the kill
+        const loserTeamName = rally.point_won_by === 'CASA' ? match.away_name : match.home_name;
+        
+        if (teamStatsMap[loserTeamName]) {
+          teamStatsMap[loserTeamName].killsSuffered++;
+          
+          if (rally.kill_type === 'FLOOR') {
+            teamStatsMap[loserTeamName].floorKillsSuffered++;
+          } else if (rally.kill_type === 'BLOCKOUT') {
+            teamStatsMap[loserTeamName].blockoutKillsSuffered++;
+          }
+        }
+      }
+    });
+
+    // Calculate percentages
+    Object.values(teamStatsMap).forEach(team => {
+      if (team.killsSuffered > 0) {
+        team.floorPct = (team.floorKillsSuffered / team.killsSuffered) * 100;
+        team.blockoutPct = (team.blockoutKillsSuffered / team.killsSuffered) * 100;
+      }
+    });
+
+    return Object.values(teamStatsMap).filter(t => t.killsSuffered > 0);
+  }, [rallies, matches]);
+
   return {
     loading,
     summary,
@@ -379,5 +474,6 @@ export function useGlobalStats() {
     topServers,
     topBlockers,
     topSetters,
+    teamDefenseStats,
   };
 }
