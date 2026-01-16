@@ -515,14 +515,14 @@ function RallySection({
       </div>
       <div className="flex gap-2 items-center">
         <Select
-          value={selectedPlayer || ''}
-          onValueChange={(val) => onPlayerChange(val || null)}
+          value={selectedPlayer || '__none__'}
+          onValueChange={(val) => onPlayerChange(val === '__none__' ? null : val)}
         >
           <SelectTrigger className="flex-1">
             <SelectValue placeholder="Jogador" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nenhum</SelectItem>
+            <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 #{p.jersey_number} {p.name}
@@ -609,14 +609,14 @@ function RallySectionBlock({
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Select
-          value={selectedPlayer1 || ''}
-          onValueChange={(val) => onPlayer1Change(val || null)}
+          value={selectedPlayer1 || '__none__'}
+          onValueChange={(val) => onPlayer1Change(val === '__none__' ? null : val)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Bloq 1" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nenhum</SelectItem>
+            <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 #{p.jersey_number}
@@ -625,14 +625,14 @@ function RallySectionBlock({
           </SelectContent>
         </Select>
         <Select
-          value={selectedPlayer2 || ''}
-          onValueChange={(val) => onPlayer2Change(val || null)}
+          value={selectedPlayer2 || '__none__'}
+          onValueChange={(val) => onPlayer2Change(val === '__none__' ? null : val)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Bloq 2" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nenhum</SelectItem>
+            <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 #{p.jersey_number}
@@ -641,14 +641,14 @@ function RallySectionBlock({
           </SelectContent>
         </Select>
         <Select
-          value={selectedPlayer3 || ''}
-          onValueChange={(val) => onPlayer3Change(val || null)}
+          value={selectedPlayer3 || '__none__'}
+          onValueChange={(val) => onPlayer3Change(val === '__none__' ? null : val)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Bloq 3" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nenhum</SelectItem>
+            <SelectItem value="__none__">Nenhum</SelectItem>
             {players.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 #{p.jersey_number}
