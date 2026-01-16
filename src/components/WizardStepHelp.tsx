@@ -8,6 +8,7 @@ type WizardStep = 'serve' | 'reception' | 'attack' | 'block' | 'defense' | 'outc
 
 interface HelpContent {
   title: string;
+  summary: string;
   bullets: string[];
   tip: string;
 }
@@ -15,16 +16,18 @@ interface HelpContent {
 const HELP_CONTENT: Record<WizardStep, HelpContent> = {
   serve: {
     title: 'Serviço (S 0–3)',
+    summary: '3=Ace | 2=tira opções | 1=neutro | 0=erro',
     bullets: [
       '3 = Ace: ponto direto no serviço (sem controlo do adversário).',
-      '2 = Serviço difícil: receção condicionada, ataque previsível/limitado.',
-      '1 = Serviço neutro: adversário recebe e organiza ataque com qualidade aceitável.',
+      '2 = Difícil: tira opções claras ao adversário (receção condicionada, ataque limitado).',
+      '1 = Neutro: adversário recebe e organiza ataque com qualidade aceitável.',
       '0 = Erro: rede/fora/falta → ponto para o adversário.',
     ],
     tip: 'Se o ponto for "Erro de serviço", normalmente ficas só por aqui (R/A/B/D = vazio).',
   },
   reception: {
     title: 'Receção (R 0–3)',
+    summary: '3=perfeita | 2=boa | 1=fraca | 0=erro',
     bullets: [
       '3 = Perfeita: bola na zona ideal do distribuidor, todas as opções disponíveis.',
       '2 = Boa: permite ataque organizado, mas com algumas limitações.',
@@ -35,26 +38,29 @@ const HELP_CONTENT: Record<WizardStep, HelpContent> = {
   },
   attack: {
     title: 'Ataque (A 0–3)',
+    summary: '3=kill | 2=vantagem | 1=sem vantagem | 0=erro',
     bullets: [
       '3 = Ponto (Kill): ataque dá ponto direto (bola no chão, bloco fora, toque claro e sai).',
-      '2 = Vantagem clara: defendem, mas ficas em clara vantagem (bola fácil para novo ataque organizado / freeball adversária).',
+      '2 = Vantagem clara: defendem, mas ficas em clara vantagem (bola fácil / freeball).',
       '1 = Sem vantagem: defendem e organizam contra-ataque com controlo.',
       '0 = Erro: fora/rede/falta/4 toques → ponto para o adversário.',
     ],
-    tip: 'Se não quiseres avaliar "vantagem", usa 2=continua com controlo e 1=continua em dificuldade, mas mantém o critério.',
+    tip: 'Se não quiseres avaliar "vantagem", usa 2=continua com controlo e 1=continua em dificuldade.',
   },
   block: {
     title: 'Bloco (B 0–3)',
+    summary: '3=ponto | 2=positivo | 1=sem controlo | 0=erro',
     bullets: [
       '3 = Bloco ponto: ponto direto do bloco (bola no chão ou devolvida impossível).',
       '2 = Toque positivo: bloco toca e condiciona forte (bola alta/fácil para a tua equipa).',
-      '1 = Toque neutro: toca mas não dá vantagem clara (rally continua equilibrado).',
-      '0 = Falha/erro: bloco batido claro, falta na rede/invasão → ponto adversário (se for falta).',
+      '1 = Toque sem controlo: toca mas sem vantagem clara (rally continua equilibrado).',
+      '0 = Falha/erro: bloco batido claro, falta na rede/invasão → ponto adversário.',
     ],
     tip: 'Se B=3, escolhe pelo menos 1 bloqueador (até 3) que participou no bloco.',
   },
   defense: {
     title: 'Defesa (D 0–3)',
+    summary: '3=perfeita | 2=controlada | 1=esforço | 0=falha',
     bullets: [
       '3 = Defesa perfeita: controlo total, permite contra-ataque organizado.',
       '2 = Defesa controlada: bola jogável, mas com limitações.',
@@ -65,6 +71,7 @@ const HELP_CONTENT: Record<WizardStep, HelpContent> = {
   },
   outcome: {
     title: 'Resultado Final',
+    summary: 'Quem ganhou + motivo',
     bullets: [
       'Seleciona a equipa que ganhou o ponto.',
       'Indica o motivo: OP (Outro/Opponent Error) se não encaixar nos códigos anteriores.',
@@ -86,19 +93,24 @@ export function WizardStepHelp({ currentStep }: WizardStepHelpProps) {
       <Card className="border-muted bg-muted/30">
         <CollapsibleTrigger asChild>
           <CardHeader className="py-3 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                Como preencher
-              </CardTitle>
-              <Button variant="ghost" size="sm" className="h-6 px-2">
-                {isOpen ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-                <span className="ml-1 text-xs">{isOpen ? 'Fechar' : 'Ver ajuda'}</span>
-              </Button>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                  Como preencher
+                </CardTitle>
+                <Button variant="ghost" size="sm" className="h-6 px-2">
+                  {isOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                  <span className="ml-1 text-xs">{isOpen ? 'Fechar' : 'Ver mais'}</span>
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground font-mono">
+                {content.summary}
+              </div>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
