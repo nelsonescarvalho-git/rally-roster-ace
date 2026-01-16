@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Rally, Player, PlayerStats, RotationStats, Side } from '@/types/volleyball';
+import { Rally, Player, MatchPlayer, PlayerStats, RotationStats, Side } from '@/types/volleyball';
 
-export function useStats(rallies: Rally[], players: Player[]) {
+export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
   const playerStats = useMemo(() => {
     const stats: Record<string, PlayerStats> = {};
 
