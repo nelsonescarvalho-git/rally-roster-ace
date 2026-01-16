@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight, Trophy, Lock, Check } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { WizardLegend } from '@/components/WizardLegend';
 import { RecentPlays } from '@/components/RecentPlays';
@@ -56,7 +56,7 @@ export default function Live() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { match, rallies, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers } = useMatch(matchId || null);
+  const { match, rallies, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, isSetComplete, getMatchStatus } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
   const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
@@ -486,20 +486,123 @@ export default function Live() {
         </div>
       </header>
 
+      {/* Set End Overlay */}
+      {(() => {
+        const setStatus = isSetComplete(currentSet);
+        const matchStatus = getMatchStatus();
+        
+        if (setStatus.complete) {
+          return (
+            <div className="fixed inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 p-4">
+              <div className="text-center space-y-6 max-w-md">
+                <div className="flex justify-center">
+                  <div className="p-4 rounded-full bg-primary/10">
+                    <Trophy className="h-12 w-12 text-primary" />
+                  </div>
+                </div>
+                
+                <h2 className="text-2xl font-bold">Set {currentSet} Terminado!</h2>
+                
+                <div className="text-5xl font-bold flex items-center justify-center gap-4">
+                  <span className={setStatus.winner === 'CASA' ? 'text-home' : 'text-muted-foreground'}>
+                    {setStatus.homeScore}
+                  </span>
+                  <span className="text-muted-foreground text-3xl">-</span>
+                  <span className={setStatus.winner === 'FORA' ? 'text-away' : 'text-muted-foreground'}>
+                    {setStatus.awayScore}
+                  </span>
+                </div>
+                
+                <p className="text-lg">
+                  <span className={setStatus.winner === 'CASA' ? 'text-home font-semibold' : 'text-away font-semibold'}>
+                    {setStatus.winner === 'CASA' ? match.home_name : match.away_name}
+                  </span>
+                  {' '}ganhou o set!
+                </p>
+                
+                <div className="py-4 px-6 rounded-lg bg-muted/50">
+                  <div className="text-sm text-muted-foreground mb-2">Resultado por Sets</div>
+                  <div className="text-3xl font-bold">
+                    <span className={matchStatus.setsHome > matchStatus.setsAway ? 'text-home' : ''}>
+                      {matchStatus.setsHome}
+                    </span>
+                    <span className="text-muted-foreground mx-2">-</span>
+                    <span className={matchStatus.setsAway > matchStatus.setsHome ? 'text-away' : ''}>
+                      {matchStatus.setsAway}
+                    </span>
+                  </div>
+                </div>
+                
+                {matchStatus.matchComplete ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center gap-2 text-xl font-semibold text-primary">
+                      <Trophy className="h-6 w-6" />
+                      <span>
+                        {matchStatus.matchWinner === 'CASA' ? match.home_name : match.away_name} vence o jogo!
+                      </span>
+                    </div>
+                    <Button size="lg" onClick={() => navigate(`/stats/${matchId}`)}>
+                      Ver Estatísticas
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="lg" onClick={() => { setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
+                    Iniciar Set {currentSet + 1}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       <div className="p-4 space-y-4">
-        {/* Set Selector */}
+        {/* Set Selector with status indicators */}
         <div className="flex gap-1 justify-center">
-          {[1, 2, 3, 4, 5].map((set) => (
-            <Button
-              key={set}
-              variant={currentSet === set ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => { setCurrentSet(set); resetWizard(); }}
-            >
-              S{set}
-            </Button>
-          ))}
+          {[1, 2, 3, 4, 5].map((set) => {
+            const result = isSetComplete(set);
+            const matchStatus = getMatchStatus();
+            // Set is playable if it's set 1, or previous set is complete
+            const isPlayable = set === 1 || isSetComplete(set - 1).complete;
+            // Don't show sets beyond what's needed (if match is complete)
+            const isNeeded = !matchStatus.matchComplete || set <= matchStatus.setResults.filter(s => s.complete).length;
+            const isCurrent = currentSet === set;
+            
+            if (!isNeeded && !result.complete) return null;
+            
+            return (
+              <Button
+                key={set}
+                variant={isCurrent ? 'default' : result.complete ? 'secondary' : 'outline'}
+                size="sm"
+                disabled={!isPlayable}
+                onClick={() => { setCurrentSet(set); resetWizard(); }}
+                className="relative min-w-[48px]"
+              >
+                {!isPlayable && !result.complete && <Lock className="h-3 w-3 mr-1" />}
+                S{set}
+                {result.complete && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                    <Check className="h-3 w-3" />
+                  </span>
+                )}
+              </Button>
+            );
+          })}
         </div>
+
+        {/* Match Sets Score */}
+        {(() => {
+          const matchStatus = getMatchStatus();
+          return (
+            <div className="text-center text-sm text-muted-foreground">
+              Sets: <span className={matchStatus.setsHome > matchStatus.setsAway ? 'text-home font-semibold' : ''}>{matchStatus.setsHome}</span>
+              {' - '}
+              <span className={matchStatus.setsAway > matchStatus.setsHome ? 'text-away font-semibold' : ''}>{matchStatus.setsAway}</span>
+            </div>
+          );
+        })()}
 
         {/* Score Display */}
         <Card>
