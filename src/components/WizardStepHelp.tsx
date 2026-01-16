@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
-type WizardStep = 'serve' | 'reception' | 'attack' | 'block' | 'defense' | 'outcome';
+type WizardStep = 'serve' | 'reception' | 'setter' | 'attack' | 'block' | 'defense' | 'outcome';
 
 interface HelpContent {
   title: string;
@@ -35,6 +35,20 @@ const HELP_CONTENT: Record<WizardStep, HelpContent> = {
       '0 = Erro: ace/receção direta para ponto do adversário.',
     ],
     tip: 'Se S=0 (erro serviço), esta etapa não se preenche.',
+  },
+  setter: {
+    title: 'Distribuição (Setter)',
+    summary: 'Quem distribui + para onde',
+    bullets: [
+      'P2 = Ponta zona 2 (lado direito da rede).',
+      'P3 = Central na rede (zona 3).',
+      'P4 = Ponta zona 4 (lado esquerdo da rede).',
+      'OP = Oposto (zona 2, mas atacante oposto).',
+      'PIPE = Ataque de segunda linha pelo centro.',
+      'BACK = Ataque de segunda linha pelos cantos.',
+      'OUTROS = Outras situações (2ª bola, tips, etc.).',
+    ],
+    tip: 'Seleciona o setter que tocou a bola e o destino da distribuição.',
   },
   attack: {
     title: 'Ataque (A 0–3)',
