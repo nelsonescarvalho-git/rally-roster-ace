@@ -2,6 +2,25 @@ export type Side = 'CASA' | 'FORA';
 export type Reason = 'ACE' | 'SE' | 'KILL' | 'AE' | 'BLK' | 'DEF' | 'OP';
 export type KPhase = 'K1' | 'K2' | 'K3';
 
+// Persistent team (reusable across matches)
+export interface Team {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+// Persistent player in a team roster
+export interface TeamPlayer {
+  id: string;
+  team_id: string;
+  jersey_number: number;
+  name: string;
+  position: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+// Match with optional team references
 export interface Match {
   id: string;
   title: string;
@@ -9,9 +28,25 @@ export interface Match {
   home_name: string;
   away_name: string;
   first_serve_side: Side;
+  home_team_id: string | null;
+  away_team_id: string | null;
   created_at: string;
 }
 
+// Snapshot of a player for a specific match
+export interface MatchPlayer {
+  id: string;
+  match_id: string;
+  team_id: string;
+  team_player_id: string | null;
+  side: Side;
+  jersey_number: number;
+  name: string;
+  position: string | null;
+  created_at: string;
+}
+
+// Legacy Player interface (for backwards compatibility)
 export interface Player {
   id: string;
   match_id: string;
