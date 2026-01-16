@@ -11,6 +11,17 @@ import { WizardLegend } from '@/components/WizardLegend';
 import { RecentPlays } from '@/components/RecentPlays';
 import { Side, Reason, Player, MatchPlayer, Rally, PassDestination } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 const CODES = [0, 1, 2, 3];
 const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK', 'OUTROS'];
@@ -51,6 +62,7 @@ export default function Live() {
   const [detailedMode, setDetailedMode] = useState(false);
   const [manualOutcome, setManualOutcome] = useState<{ winner: Side | null; reason: Reason | null }>({ winner: null, reason: null });
   const [attackSideOverride, setAttackSideOverride] = useState<Side | null>(null); // Only for phase > 1
+  const [suspendPhaseSync, setSuspendPhaseSync] = useState(false); // Temporarily disable phase sync after hard reset
   
   // Rally details state
   const [rallyDetails, setRallyDetails] = useState<RallyDetails>({
@@ -89,13 +101,21 @@ export default function Live() {
   }, [serverPlayer, currentStep, rallyDetails.s_player_id]);
 
   // Sincronizar currentStep com a fase atual - quando phase > 1, não há serve/reception
+  // Skip this sync if suspendPhaseSync is true (after hard reset)
   useEffect(() => {
+    if (suspendPhaseSync) {
+      // Re-enable sync once we're back to phase 1
+      if (gameState && gameState.currentPhase === 1) {
+        setSuspendPhaseSync(false);
+      }
+      return;
+    }
     if (gameState && gameState.currentPhase > 1) {
       if (currentStep === 'serve' || currentStep === 'reception') {
         setCurrentStep('setter');
       }
     }
-  }, [gameState?.currentPhase, currentStep]);
+  }, [gameState?.currentPhase, currentStep, suspendPhaseSync]);
 
   const resetWizard = () => {
     setCurrentStep('serve');
@@ -407,6 +427,13 @@ export default function Live() {
     resetWizard();
   };
 
+  // Hard reset to a new rally - used when stuck in phase > 1
+  const hardResetToNewRally = async () => {
+    setSuspendPhaseSync(true);
+    await deleteLastRally(currentSet);
+    resetWizard();
+  };
+
   // isLaterPhase is now computed above
 
   if (loading || !match || !gameState) {
@@ -713,13 +740,35 @@ export default function Live() {
                 </Button>
               )}
               {currentStep !== 'serve' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetWizard}
-                >
-                  Cancelar
-                </Button>
+                isLaterPhase ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        Anular rally
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Anular rally em curso?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta ação vai apagar todas as fases deste rally e voltar ao início de um novo rally.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Não</AlertDialogCancel>
+                        <AlertDialogAction onClick={hardResetToNewRally}>Sim, anular</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetWizard}
+                  >
+                    Cancelar
+                  </Button>
+                )
               )}
               
               <div className="flex-1" />
@@ -766,12 +815,32 @@ export default function Live() {
         {/* Step Help */}
         <WizardStepHelp currentStep={currentStep} />
 
-        {/* Undo Button */}
-        {gameState.currentRally > 1 && currentStep === 'serve' && (
-          <Button variant="outline" onClick={handleUndo} className="w-full gap-2">
-            <Undo2 className="h-4 w-4" />
-            Anular Último Ponto
-          </Button>
+        {/* Undo Button - accessible from any step */}
+        {(gameState.currentRally > 1 || gameState.currentPhase > 1) && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="w-full gap-2">
+                <Undo2 className="h-4 w-4" />
+                {gameState.currentPhase > 1 ? 'Anular rally em curso' : 'Anular Último Ponto'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {gameState.currentPhase > 1 ? 'Anular rally em curso?' : 'Anular último ponto?'}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {gameState.currentPhase > 1 
+                    ? 'Esta ação vai apagar todas as fases deste rally e voltar ao início.'
+                    : 'Esta ação vai apagar o último ponto registado.'}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Não</AlertDialogCancel>
+                <AlertDialogAction onClick={hardResetToNewRally}>Sim, anular</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
     </div>
