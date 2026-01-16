@@ -150,6 +150,20 @@ export default function Live() {
   // Determine if current step blocks further progression (ACE/SE)
   const isServeTerminal = rallyDetails.s_code === 3 || rallyDetails.s_code === 0;
 
+  const handlePrevStep = () => {
+    if (currentStep === 'reception') {
+      setCurrentStep('serve');
+    } else if (currentStep === 'attack') {
+      setCurrentStep('reception');
+    } else if (currentStep === 'block') {
+      setCurrentStep('attack');
+    } else if (currentStep === 'defense') {
+      setCurrentStep('block');
+    } else if (currentStep === 'outcome') {
+      setCurrentStep('defense');
+    }
+  };
+
   const handleNextStep = () => {
     if (currentStep === 'serve') {
       if (rallyDetails.s_code === null) {
@@ -492,6 +506,15 @@ export default function Live() {
 
             {/* Navigation Buttons */}
             <div className="flex gap-2 pt-2">
+              {currentStep !== 'serve' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevStep}
+                >
+                  ← Voltar
+                </Button>
+              )}
               {currentStep !== 'serve' && (
                 <Button
                   variant="ghost"
