@@ -56,7 +56,7 @@ export default function Live() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { match, rallies, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, isSetComplete, getMatchStatus } = useMatch(matchId || null);
+  const { match, rallies, lineups, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, isSetComplete, getMatchStatus } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
   const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
@@ -447,8 +447,83 @@ export default function Live() {
 
   // isLaterPhase is now computed above
 
-  if (loading || !match || !gameState) {
+  if (loading) {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
+  }
+
+  if (!match) {
+    return <div className="flex min-h-screen items-center justify-center">Jogo não encontrado</div>;
+  }
+
+  // Check if gameState is null - could mean no lineup for this set
+  if (!gameState) {
+    const homeLineup = lineups.find(l => l.set_no === currentSet && l.side === 'CASA');
+    const awayLineup = lineups.find(l => l.set_no === currentSet && l.side === 'FORA');
+    const missingLineups = !homeLineup || !awayLineup;
+    
+    return (
+      <div className="min-h-screen bg-background safe-bottom">
+        <header className="sticky top-0 z-10 border-b bg-card px-4 py-2">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-sm font-semibold">{match.title}</h1>
+            </div>
+          </div>
+        </header>
+        
+        <div className="flex flex-col items-center justify-center p-8 gap-6 min-h-[60vh]">
+          {/* Set Selector - allow navigation back to previous sets */}
+          <div className="flex gap-1 justify-center">
+            {[1, 2, 3, 4, 5].map((set) => {
+              const result = isSetComplete(set);
+              const isPlayable = set === 1 || isSetComplete(set - 1).complete;
+              const isCurrent = currentSet === set;
+              
+              return (
+                <Button
+                  key={set}
+                  variant={isCurrent ? 'default' : result.complete ? 'secondary' : 'outline'}
+                  size="sm"
+                  disabled={!isPlayable && !result.complete}
+                  onClick={() => { setCurrentSet(set); resetWizard(); }}
+                  className="relative min-w-[48px]"
+                >
+                  {!isPlayable && !result.complete && <Lock className="h-3 w-3 mr-1" />}
+                  S{set}
+                  {result.complete && (
+                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                      <Check className="h-3 w-3" />
+                    </span>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+
+          {missingLineups ? (
+            <>
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-2">Set {currentSet}</h2>
+                <p className="text-muted-foreground">
+                  É necessário configurar o lineup para este set.
+                </p>
+              </div>
+              <Button onClick={() => navigate(`/setup/${matchId}?set=${currentSet}`)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Configurar Lineup do Set {currentSet}
+              </Button>
+            </>
+          ) : (
+            <div className="text-center">
+              <p className="text-muted-foreground">A carregar dados do set...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // Steps differ based on phase
