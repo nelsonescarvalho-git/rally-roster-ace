@@ -226,19 +226,18 @@ export function useMatch(matchId: string | null) {
     if (setRallies.length === 0) return false;
     
     const lastRallyNo = Math.max(...setRallies.map(r => r.rally_no));
-    const lastPhase = Math.max(...setRallies.filter(r => r.rally_no === lastRallyNo).map(r => r.phase));
     
     try {
+      // Delete ALL phases of the last rally (entire rally), not just the last phase
       const { error } = await supabase
         .from('rallies')
         .delete()
         .eq('match_id', matchId)
         .eq('set_no', setNo)
-        .eq('rally_no', lastRallyNo)
-        .eq('phase', lastPhase);
+        .eq('rally_no', lastRallyNo);
       if (error) throw error;
       await loadMatch();
-      toast({ title: 'Anulado', description: 'Último ponto removido' });
+      toast({ title: 'Anulado', description: 'Rally completo removido' });
       return true;
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });

@@ -107,6 +107,7 @@ export interface Rally {
   d_code: number | null;
   setter_player_id: string | null;
   pass_destination: PassDestination | null;
+  pass_code: number | null;
   created_at: string;
 }
 
