@@ -538,7 +538,7 @@ export default function Live() {
             {/* SETTER STEP */}
             {currentStep === 'setter' && (
               <SetterSection
-                players={uniquePlayers(recvPlayers)}
+                players={uniquePlayers(attackPlayers)}
                 selectedSetter={rallyDetails.setter_player_id}
                 selectedDestination={rallyDetails.pass_destination}
                 onSetterChange={(id) => setRallyDetails(prev => ({ ...prev, setter_player_id: id }))}
