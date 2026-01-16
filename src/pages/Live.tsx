@@ -1,26 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ArrowLeft, BarChart2, Undo2, Settings, ChevronDown, Plus } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
 import { Side, Reason, Player, Rally } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
-const REASONS: { value: Reason; label: string }[] = [
-  { value: 'ACE', label: 'ACE' },
-  { value: 'SE', label: 'Erro Serviço' },
-  { value: 'KILL', label: 'KILL' },
-  { value: 'AE', label: 'Erro Ataque' },
-  { value: 'BLK', label: 'Bloco' },
-  { value: 'DEF', label: 'Defesa' },
-  { value: 'OP', label: 'Outro' },
-];
-
 const CODES = [0, 1, 2, 3];
+
+type WizardStep = 'serve' | 'reception' | 'attack' | 'block' | 'defense' | 'outcome';
 
 interface RallyDetails {
   s_player_id: string | null;
@@ -37,6 +28,11 @@ interface RallyDetails {
   d_code: number | null;
 }
 
+interface AutoOutcome {
+  point_won_by: Side;
+  reason: Reason;
+}
+
 export default function Live() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
@@ -44,10 +40,9 @@ export default function Live() {
   const { match, players, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
-  const [selectedWinner, setSelectedWinner] = useState<Side | null>(null);
-  const [selectedReason, setSelectedReason] = useState<Reason | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
   const [detailedMode, setDetailedMode] = useState(false);
+  const [manualOutcome, setManualOutcome] = useState<{ winner: Side | null; reason: Reason | null }>({ winner: null, reason: null });
   
   // Rally details state
   const [rallyDetails, setRallyDetails] = useState<RallyDetails>({
@@ -72,22 +67,21 @@ export default function Live() {
   const gameState = getGameState(currentSet);
   const serverPlayer = gameState ? getServerPlayer(currentSet, gameState.serveSide, gameState.serveRot) : null;
   
-  // Pre-fill server when reason is selected
+  // Pre-fill server when wizard starts
   useEffect(() => {
-    if (serverPlayer && selectedReason) {
+    if (serverPlayer && currentStep === 'serve' && !rallyDetails.s_player_id) {
       setRallyDetails(prev => ({
         ...prev,
         s_player_id: serverPlayer.id,
-        s_code: selectedReason === 'ACE' ? 3 : (selectedReason === 'SE' ? 0 : prev.s_code),
       }));
     }
-  }, [serverPlayer, selectedReason]);
+  }, [serverPlayer, currentStep, rallyDetails.s_player_id]);
 
-  const resetSelection = () => {
-    setSelectedWinner(null);
-    setSelectedReason(null);
+  const resetWizard = () => {
+    setCurrentStep('serve');
+    setManualOutcome({ winner: null, reason: null });
     setRallyDetails({
-      s_player_id: null,
+      s_player_id: serverPlayer?.id || null,
       s_code: null,
       r_player_id: null,
       r_code: null,
@@ -104,67 +98,107 @@ export default function Live() {
 
   const servePlayers = gameState ? getPlayersForSide(gameState.serveSide) : [];
   const recvPlayers = gameState ? getPlayersForSide(gameState.recvSide) : [];
-  const winnerPlayers = selectedWinner ? getPlayersForSide(selectedWinner) : [];
-  const loserPlayers = selectedWinner ? getPlayersForSide(selectedWinner === 'CASA' ? 'FORA' : 'CASA') : [];
 
-  // Determine which sections are visible/required based on reason
-  const isServeVisible = true; // Always visible
-  const isRecVisible = selectedReason !== 'SE'; // Hidden for Serve Error
-  const isAttRequired = selectedReason === 'KILL' || selectedReason === 'AE';
-  const isBlkRequired = selectedReason === 'BLK';
-  const isDefRequired = selectedReason === 'DEF';
+  // Compute auto outcome based on current rally details
+  const autoOutcome = useMemo((): AutoOutcome | null => {
+    if (!gameState) return null;
+    
+    // S=3 => ACE
+    if (rallyDetails.s_code === 3) {
+      return { point_won_by: gameState.serveSide, reason: 'ACE' };
+    }
+    // S=0 => SE
+    if (rallyDetails.s_code === 0) {
+      return { point_won_by: gameState.recvSide, reason: 'SE' };
+    }
+    // A=3 => KILL (attacker wins)
+    if (rallyDetails.a_code === 3 && rallyDetails.a_player_id) {
+      const attacker = players.find(p => p.id === rallyDetails.a_player_id);
+      if (attacker) {
+        return { point_won_by: attacker.side as Side, reason: 'KILL' };
+      }
+    }
+    // A=0 => AE (opponent wins)
+    if (rallyDetails.a_code === 0 && rallyDetails.a_player_id) {
+      const attacker = players.find(p => p.id === rallyDetails.a_player_id);
+      if (attacker) {
+        const oppSide: Side = attacker.side === 'CASA' ? 'FORA' : 'CASA';
+        return { point_won_by: oppSide, reason: 'AE' };
+      }
+    }
+    // B=3 => BLK
+    if (rallyDetails.b_code === 3 && rallyDetails.b1_player_id) {
+      const blocker = players.find(p => p.id === rallyDetails.b1_player_id);
+      if (blocker) {
+        return { point_won_by: blocker.side as Side, reason: 'BLK' };
+      }
+    }
+    // D=3 => DEF
+    if (rallyDetails.d_code === 3 && rallyDetails.d_player_id) {
+      const defender = players.find(p => p.id === rallyDetails.d_player_id);
+      if (defender) {
+        return { point_won_by: defender.side as Side, reason: 'DEF' };
+      }
+    }
+    
+    return null;
+  }, [gameState, players, rallyDetails]);
 
-  const validateRally = (): boolean => {
-    if (!selectedWinner || !selectedReason) return false;
+  // Determine if we should skip to save or show outcome
+  const finalOutcome = autoOutcome || (manualOutcome.winner && manualOutcome.reason ? { point_won_by: manualOutcome.winner, reason: manualOutcome.reason } : null);
+  
+  // Determine if current step blocks further progression (ACE/SE)
+  const isServeTerminal = rallyDetails.s_code === 3 || rallyDetails.s_code === 0;
 
-    // ACE: requires s_player and s_code=3
-    if (selectedReason === 'ACE') {
-      if (!rallyDetails.s_player_id || rallyDetails.s_code !== 3) {
-        toast({ title: 'ACE requer servidor e código 3', variant: 'destructive' });
-        return false;
+  const handleNextStep = () => {
+    if (currentStep === 'serve') {
+      if (rallyDetails.s_code === null) {
+        toast({ title: 'Selecione o código do serviço', variant: 'destructive' });
+        return;
       }
-    }
-    // SE: requires s_player and s_code=0
-    if (selectedReason === 'SE') {
-      if (!rallyDetails.s_player_id || rallyDetails.s_code !== 0) {
-        toast({ title: 'Erro Serviço requer servidor e código 0', variant: 'destructive' });
-        return false;
+      if (!rallyDetails.s_player_id) {
+        toast({ title: 'Selecione o servidor', variant: 'destructive' });
+        return;
       }
-    }
-    // KILL: requires a_player and a_code=3
-    if (selectedReason === 'KILL') {
-      if (!rallyDetails.a_player_id || rallyDetails.a_code !== 3) {
-        toast({ title: 'KILL requer atacante e código 3', variant: 'destructive' });
-        return false;
+      // If ACE or SE, go directly to save
+      if (isServeTerminal) {
+        return; // Auto outcome will show save button
       }
+      setCurrentStep('reception');
+    } else if (currentStep === 'reception') {
+      setCurrentStep('attack');
+    } else if (currentStep === 'attack') {
+      if (autoOutcome) return; // Already have outcome
+      setCurrentStep('block');
+    } else if (currentStep === 'block') {
+      if (autoOutcome) return;
+      setCurrentStep('defense');
+    } else if (currentStep === 'defense') {
+      if (autoOutcome) return;
+      setCurrentStep('outcome');
     }
-    // AE: requires a_player and a_code=0
-    if (selectedReason === 'AE') {
-      if (!rallyDetails.a_player_id || rallyDetails.a_code !== 0) {
-        toast({ title: 'Erro Ataque requer atacante e código 0', variant: 'destructive' });
-        return false;
-      }
-    }
-    // BLK: requires b_code=3 and at least 1 blocker
-    if (selectedReason === 'BLK') {
-      if (rallyDetails.b_code !== 3 || !rallyDetails.b1_player_id) {
-        toast({ title: 'Bloco requer pelo menos 1 bloqueador e código 3', variant: 'destructive' });
-        return false;
-      }
-    }
-    // DEF: requires d_player and d_code=3
-    if (selectedReason === 'DEF') {
-      if (!rallyDetails.d_player_id || rallyDetails.d_code !== 3) {
-        toast({ title: 'Defesa requer defensor e código 3', variant: 'destructive' });
-        return false;
-      }
-    }
+  };
 
-    return true;
+  const handleSkipStep = () => {
+    if (currentStep === 'reception') {
+      setCurrentStep('attack');
+    } else if (currentStep === 'attack') {
+      setCurrentStep('block');
+    } else if (currentStep === 'block') {
+      setCurrentStep('defense');
+    } else if (currentStep === 'defense') {
+      setCurrentStep('outcome');
+    }
   };
 
   const handleSavePoint = async (saveAsPhase: boolean = false) => {
-    if (!gameState || !validateRally()) return;
+    if (!gameState) return;
+
+    const outcome = finalOutcome;
+    if (!outcome && !saveAsPhase) {
+      toast({ title: 'Resultado não determinado', variant: 'destructive' });
+      return;
+    }
 
     const sPlayer = players.find(p => p.id === rallyDetails.s_player_id);
     const rPlayer = players.find(p => p.id === rallyDetails.r_player_id);
@@ -183,22 +217,17 @@ export default function Live() {
       serve_rot: gameState.serveRot,
       recv_side: gameState.recvSide,
       recv_rot: gameState.recvRot,
-      // Only set point_won_by and reason if not saving as intermediate phase
-      point_won_by: saveAsPhase ? null : selectedWinner,
-      reason: saveAsPhase ? null : selectedReason,
-      // Server
+      point_won_by: saveAsPhase ? null : outcome?.point_won_by,
+      reason: saveAsPhase ? null : outcome?.reason,
       s_player_id: rallyDetails.s_player_id,
       s_no: sPlayer?.jersey_number ?? null,
       s_code: rallyDetails.s_code,
-      // Reception
       r_player_id: rallyDetails.r_player_id,
       r_no: rPlayer?.jersey_number ?? null,
       r_code: rallyDetails.r_code,
-      // Attack
       a_player_id: rallyDetails.a_player_id,
       a_no: aPlayer?.jersey_number ?? null,
       a_code: rallyDetails.a_code,
-      // Block
       b1_player_id: rallyDetails.b1_player_id,
       b1_no: b1Player?.jersey_number ?? null,
       b2_player_id: rallyDetails.b2_player_id,
@@ -206,7 +235,6 @@ export default function Live() {
       b3_player_id: rallyDetails.b3_player_id,
       b3_no: b3Player?.jersey_number ?? null,
       b_code: rallyDetails.b_code,
-      // Defense
       d_player_id: rallyDetails.d_player_id,
       d_no: dPlayer?.jersey_number ?? null,
       d_code: rallyDetails.d_code,
@@ -215,8 +243,7 @@ export default function Live() {
     const success = await saveRally(rallyData);
     if (success) {
       if (saveAsPhase) {
-        toast({ title: 'Fase guardada', description: 'Adicione mais detalhes na próxima fase' });
-        // Reset details but keep winner/reason for context
+        toast({ title: 'Fase guardada' });
         setRallyDetails({
           s_player_id: serverPlayer?.id || null,
           s_code: null,
@@ -231,26 +258,38 @@ export default function Live() {
           d_player_id: null,
           d_code: null,
         });
+        setCurrentStep('serve');
+        setManualOutcome({ winner: null, reason: null });
       } else {
-        resetSelection();
         toast({ title: 'Ponto registado' });
+        resetWizard();
       }
     }
   };
 
   const handleAddPhase = async () => {
-    // Save current details as a phase (without point_won_by)
     await handleSavePoint(true);
   };
 
   const handleUndo = async () => {
     await deleteLastRally(currentSet);
-    resetSelection();
+    resetWizard();
   };
+
+  // Check if in a later phase (block serve/recv editing)
+  const isLaterPhase = gameState && gameState.currentPhase > 1;
 
   if (loading || !match || !gameState) {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
   }
+
+  const getStepIndex = (step: WizardStep) => {
+    const steps: WizardStep[] = ['serve', 'reception', 'attack', 'block', 'defense', 'outcome'];
+    return steps.indexOf(step);
+  };
+
+  const isStepCompleted = (step: WizardStep) => getStepIndex(step) < getStepIndex(currentStep);
+  const isStepActive = (step: WizardStep) => step === currentStep;
 
   return (
     <div className="min-h-screen bg-background safe-bottom">
@@ -283,7 +322,7 @@ export default function Live() {
               key={set}
               variant={currentSet === set ? 'default' : 'outline'}
               size="sm"
-              onClick={() => { setCurrentSet(set); resetSelection(); }}
+              onClick={() => { setCurrentSet(set); resetWizard(); }}
             >
               S{set}
             </Button>
@@ -311,162 +350,201 @@ export default function Live() {
           </CardContent>
         </Card>
 
-        {/* Point Buttons */}
-        {!selectedWinner && (
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              onClick={() => setSelectedWinner('CASA')}
-              className="h-20 text-xl font-bold bg-home hover:bg-home/90"
-            >
-              Ponto {match.home_name}
-            </Button>
-            <Button
-              onClick={() => setSelectedWinner('FORA')}
-              className="h-20 text-xl font-bold bg-away hover:bg-away/90"
-            >
-              Ponto {match.away_name}
-            </Button>
-          </div>
-        )}
-
-        {/* Reason Selection */}
-        {selectedWinner && !selectedReason && (
-          <Card>
-            <CardContent className="py-4 space-y-3">
-              <div className="text-center text-sm font-medium">
-                Ponto: {selectedWinner === 'CASA' ? match.home_name : match.away_name}
+        {/* Step Progress */}
+        <div className="flex items-center justify-center gap-1 text-xs">
+          {(['serve', 'reception', 'attack', 'block', 'defense'] as WizardStep[]).map((step, idx) => (
+            <div key={step} className="flex items-center">
+              <div 
+                className={`px-2 py-1 rounded ${
+                  isStepActive(step) 
+                    ? 'bg-primary text-primary-foreground' 
+                    : isStepCompleted(step) 
+                      ? 'bg-primary/20 text-primary' 
+                      : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {step === 'serve' && 'S'}
+                {step === 'reception' && 'R'}
+                {step === 'attack' && 'A'}
+                {step === 'block' && 'B'}
+                {step === 'defense' && 'D'}
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                {REASONS.map((r) => (
+              {idx < 4 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+            </div>
+          ))}
+        </div>
+
+        {/* Wizard Steps */}
+        <Card>
+          <CardContent className="py-4 space-y-4">
+            {/* SERVE STEP */}
+            {currentStep === 'serve' && (
+              <WizardSection
+                title="Serviço"
+                players={servePlayers}
+                selectedPlayer={rallyDetails.s_player_id}
+                selectedCode={rallyDetails.s_code}
+                onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, s_player_id: id }))}
+                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, s_code: code }))}
+                disabled={isLaterPhase}
+              />
+            )}
+
+            {/* RECEPTION STEP */}
+            {currentStep === 'reception' && (
+              <WizardSection
+                title="Receção"
+                players={recvPlayers}
+                selectedPlayer={rallyDetails.r_player_id}
+                selectedCode={rallyDetails.r_code}
+                onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, r_player_id: id }))}
+                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, r_code: code }))}
+                optional
+                disabled={isLaterPhase}
+              />
+            )}
+
+            {/* ATTACK STEP */}
+            {currentStep === 'attack' && (
+              <WizardSection
+                title="Ataque"
+                players={[...servePlayers, ...recvPlayers]}
+                selectedPlayer={rallyDetails.a_player_id}
+                selectedCode={rallyDetails.a_code}
+                onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, a_player_id: id }))}
+                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code }))}
+                optional
+              />
+            )}
+
+            {/* BLOCK STEP */}
+            {currentStep === 'block' && (
+              <WizardSectionBlock
+                title="Bloco"
+                players={[...servePlayers, ...recvPlayers]}
+                selectedPlayer1={rallyDetails.b1_player_id}
+                selectedPlayer2={rallyDetails.b2_player_id}
+                selectedPlayer3={rallyDetails.b3_player_id}
+                selectedCode={rallyDetails.b_code}
+                onPlayer1Change={(id) => setRallyDetails(prev => ({ ...prev, b1_player_id: id }))}
+                onPlayer2Change={(id) => setRallyDetails(prev => ({ ...prev, b2_player_id: id }))}
+                onPlayer3Change={(id) => setRallyDetails(prev => ({ ...prev, b3_player_id: id }))}
+                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, b_code: code }))}
+                optional
+              />
+            )}
+
+            {/* DEFENSE STEP */}
+            {currentStep === 'defense' && (
+              <WizardSection
+                title="Defesa"
+                players={[...servePlayers, ...recvPlayers]}
+                selectedPlayer={rallyDetails.d_player_id}
+                selectedCode={rallyDetails.d_code}
+                onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, d_player_id: id }))}
+                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, d_code: code }))}
+                optional
+              />
+            )}
+
+            {/* OUTCOME STEP (manual) */}
+            {currentStep === 'outcome' && !autoOutcome && (
+              <div className="space-y-3">
+                <div className="text-sm font-medium">Resultado (manual)</div>
+                <div className="grid grid-cols-2 gap-2">
                   <Button
-                    key={r.value}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedReason(r.value)}
-                    className="text-xs"
+                    variant={manualOutcome.winner === 'CASA' ? 'default' : 'outline'}
+                    onClick={() => setManualOutcome(prev => ({ ...prev, winner: 'CASA' }))}
+                    className="h-12"
                   >
-                    {r.label}
+                    {match.home_name}
                   </Button>
-                ))}
-              </div>
-              <Button variant="ghost" size="sm" onClick={resetSelection} className="w-full">
-                Cancelar
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Rally Details Panel */}
-        {selectedWinner && selectedReason && (
-          <Card>
-            <CardContent className="py-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">
-                  {selectedWinner === 'CASA' ? match.home_name : match.away_name} - {REASONS.find(r => r.value === selectedReason)?.label}
+                  <Button
+                    variant={manualOutcome.winner === 'FORA' ? 'default' : 'outline'}
+                    onClick={() => setManualOutcome(prev => ({ ...prev, winner: 'FORA' }))}
+                    className="h-12"
+                  >
+                    {match.away_name}
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" onClick={resetSelection}>
+                {manualOutcome.winner && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant={manualOutcome.reason === 'OP' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setManualOutcome(prev => ({ ...prev, reason: 'OP' }))}
+                    >
+                      Outro
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Auto Outcome Display */}
+            {autoOutcome && (
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                <div className="text-sm font-medium text-center">
+                  {autoOutcome.reason}: Ponto {autoOutcome.point_won_by === 'CASA' ? match.home_name : match.away_name}
+                </div>
+              </div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex gap-2 pt-2">
+              {currentStep !== 'serve' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetWizard}
+                >
                   Cancelar
                 </Button>
-              </div>
+              )}
+              
+              <div className="flex-1" />
 
-              <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full justify-between">
-                    Detalhes do Rally
-                    <ChevronDown className={`h-4 w-4 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-4 pt-4">
-                  {/* Serviço - Always visible */}
-                  <RallySection
-                    title="Serviço"
-                    players={servePlayers}
-                    selectedPlayer={rallyDetails.s_player_id}
-                    selectedCode={rallyDetails.s_code}
-                    onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, s_player_id: id }))}
-                    onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, s_code: code }))}
-                    required={selectedReason === 'ACE' || selectedReason === 'SE'}
-                    lockedCode={selectedReason === 'ACE' ? 3 : (selectedReason === 'SE' ? 0 : undefined)}
-                  />
-
-                  {/* Receção - Hidden for SE */}
-                  {isRecVisible && (
-                    <RallySection
-                      title="Receção"
-                      players={recvPlayers}
-                      selectedPlayer={rallyDetails.r_player_id}
-                      selectedCode={rallyDetails.r_code}
-                      onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, r_player_id: id }))}
-                      onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, r_code: code }))}
-                    />
-                  )}
-
-                  {/* Ataque */}
-                  <RallySection
-                    title="Ataque"
-                    players={selectedReason === 'AE' ? loserPlayers : winnerPlayers}
-                    selectedPlayer={rallyDetails.a_player_id}
-                    selectedCode={rallyDetails.a_code}
-                    onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, a_player_id: id }))}
-                    onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, a_code: code }))}
-                    required={isAttRequired}
-                    lockedCode={selectedReason === 'KILL' ? 3 : (selectedReason === 'AE' ? 0 : undefined)}
-                  />
-
-                  {/* Bloco */}
-                  <RallySectionBlock
-                    title="Bloco"
-                    players={winnerPlayers}
-                    selectedPlayer1={rallyDetails.b1_player_id}
-                    selectedPlayer2={rallyDetails.b2_player_id}
-                    selectedPlayer3={rallyDetails.b3_player_id}
-                    selectedCode={rallyDetails.b_code}
-                    onPlayer1Change={(id) => setRallyDetails(prev => ({ ...prev, b1_player_id: id }))}
-                    onPlayer2Change={(id) => setRallyDetails(prev => ({ ...prev, b2_player_id: id }))}
-                    onPlayer3Change={(id) => setRallyDetails(prev => ({ ...prev, b3_player_id: id }))}
-                    onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, b_code: code }))}
-                    required={isBlkRequired}
-                    lockedCode={selectedReason === 'BLK' ? 3 : undefined}
-                  />
-
-                  {/* Defesa */}
-                  <RallySection
-                    title="Defesa"
-                    players={winnerPlayers}
-                    selectedPlayer={rallyDetails.d_player_id}
-                    selectedCode={rallyDetails.d_code}
-                    onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, d_player_id: id }))}
-                    onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, d_code: code }))}
-                    required={isDefRequired}
-                    lockedCode={selectedReason === 'DEF' ? 3 : undefined}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
-
-              <div className="flex gap-2 pt-2">
-                {detailedMode && (
-                  <Button
-                    variant="outline"
-                    onClick={handleAddPhase}
-                    className="flex-1 gap-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    +Fase
-                  </Button>
-                )}
+              {/* Skip button for optional steps */}
+              {(currentStep === 'reception' || currentStep === 'attack' || currentStep === 'block' || currentStep === 'defense') && !autoOutcome && (
                 <Button
-                  onClick={() => handleSavePoint(false)}
-                  className="flex-1"
+                  variant="outline"
+                  onClick={handleSkipStep}
                 >
+                  Saltar
+                </Button>
+              )}
+
+              {/* Next button */}
+              {!autoOutcome && !isServeTerminal && currentStep !== 'outcome' && (
+                <Button onClick={handleNextStep}>
+                  Próximo <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              )}
+
+              {/* +Phase button in detailed mode */}
+              {detailedMode && (currentStep !== 'serve' || rallyDetails.s_code !== null) && (
+                <Button
+                  variant="outline"
+                  onClick={handleAddPhase}
+                  className="gap-1"
+                >
+                  <Plus className="h-4 w-4" />
+                  +Fase
+                </Button>
+              )}
+
+              {/* Save button when we have an outcome */}
+              {(autoOutcome || (currentStep === 'outcome' && finalOutcome)) && (
+                <Button onClick={() => handleSavePoint(false)}>
                   Guardar Ponto
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Undo Button */}
-        {gameState.currentRally > 1 && !selectedWinner && (
+        {gameState.currentRally > 1 && currentStep === 'serve' && (
           <Button variant="outline" onClick={handleUndo} className="w-full gap-2">
             <Undo2 className="h-4 w-4" />
             Anular Último Ponto
@@ -477,80 +555,75 @@ export default function Live() {
   );
 }
 
-// Rally Section Component for single player selection
-interface RallySectionProps {
+// Wizard Section Component for single player selection
+interface WizardSectionProps {
   title: string;
   players: Player[];
   selectedPlayer: string | null;
   selectedCode: number | null;
   onPlayerChange: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
-  required?: boolean;
-  lockedCode?: number;
+  optional?: boolean;
+  disabled?: boolean;
 }
 
-function RallySection({
+function WizardSection({
   title,
   players,
   selectedPlayer,
   selectedCode,
   onPlayerChange,
   onCodeChange,
-  required = false,
-  lockedCode,
-}: RallySectionProps) {
-  useEffect(() => {
-    if (lockedCode !== undefined) {
-      onCodeChange(lockedCode);
-    }
-  }, [lockedCode, onCodeChange]);
-
+  optional = false,
+  disabled = false,
+}: WizardSectionProps) {
   return (
-    <div className="space-y-2 p-3 rounded-lg bg-muted/50">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">
           {title}
-          {required && <span className="text-destructive ml-1">*</span>}
+          {optional && <span className="text-muted-foreground ml-1">(opcional)</span>}
         </span>
       </div>
-      <div className="flex gap-2 items-center">
-        <Select
-          value={selectedPlayer || '__none__'}
-          onValueChange={(val) => onPlayerChange(val === '__none__' ? null : val)}
-        >
-          <SelectTrigger className="flex-1">
-            <SelectValue placeholder="Jogador" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">Nenhum</SelectItem>
-            {players.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                #{p.jersey_number} {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex gap-1">
-          {CODES.map((code) => (
-            <Button
-              key={code}
-              variant={selectedCode === code ? 'default' : 'outline'}
-              size="sm"
-              className="w-9 h-9"
-              onClick={() => lockedCode === undefined && onCodeChange(selectedCode === code ? null : code)}
-              disabled={lockedCode !== undefined && lockedCode !== code}
-            >
-              {code}
-            </Button>
+      <Select
+        value={selectedPlayer || '__none__'}
+        onValueChange={(val) => onPlayerChange(val === '__none__' ? null : val)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Selecionar jogador" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Nenhum</SelectItem>
+          {players.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              #{p.jersey_number} {p.name}
+            </SelectItem>
           ))}
-        </div>
+        </SelectContent>
+      </Select>
+      <div className="grid grid-cols-4 gap-2">
+        {CODES.map((code) => (
+          <Button
+            key={code}
+            variant={selectedCode === code ? 'default' : 'outline'}
+            className="h-12 text-lg"
+            onClick={() => onCodeChange(selectedCode === code ? null : code)}
+            disabled={disabled}
+          >
+            {code}
+          </Button>
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground text-center">
+        3=excelente • 2=positivo • 1=negativo • 0=erro
       </div>
     </div>
   );
 }
 
-// Rally Section for Block (up to 3 players)
-interface RallySectionBlockProps {
+// Wizard Section for Block (up to 3 players)
+interface WizardSectionBlockProps {
   title: string;
   players: Player[];
   selectedPlayer1: string | null;
@@ -561,11 +634,10 @@ interface RallySectionBlockProps {
   onPlayer2Change: (id: string | null) => void;
   onPlayer3Change: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
-  required?: boolean;
-  lockedCode?: number;
+  optional?: boolean;
 }
 
-function RallySectionBlock({
+function WizardSectionBlock({
   title,
   players,
   selectedPlayer1,
@@ -576,36 +648,15 @@ function RallySectionBlock({
   onPlayer2Change,
   onPlayer3Change,
   onCodeChange,
-  required = false,
-  lockedCode,
-}: RallySectionBlockProps) {
-  useEffect(() => {
-    if (lockedCode !== undefined) {
-      onCodeChange(lockedCode);
-    }
-  }, [lockedCode, onCodeChange]);
-
+  optional = false,
+}: WizardSectionBlockProps) {
   return (
-    <div className="space-y-2 p-3 rounded-lg bg-muted/50">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">
           {title}
-          {required && <span className="text-destructive ml-1">*</span>}
+          {optional && <span className="text-muted-foreground ml-1">(opcional)</span>}
         </span>
-        <div className="flex gap-1">
-          {CODES.map((code) => (
-            <Button
-              key={code}
-              variant={selectedCode === code ? 'default' : 'outline'}
-              size="sm"
-              className="w-9 h-9"
-              onClick={() => lockedCode === undefined && onCodeChange(selectedCode === code ? null : code)}
-              disabled={lockedCode !== undefined && lockedCode !== code}
-            >
-              {code}
-            </Button>
-          ))}
-        </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Select
@@ -656,6 +707,21 @@ function RallySectionBlock({
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {CODES.map((code) => (
+          <Button
+            key={code}
+            variant={selectedCode === code ? 'default' : 'outline'}
+            className="h-12 text-lg"
+            onClick={() => onCodeChange(selectedCode === code ? null : code)}
+          >
+            {code}
+          </Button>
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground text-center">
+        3=ponto • 2=positivo • 1=toque • 0=erro
       </div>
     </div>
   );
