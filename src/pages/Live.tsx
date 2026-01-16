@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
+import { WizardLegend } from '@/components/WizardLegend';
 import { Side, Reason, Player, MatchPlayer, Rally, PassDestination } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
@@ -527,6 +528,9 @@ export default function Live() {
             ({defSide === 'CASA' ? match.home_name : match.away_name} defende)
           </span>
         </div>
+
+        {/* Legend for new users */}
+        <WizardLegend homeName={match.home_name} awayName={match.away_name} />
 
         {/* Wizard Steps */}
         <Card>
