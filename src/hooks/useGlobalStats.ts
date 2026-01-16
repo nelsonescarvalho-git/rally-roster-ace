@@ -7,6 +7,18 @@ interface GlobalPlayerStats extends PlayerStats {
   matchCount: number;
 }
 
+interface SetterStats {
+  playerId: string;
+  playerName: string;
+  jerseyNumber: number;
+  teamName: string;
+  side: Side;
+  totalPasses: number;
+  passCodeSum: number;
+  passAvg: number;
+  matchCount: number;
+}
+
 interface GlobalSummary {
   totalMatches: number;
   totalRallies: number;
@@ -15,6 +27,7 @@ interface GlobalSummary {
   avgSideoutPercent: number;
   acesPerMatch: number;
   blocksPerMatch: number;
+  avgPassQuality: number;
 }
 
 export function useGlobalStats() {
@@ -212,6 +225,16 @@ export function useGlobalStats() {
     let blocks = 0;
     let sideoutAttempts = 0;
     let sideoutPoints = 0;
+    let passCodeSum = 0;
+    let passCodeCount = 0;
+
+    // Process all rallies for pass quality (not just final phases)
+    rallies.forEach(rally => {
+      if (rally.pass_code !== null && rally.setter_player_id) {
+        passCodeSum += rally.pass_code;
+        passCodeCount++;
+      }
+    });
 
     completedRallies.forEach(rally => {
       if (rally.reason === 'ACE') aces++;
@@ -238,8 +261,80 @@ export function useGlobalStats() {
       avgSideoutPercent: sideoutAttempts > 0 ? (sideoutPoints / sideoutAttempts) * 100 : 0,
       acesPerMatch: totalMatches > 0 ? aces / totalMatches : 0,
       blocksPerMatch: totalMatches > 0 ? blocks / totalMatches : 0,
+      avgPassQuality: passCodeCount > 0 ? passCodeSum / passCodeCount : 0,
     };
   }, [rallies, matches, playerStats]);
+
+  // Setter pass quality stats
+  const setterStats = useMemo((): SetterStats[] => {
+    const setterMap: Record<string, {
+      stats: SetterStats;
+      matchIds: Set<string>;
+    }> = {};
+
+    // Create a mapping from match_player id to aggregation key and player info
+    const playerIdToKey: Record<string, string> = {};
+    const playerIdToInfo: Record<string, { name: string; jerseyNumber: number; teamName: string; side: Side }> = {};
+    
+    players.forEach(p => {
+      const key = p.team_player_id || p.id;
+      playerIdToKey[p.id] = key;
+      const match = matches.find(m => m.id === p.match_id);
+      const teamName = p.side === 'CASA' 
+        ? match?.home_name || 'Casa' 
+        : match?.away_name || 'Fora';
+      playerIdToInfo[p.id] = {
+        name: p.name,
+        jerseyNumber: p.jersey_number,
+        teamName,
+        side: p.side as Side,
+      };
+    });
+
+    // Process all rallies with pass_code
+    rallies.forEach(rally => {
+      if (rally.setter_player_id && rally.pass_code !== null) {
+        const key = playerIdToKey[rally.setter_player_id];
+        const info = playerIdToInfo[rally.setter_player_id];
+        
+        if (!key || !info) return;
+
+        if (!setterMap[key]) {
+          setterMap[key] = {
+            stats: {
+              playerId: key,
+              playerName: info.name,
+              jerseyNumber: info.jerseyNumber,
+              teamName: info.teamName,
+              side: info.side,
+              totalPasses: 0,
+              passCodeSum: 0,
+              passAvg: 0,
+              matchCount: 0,
+            },
+            matchIds: new Set(),
+          };
+        }
+        
+        setterMap[key].stats.totalPasses++;
+        setterMap[key].stats.passCodeSum += rally.pass_code;
+        setterMap[key].matchIds.add(rally.match_id);
+      }
+    });
+
+    // Calculate averages
+    Object.values(setterMap).forEach(({ stats, matchIds }) => {
+      stats.matchCount = matchIds.size;
+      if (stats.totalPasses > 0) {
+        stats.passAvg = stats.passCodeSum / stats.totalPasses;
+      }
+    });
+
+    return Object.values(setterMap)
+      .map(s => s.stats)
+      .filter(s => s.totalPasses >= 3)
+      .sort((a, b) => b.passAvg - a.passAvg);
+  }, [rallies, players, matches]);
 
   // Rankings
   const topAttackers = useMemo(() => {
@@ -270,13 +365,19 @@ export function useGlobalStats() {
       .slice(0, 10);
   }, [playerStats]);
 
+  const topSetters = useMemo(() => {
+    return setterStats.slice(0, 10);
+  }, [setterStats]);
+
   return {
     loading,
     summary,
     playerStats,
+    setterStats,
     topAttackers,
     topReceivers,
     topServers,
     topBlockers,
+    topSetters,
   };
 }
