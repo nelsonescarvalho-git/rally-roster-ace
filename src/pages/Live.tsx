@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
-import { Side, Reason, Player, Rally } from '@/types/volleyball';
+import { Side, Reason, Player, MatchPlayer, Rally } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
 const CODES = [0, 1, 2, 3];
@@ -38,7 +38,7 @@ export default function Live() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { match, players, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide } = useMatch(matchId || null);
+  const { match, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
   const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
@@ -127,6 +127,7 @@ export default function Live() {
   // Compute auto outcome based on current rally details
   const autoOutcome = useMemo((): AutoOutcome | null => {
     if (!gameState) return null;
+    const effectivePlayers = getEffectivePlayers();
     
     // S=3 => ACE
     if (rallyDetails.s_code === 3) {
@@ -136,16 +137,20 @@ export default function Live() {
     if (rallyDetails.s_code === 0) {
       return { point_won_by: gameState.recvSide, reason: 'SE' };
     }
+    // R=0 => ACE (reception error = server wins)
+    if (rallyDetails.r_code === 0) {
+      return { point_won_by: gameState.serveSide, reason: 'ACE' };
+    }
     // A=3 => KILL (attacker wins)
     if (rallyDetails.a_code === 3 && rallyDetails.a_player_id) {
-      const attacker = players.find(p => p.id === rallyDetails.a_player_id);
+      const attacker = effectivePlayers.find(p => p.id === rallyDetails.a_player_id);
       if (attacker) {
         return { point_won_by: attacker.side as Side, reason: 'KILL' };
       }
     }
     // A=0 => AE (opponent wins)
     if (rallyDetails.a_code === 0 && rallyDetails.a_player_id) {
-      const attacker = players.find(p => p.id === rallyDetails.a_player_id);
+      const attacker = effectivePlayers.find(p => p.id === rallyDetails.a_player_id);
       if (attacker) {
         const oppSide: Side = attacker.side === 'CASA' ? 'FORA' : 'CASA';
         return { point_won_by: oppSide, reason: 'AE' };
@@ -153,21 +158,23 @@ export default function Live() {
     }
     // B=3 => BLK
     if (rallyDetails.b_code === 3 && rallyDetails.b1_player_id) {
-      const blocker = players.find(p => p.id === rallyDetails.b1_player_id);
+      const blocker = effectivePlayers.find(p => p.id === rallyDetails.b1_player_id);
       if (blocker) {
         return { point_won_by: blocker.side as Side, reason: 'BLK' };
       }
     }
-    // D=3 => DEF
-    if (rallyDetails.d_code === 3 && rallyDetails.d_player_id) {
-      const defender = players.find(p => p.id === rallyDetails.d_player_id);
-      if (defender) {
-        return { point_won_by: defender.side as Side, reason: 'DEF' };
-      }
+    // B=0 => OP (block error = attacker wins)
+    if (rallyDetails.b_code === 0) {
+      return { point_won_by: attackSide, reason: 'OP' };
+    }
+    // D=3 => DEF (great defense, but doesn't give point - skip for now)
+    // D=0 => KILL for attacker
+    if (rallyDetails.d_code === 0) {
+      return { point_won_by: attackSide, reason: 'KILL' };
     }
     
     return null;
-  }, [gameState, players, rallyDetails]);
+  }, [gameState, getEffectivePlayers, rallyDetails, attackSide]);
 
   // Determine if we should skip to save or show outcome
   const finalOutcome = autoOutcome || (manualOutcome.winner && manualOutcome.reason ? { point_won_by: manualOutcome.winner, reason: manualOutcome.reason } : null);
@@ -239,13 +246,14 @@ export default function Live() {
       return;
     }
 
-    const sPlayer = players.find(p => p.id === rallyDetails.s_player_id);
-    const rPlayer = players.find(p => p.id === rallyDetails.r_player_id);
-    const aPlayer = players.find(p => p.id === rallyDetails.a_player_id);
-    const b1Player = players.find(p => p.id === rallyDetails.b1_player_id);
-    const b2Player = players.find(p => p.id === rallyDetails.b2_player_id);
-    const b3Player = players.find(p => p.id === rallyDetails.b3_player_id);
-    const dPlayer = players.find(p => p.id === rallyDetails.d_player_id);
+    const effectivePlayers = getEffectivePlayers();
+    const sPlayer = effectivePlayers.find(p => p.id === rallyDetails.s_player_id);
+    const rPlayer = effectivePlayers.find(p => p.id === rallyDetails.r_player_id);
+    const aPlayer = effectivePlayers.find(p => p.id === rallyDetails.a_player_id);
+    const b1Player = effectivePlayers.find(p => p.id === rallyDetails.b1_player_id);
+    const b2Player = effectivePlayers.find(p => p.id === rallyDetails.b2_player_id);
+    const b3Player = effectivePlayers.find(p => p.id === rallyDetails.b3_player_id);
+    const dPlayer = effectivePlayers.find(p => p.id === rallyDetails.d_player_id);
     
     const rallyData: Partial<Rally> = {
       match_id: matchId,

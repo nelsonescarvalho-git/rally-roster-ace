@@ -1,31 +1,83 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useMatch } from '@/hooks/useMatch';
+import { useTeams } from '@/hooks/useTeams';
+import { useMatchPlayers } from '@/hooks/useMatchPlayers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Plus, Trash2, Save, Play } from 'lucide-react';
-import { Side, Player } from '@/types/volleyball';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Plus, Trash2, Save, Play, Users, Download } from 'lucide-react';
+import { Side, TeamPlayer } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Setup() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { match, players, lineups, loading, loadMatch, getPlayersForSide, getLineupForSet } = useMatch(matchId || null);
+  const { match, lineups, loading, loadMatch, getLineupForSet } = useMatch(matchId || null);
+  const { teams, createTeam, getTeamPlayers, addTeamPlayer } = useTeams();
+  const { matchPlayers, loadMatchPlayers, getPlayersForSide, importTeamPlayers, addMatchPlayer, removeMatchPlayer } = useMatchPlayers(matchId || null);
 
   const [activeSide, setActiveSide] = useState<Side>('CASA');
   const [activeSet, setActiveSet] = useState(1);
+  const [activeTab, setActiveTab] = useState('team');
+  
+  // Team selection
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  const [newTeamName, setNewTeamName] = useState('');
+  const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([]);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  
+  // New player form
   const [newPlayer, setNewPlayer] = useState({ number: '', name: '', position: '' });
+  
+  // Lineup selections
   const [lineupSelections, setLineupSelections] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (matchId) loadMatch();
-  }, [matchId, loadMatch]);
+    if (matchId) {
+      loadMatch();
+      loadMatchPlayers();
+    }
+  }, [matchId, loadMatch, loadMatchPlayers]);
+
+  // Load team based on match team_id
+  useEffect(() => {
+    if (match) {
+      const teamId = activeSide === 'CASA' ? match.home_team_id : match.away_team_id;
+      if (teamId) {
+        setSelectedTeamId(teamId);
+      } else {
+        setSelectedTeamId('');
+      }
+    }
+  }, [match, activeSide]);
+
+  // Load team players when team is selected
+  useEffect(() => {
+    if (selectedTeamId) {
+      loadTeamPlayers();
+    } else {
+      setTeamPlayers([]);
+    }
+  }, [selectedTeamId]);
+
+  const loadTeamPlayers = async () => {
+    if (!selectedTeamId) return;
+    const players = await getTeamPlayers(selectedTeamId);
+    setTeamPlayers(players);
+    
+    // Pre-select players that are already in match_players
+    const matchPlayerTeamIds = matchPlayers
+      .filter(mp => mp.side === activeSide && mp.team_player_id)
+      .map(mp => mp.team_player_id);
+    setSelectedPlayerIds(new Set(matchPlayerTeamIds.filter(Boolean) as string[]));
+  };
 
   useEffect(() => {
     const lineup = getLineupForSet(activeSet, activeSide);
@@ -43,33 +95,72 @@ export default function Setup() {
     }
   }, [activeSet, activeSide, getLineupForSet]);
 
-  const addPlayer = async () => {
-    if (!matchId || !newPlayer.number || !newPlayer.name) return;
+  const handleCreateTeam = async () => {
+    if (!newTeamName.trim()) return;
+    const team = await createTeam(newTeamName.trim());
+    if (team) {
+      setSelectedTeamId(team.id);
+      setNewTeamName('');
+      // Update match with team reference
+      await updateMatchTeam(team.id);
+    }
+  };
+
+  const handleSelectTeam = async (teamId: string) => {
+    setSelectedTeamId(teamId);
+    await updateMatchTeam(teamId);
+  };
+
+  const updateMatchTeam = async (teamId: string) => {
+    if (!matchId) return;
+    const field = activeSide === 'CASA' ? 'home_team_id' : 'away_team_id';
     try {
-      const { error } = await supabase.from('players').insert([{
-        match_id: matchId,
-        side: activeSide,
-        jersey_number: parseInt(newPlayer.number),
-        name: newPlayer.name.trim(),
-        position: newPlayer.position.trim() || null,
-      }]);
-      if (error) throw error;
-      setNewPlayer({ number: '', name: '', position: '' });
-      loadMatch();
-      toast({ title: 'Jogador adicionado' });
+      await supabase
+        .from('matches')
+        .update({ [field]: teamId })
+        .eq('id', matchId);
+      await loadMatch();
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 
-  const deletePlayer = async (playerId: string) => {
-    try {
-      const { error } = await supabase.from('players').delete().eq('id', playerId);
-      if (error) throw error;
-      loadMatch();
-    } catch (error: any) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+  const handleAddPlayerToTeam = async () => {
+    if (!selectedTeamId || !newPlayer.number || !newPlayer.name) return;
+    const player = await addTeamPlayer(
+      selectedTeamId,
+      parseInt(newPlayer.number),
+      newPlayer.name,
+      newPlayer.position || null
+    );
+    if (player) {
+      setNewPlayer({ number: '', name: '', position: '' });
+      await loadTeamPlayers();
     }
+  };
+
+  const togglePlayerSelection = (playerId: string) => {
+    const newSet = new Set(selectedPlayerIds);
+    if (newSet.has(playerId)) {
+      newSet.delete(playerId);
+    } else {
+      newSet.add(playerId);
+    }
+    setSelectedPlayerIds(newSet);
+  };
+
+  const handleImportSelectedPlayers = async () => {
+    if (!selectedTeamId) return;
+    const selectedPlayers = teamPlayers.filter(tp => selectedPlayerIds.has(tp.id));
+    if (selectedPlayers.length === 0) {
+      toast({ title: 'Aviso', description: 'Selecione pelo menos um jogador', variant: 'destructive' });
+      return;
+    }
+    await importTeamPlayers(selectedTeamId, activeSide, selectedPlayers);
+  };
+
+  const handleRemoveMatchPlayer = async (playerId: string) => {
+    await removeMatchPlayer(playerId);
   };
 
   const saveLineup = async () => {
@@ -150,51 +241,150 @@ export default function Setup() {
           </Button>
         </div>
 
-        <Tabs defaultValue="players">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full">
-            <TabsTrigger value="players" className="flex-1">Plantel</TabsTrigger>
+            <TabsTrigger value="team" className="flex-1">
+              <Users className="h-4 w-4 mr-1" />
+              Equipa
+            </TabsTrigger>
+            <TabsTrigger value="match" className="flex-1">Jogadores</TabsTrigger>
             <TabsTrigger value="lineup" className="flex-1">Lineup</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="players" className="space-y-4">
+          {/* TEAM TAB - Select/Create team and manage roster */}
+          <TabsContent value="team" className="space-y-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Adicionar Jogador</CardTitle>
+                <CardTitle className="text-sm">Selecionar Equipa</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Nº"
-                    value={newPlayer.number}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, number: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Nome"
-                    value={newPlayer.name}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
-                    className="col-span-2"
-                  />
-                </div>
+                <Select value={selectedTeamId} onValueChange={handleSelectTeam}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolher equipa existente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Posição (opcional)"
-                    value={newPlayer.position}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
+                    placeholder="Nova equipa..."
+                    value={newTeamName}
+                    onChange={(e) => setNewTeamName(e.target.value)}
                     className="flex-1"
                   />
-                  <Button onClick={addPlayer} disabled={!newPlayer.number || !newPlayer.name}>
+                  <Button onClick={handleCreateTeam} disabled={!newTeamName.trim()}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
+            {selectedTeamId && (
+              <>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Adicionar Jogador ao Plantel</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Nº"
+                        value={newPlayer.number}
+                        onChange={(e) => setNewPlayer({ ...newPlayer, number: e.target.value })}
+                      />
+                      <Input
+                        placeholder="Nome"
+                        value={newPlayer.name}
+                        onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
+                        className="col-span-2"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Posição (opcional)"
+                        value={newPlayer.position}
+                        onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
+                        className="flex-1"
+                      />
+                      <Button onClick={handleAddPlayerToTeam} disabled={!newPlayer.number || !newPlayer.name}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">Plantel da Equipa</CardTitle>
+                      <Button
+                        size="sm"
+                        onClick={handleImportSelectedPlayers}
+                        disabled={selectedPlayerIds.size === 0}
+                        className="gap-1"
+                      >
+                        <Download className="h-4 w-4" />
+                        Importar ({selectedPlayerIds.size})
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {teamPlayers.length === 0 ? (
+                      <p className="text-center text-sm text-muted-foreground py-4">
+                        Adicione jogadores ao plantel
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {teamPlayers.map((player) => (
+                          <div
+                            key={player.id}
+                            className="flex items-center gap-3 p-2 rounded-lg border"
+                          >
+                            <Checkbox
+                              checked={selectedPlayerIds.has(player.id)}
+                              onCheckedChange={() => togglePlayerSelection(player.id)}
+                            />
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                              {player.jersey_number}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{player.name}</div>
+                              {player.position && (
+                                <div className="text-xs text-muted-foreground">{player.position}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* MATCH TAB - Players in this match */}
+          <TabsContent value="match" className="space-y-4">
             <div className="space-y-2">
               {sidePlayers.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-8">
-                  Adicione jogadores ao plantel
-                </p>
+                <Card className="border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                    <Users className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum jogador neste jogo.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Vá ao separador "Equipa" para importar jogadores.
+                    </p>
+                  </CardContent>
+                </Card>
               ) : (
                 sidePlayers.map((player) => (
                   <Card key={player.id}>
@@ -210,7 +400,7 @@ export default function Setup() {
                           )}
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => deletePlayer(player.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveMatchPlayer(player.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </CardContent>
@@ -220,6 +410,7 @@ export default function Setup() {
             </div>
           </TabsContent>
 
+          {/* LINEUP TAB */}
           <TabsContent value="lineup" className="space-y-4">
             <div className="flex gap-1 overflow-x-auto pb-2">
               {[1, 2, 3, 4, 5].map((set) => (
@@ -239,30 +430,38 @@ export default function Setup() {
                 <CardTitle className="text-sm">Lineup Set {activeSet} - {teamName}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {[1, 2, 3, 4, 5, 6].map((rot) => (
-                  <div key={rot} className="flex items-center gap-3">
-                    <Label className="w-16 text-sm">Rot {rot}</Label>
-                    <Select
-                      value={lineupSelections[`rot${rot}`] || ''}
-                      onValueChange={(v) => setLineupSelections({ ...lineupSelections, [`rot${rot}`]: v })}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecionar jogador" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sidePlayers.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            #{p.jersey_number} {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-                <Button onClick={saveLineup} className="w-full gap-2">
-                  <Save className="h-4 w-4" />
-                  Guardar Lineup
-                </Button>
+                {sidePlayers.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">
+                    Importe jogadores primeiro no separador "Equipa"
+                  </p>
+                ) : (
+                  <>
+                    {[1, 2, 3, 4, 5, 6].map((rot) => (
+                      <div key={rot} className="flex items-center gap-3">
+                        <Label className="w-16 text-sm">Rot {rot}</Label>
+                        <Select
+                          value={lineupSelections[`rot${rot}`] || ''}
+                          onValueChange={(v) => setLineupSelections({ ...lineupSelections, [`rot${rot}`]: v })}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Selecionar jogador" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sidePlayers.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                #{p.jersey_number} {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                    <Button onClick={saveLineup} className="w-full gap-2">
+                      <Save className="h-4 w-4" />
+                      Guardar Lineup
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

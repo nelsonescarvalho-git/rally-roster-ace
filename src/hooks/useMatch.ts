@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Match, Player, Lineup, Rally, Side, GameState } from '@/types/volleyball';
+import { Match, Player, MatchPlayer, Lineup, Rally, Side, GameState } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
 export function useMatch(matchId: string | null) {
   const { toast } = useToast();
   const [match, setMatch] = useState<Match | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [matchPlayers, setMatchPlayers] = useState<MatchPlayer[]>([]);
   const [lineups, setLineups] = useState<Lineup[]>([]);
   const [rallies, setRallies] = useState<Rally[]>([]);
   const [loading, setLoading] = useState(false);
@@ -15,15 +16,17 @@ export function useMatch(matchId: string | null) {
     if (!matchId) return;
     setLoading(true);
     try {
-      const [matchRes, playersRes, lineupsRes, ralliesRes] = await Promise.all([
+      const [matchRes, playersRes, matchPlayersRes, lineupsRes, ralliesRes] = await Promise.all([
         supabase.from('matches').select('*').eq('id', matchId).maybeSingle(),
         supabase.from('players').select('*').eq('match_id', matchId).order('jersey_number'),
+        supabase.from('match_players').select('*').eq('match_id', matchId).order('jersey_number'),
         supabase.from('lineups').select('*').eq('match_id', matchId),
         supabase.from('rallies').select('*').eq('match_id', matchId).order('set_no').order('rally_no').order('phase'),
       ]);
 
       if (matchRes.data) setMatch(matchRes.data as Match);
       if (playersRes.data) setPlayers(playersRes.data as Player[]);
+      if (matchPlayersRes.data) setMatchPlayers(matchPlayersRes.data as MatchPlayer[]);
       if (lineupsRes.data) setLineups(lineupsRes.data as Lineup[]);
       if (ralliesRes.data) setRallies(ralliesRes.data as Rally[]);
     } catch (error) {
@@ -33,9 +36,18 @@ export function useMatch(matchId: string | null) {
     }
   }, [matchId, toast]);
 
-  const getPlayersForSide = useCallback((side: Side) => {
-    return players.filter(p => p.side === side);
-  }, [players]);
+  // Get effective players: prefer match_players, fallback to legacy players
+  const getEffectivePlayers = useCallback((): (Player | MatchPlayer)[] => {
+    if (matchPlayers.length > 0) {
+      return matchPlayers;
+    }
+    return players;
+  }, [matchPlayers, players]);
+
+  const getPlayersForSide = useCallback((side: Side): (Player | MatchPlayer)[] => {
+    const effectivePlayers = getEffectivePlayers();
+    return effectivePlayers.filter(p => p.side === side);
+  }, [getEffectivePlayers]);
 
   const getLineupForSet = useCallback((setNo: number, side: Side) => {
     return lineups.find(l => l.set_no === setNo && l.side === side);
@@ -45,13 +57,14 @@ export function useMatch(matchId: string | null) {
     return rallies.filter(r => r.set_no === setNo);
   }, [rallies]);
 
-  const getServerPlayer = useCallback((setNo: number, side: Side, rotation: number): Player | null => {
+  const getServerPlayer = useCallback((setNo: number, side: Side, rotation: number): (Player | MatchPlayer) | null => {
     const lineup = getLineupForSet(setNo, side);
     if (!lineup) return null;
     const rotKey = `rot${rotation}` as keyof Lineup;
     const playerId = lineup[rotKey] as string | null;
-    return players.find(p => p.id === playerId) || null;
-  }, [getLineupForSet, players]);
+    const effectivePlayers = getEffectivePlayers();
+    return effectivePlayers.find(p => p.id === playerId) || null;
+  }, [getLineupForSet, getEffectivePlayers]);
 
   const calculateScore = useCallback((setNo: number): { home: number; away: number } => {
     const setRallies = getRalliesForSet(setNo);
@@ -231,11 +244,13 @@ export function useMatch(matchId: string | null) {
   return {
     match,
     players,
+    matchPlayers,
     lineups,
     rallies,
     loading,
     loadMatch,
     getPlayersForSide,
+    getEffectivePlayers,
     getLineupForSet,
     getRalliesForSet,
     getServerPlayer,
