@@ -190,53 +190,88 @@ export default function Live() {
   const isServeTerminal = rallyDetails.s_code === 3 || rallyDetails.s_code === 0;
 
   const handlePrevStep = () => {
-    if (currentStep === 'reception') {
-      setCurrentStep('serve');
-    } else if (currentStep === 'setter') {
-      setCurrentStep('reception');
-    } else if (currentStep === 'attack') {
-      setCurrentStep('setter');
-    } else if (currentStep === 'block') {
-      setCurrentStep('attack');
-    } else if (currentStep === 'defense') {
-      setCurrentStep('block');
-    } else if (currentStep === 'outcome') {
-      setCurrentStep('defense');
+    if (isLaterPhase) {
+      // For phase > 1, skip serve and reception
+      if (currentStep === 'setter') {
+        // Can't go back from setter in later phases
+        return;
+      } else if (currentStep === 'attack') {
+        setCurrentStep('setter');
+      } else if (currentStep === 'block') {
+        setCurrentStep('attack');
+      } else if (currentStep === 'defense') {
+        setCurrentStep('block');
+      } else if (currentStep === 'outcome') {
+        setCurrentStep('defense');
+      }
+    } else {
+      // Phase 1 - full flow
+      if (currentStep === 'reception') {
+        setCurrentStep('serve');
+      } else if (currentStep === 'setter') {
+        setCurrentStep('reception');
+      } else if (currentStep === 'attack') {
+        setCurrentStep('setter');
+      } else if (currentStep === 'block') {
+        setCurrentStep('attack');
+      } else if (currentStep === 'defense') {
+        setCurrentStep('block');
+      } else if (currentStep === 'outcome') {
+        setCurrentStep('defense');
+      }
     }
   };
 
   const handleNextStep = () => {
-    if (currentStep === 'serve') {
-      if (rallyDetails.s_code === null) {
-        toast({ title: 'Selecione o código do serviço', variant: 'destructive' });
-        return;
+    if (isLaterPhase) {
+      // For phase > 1, skip serve and reception
+      if (currentStep === 'setter') {
+        setCurrentStep('attack');
+      } else if (currentStep === 'attack') {
+        if (autoOutcome) return;
+        setCurrentStep('block');
+      } else if (currentStep === 'block') {
+        if (autoOutcome) return;
+        setCurrentStep('defense');
+      } else if (currentStep === 'defense') {
+        if (autoOutcome) return;
+        setCurrentStep('outcome');
       }
-      if (!rallyDetails.s_player_id) {
-        toast({ title: 'Selecione o servidor', variant: 'destructive' });
-        return;
+    } else {
+      // Phase 1 - full flow
+      if (currentStep === 'serve') {
+        if (rallyDetails.s_code === null) {
+          toast({ title: 'Selecione o código do serviço', variant: 'destructive' });
+          return;
+        }
+        if (!rallyDetails.s_player_id) {
+          toast({ title: 'Selecione o servidor', variant: 'destructive' });
+          return;
+        }
+        // If ACE or SE, go directly to save
+        if (isServeTerminal) {
+          return; // Auto outcome will show save button
+        }
+        setCurrentStep('reception');
+      } else if (currentStep === 'reception') {
+        setCurrentStep('setter');
+      } else if (currentStep === 'setter') {
+        setCurrentStep('attack');
+      } else if (currentStep === 'attack') {
+        if (autoOutcome) return;
+        setCurrentStep('block');
+      } else if (currentStep === 'block') {
+        if (autoOutcome) return;
+        setCurrentStep('defense');
+      } else if (currentStep === 'defense') {
+        if (autoOutcome) return;
+        setCurrentStep('outcome');
       }
-      // If ACE or SE, go directly to save
-      if (isServeTerminal) {
-        return; // Auto outcome will show save button
-      }
-      setCurrentStep('reception');
-    } else if (currentStep === 'reception') {
-      setCurrentStep('setter');
-    } else if (currentStep === 'setter') {
-      setCurrentStep('attack');
-    } else if (currentStep === 'attack') {
-      if (autoOutcome) return; // Already have outcome
-      setCurrentStep('block');
-    } else if (currentStep === 'block') {
-      if (autoOutcome) return;
-      setCurrentStep('defense');
-    } else if (currentStep === 'defense') {
-      if (autoOutcome) return;
-      setCurrentStep('outcome');
     }
   };
 
   const handleSkipStep = () => {
+    // Skip works the same for both phases (only for steps that exist)
     if (currentStep === 'reception') {
       setCurrentStep('setter');
     } else if (currentStep === 'setter') {
@@ -322,7 +357,8 @@ export default function Live() {
           d_player_id: null,
           d_code: null,
         });
-        setCurrentStep('serve');
+        // For new phase, start at setter (not serve/reception)
+        setCurrentStep('setter');
         setManualOutcome({ winner: null, reason: null });
       } else {
         toast({ title: 'Ponto registado' });
@@ -346,9 +382,13 @@ export default function Live() {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
   }
 
+  // Steps differ based on phase
+  const phaseSteps: WizardStep[] = isLaterPhase 
+    ? ['setter', 'attack', 'block', 'defense', 'outcome']
+    : ['serve', 'reception', 'setter', 'attack', 'block', 'defense', 'outcome'];
+
   const getStepIndex = (step: WizardStep) => {
-    const steps: WizardStep[] = ['serve', 'reception', 'attack', 'block', 'defense', 'outcome'];
-    return steps.indexOf(step);
+    return phaseSteps.indexOf(step);
   };
 
   const isStepCompleted = (step: WizardStep) => getStepIndex(step) < getStepIndex(currentStep);
@@ -413,9 +453,12 @@ export default function Live() {
           </CardContent>
         </Card>
 
-        {/* Step Progress */}
+        {/* Step Progress - Phase aware */}
         <div className="flex items-center justify-center gap-1 text-xs">
-          {(['serve', 'reception', 'setter', 'attack', 'block', 'defense'] as WizardStep[]).map((step, idx) => (
+          {(isLaterPhase 
+            ? (['setter', 'attack', 'block', 'defense'] as WizardStep[])
+            : (['serve', 'reception', 'setter', 'attack', 'block', 'defense'] as WizardStep[])
+          ).map((step, idx, arr) => (
             <div key={step} className="flex items-center">
               <div 
                 className={`px-2 py-1 rounded ${
@@ -433,7 +476,7 @@ export default function Live() {
                 {step === 'block' && 'B'}
                 {step === 'defense' && 'D'}
               </div>
-              {idx < 5 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              {idx < arr.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
             </div>
           ))}
         </div>
@@ -591,7 +634,8 @@ export default function Live() {
 
             {/* Navigation Buttons */}
             <div className="flex gap-2 pt-2">
-              {currentStep !== 'serve' && (
+              {/* Show back button unless at first step of current phase */}
+              {!(isLaterPhase ? currentStep === 'setter' : currentStep === 'serve') && (
                 <Button
                   variant="outline"
                   size="sm"
