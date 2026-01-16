@@ -22,6 +22,8 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
         attAttempts: 0,
         attPoints: 0,
         attErrors: 0,
+        attFloorKills: 0,
+        attBlockoutKills: 0,
         attAvg: 0,
         attEfficiency: 0,
         blkAttempts: 0,
@@ -61,7 +63,15 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
       // Attack
       if (rally.a_player_id && rally.a_code !== null && stats[rally.a_player_id]) {
         stats[rally.a_player_id].attAttempts++;
-        if (rally.a_code === 3) stats[rally.a_player_id].attPoints++;
+        if (rally.a_code === 3) {
+          stats[rally.a_player_id].attPoints++;
+          // Track kill type
+          if (rally.kill_type === 'FLOOR') {
+            stats[rally.a_player_id].attFloorKills++;
+          } else if (rally.kill_type === 'BLOCKOUT') {
+            stats[rally.a_player_id].attBlockoutKills++;
+          }
+        }
         if (rally.a_code === 0) stats[rally.a_player_id].attErrors++;
       }
 

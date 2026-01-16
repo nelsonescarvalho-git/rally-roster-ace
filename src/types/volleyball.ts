@@ -1,6 +1,7 @@
 export type Side = 'CASA' | 'FORA';
 export type Reason = 'ACE' | 'SE' | 'KILL' | 'AE' | 'BLK' | 'DEF' | 'OP';
 export type KPhase = 'K1' | 'K2' | 'K3';
+export type KillType = 'FLOOR' | 'BLOCKOUT';
 
 // Persistent team (reusable across matches)
 export interface Team {
@@ -108,6 +109,7 @@ export interface Rally {
   setter_player_id: string | null;
   pass_destination: PassDestination | null;
   pass_code: number | null;
+  kill_type: KillType | null;
   created_at: string;
 }
 
@@ -141,6 +143,8 @@ export interface PlayerStats {
   attAttempts: number;
   attPoints: number;
   attErrors: number;
+  attFloorKills: number;
+  attBlockoutKills: number;
   attAvg: number;
   attEfficiency: number;
   blkAttempts: number;

@@ -6,7 +6,7 @@ import { BarChart3, TrendingUp, Target, Award, Loader2, Zap, Shield, Users } fro
 import { useGlobalStats } from '@/hooks/useGlobalStats';
 
 export default function KPIs() {
-  const { loading, summary, topAttackers, topReceivers, topServers, topBlockers, topSetters } = useGlobalStats();
+  const { loading, summary, topAttackers, topReceivers, topServers, topBlockers, topSetters, teamDefenseStats } = useGlobalStats();
 
   if (loading) {
     return (
@@ -106,10 +106,14 @@ export default function KPIs() {
           </Card>
         ) : (
           <Tabs defaultValue="attack" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="attack" className="text-xs">
                 <Zap className="mr-1 h-3 w-3" />
                 Ataque
+              </TabsTrigger>
+              <TabsTrigger value="defense-team" className="text-xs">
+                <Shield className="mr-1 h-3 w-3" />
+                Defesa
               </TabsTrigger>
               <TabsTrigger value="reception" className="text-xs">
                 <TrendingUp className="mr-1 h-3 w-3" />
@@ -142,6 +146,8 @@ export default function KPIs() {
                         <TableHead>Jogador</TableHead>
                         <TableHead className="text-right">Att</TableHead>
                         <TableHead className="text-right">K</TableHead>
+                        <TableHead className="text-right text-xs">Chão</TableHead>
+                        <TableHead className="text-right text-xs">B.Out</TableHead>
                         <TableHead className="text-right">E</TableHead>
                         <TableHead className="text-right">Eff%</TableHead>
                       </TableRow>
@@ -149,7 +155,7 @@ export default function KPIs() {
                     <TableBody>
                       {topAttackers.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
                             Dados insuficientes (min. 5 ataques)
                           </TableCell>
                         </TableRow>
@@ -169,9 +175,58 @@ export default function KPIs() {
                             </TableCell>
                             <TableCell className="text-right">{player.attAttempts}</TableCell>
                             <TableCell className="text-right text-success">{player.attPoints}</TableCell>
+                            <TableCell className="text-right text-xs">{player.attFloorKills}</TableCell>
+                            <TableCell className="text-right text-xs">{player.attBlockoutKills}</TableCell>
                             <TableCell className="text-right text-destructive">{player.attErrors}</TableCell>
                             <TableCell className="text-right font-bold">
                               {(player.attEfficiency * 100).toFixed(0)}%
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="defense-team" className="mt-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Kills Sofridos por Equipa</CardTitle>
+                  <p className="text-xs text-muted-foreground">Como cada equipa sofre ataques adversários</p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Equipa</TableHead>
+                        <TableHead className="text-right">Kills</TableHead>
+                        <TableHead className="text-right">Chão</TableHead>
+                        <TableHead className="text-right">%</TableHead>
+                        <TableHead className="text-right">B.Out</TableHead>
+                        <TableHead className="text-right">%</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamDefenseStats.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                            Sem dados de kills registados
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        teamDefenseStats.map((team) => (
+                          <TableRow key={team.teamName}>
+                            <TableCell className="font-medium">{team.teamName}</TableCell>
+                            <TableCell className="text-right">{team.killsSuffered}</TableCell>
+                            <TableCell className="text-right">{team.floorKillsSuffered}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {team.floorPct.toFixed(0)}%
+                            </TableCell>
+                            <TableCell className="text-right">{team.blockoutKillsSuffered}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {team.blockoutPct.toFixed(0)}%
                             </TableCell>
                           </TableRow>
                         ))
