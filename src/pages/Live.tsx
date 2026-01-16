@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { WizardLegend } from '@/components/WizardLegend';
+import { RecentPlays } from '@/components/RecentPlays';
 import { Side, Reason, Player, MatchPlayer, Rally, PassDestination } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
@@ -42,7 +43,7 @@ export default function Live() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { match, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers } = useMatch(matchId || null);
+  const { match, rallies, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
   const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
@@ -531,6 +532,15 @@ export default function Live() {
 
         {/* Legend for new users */}
         <WizardLegend homeName={match.home_name} awayName={match.away_name} />
+
+        {/* Recent plays summary */}
+        <RecentPlays 
+          rallies={rallies} 
+          players={getEffectivePlayers()} 
+          homeName={match.home_name} 
+          awayName={match.away_name}
+          currentSet={currentSet}
+        />
 
         {/* Wizard Steps */}
         <Card>
