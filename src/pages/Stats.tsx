@@ -12,7 +12,8 @@ import { Side } from '@/types/volleyball';
 export default function Stats() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
-  const { match, players, rallies, loading, loadMatch, getRalliesForSet } = useMatch(matchId || null);
+  const { match, rallies, loading, loadMatch, getRalliesForSet, getEffectivePlayers } = useMatch(matchId || null);
+  const effectivePlayers = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0); // 0 = all
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
 
@@ -21,7 +22,7 @@ export default function Stats() {
   }, [matchId, loadMatch]);
 
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
-  const { playerStats, rotationStats } = useStats(filteredRallies, players);
+  const { playerStats, rotationStats } = useStats(filteredRallies, effectivePlayers);
   const filteredPlayerStats = playerStats.filter(p => p.side === selectedSide);
   const filteredRotationStats = rotationStats.filter(r => r.side === selectedSide);
 
