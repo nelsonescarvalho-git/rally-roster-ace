@@ -361,35 +361,35 @@ export type Database = {
             foreignKeyName: "rallies_a_player_id_fkey"
             columns: ["a_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rallies_b1_player_id_fkey"
             columns: ["b1_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rallies_b2_player_id_fkey"
             columns: ["b2_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rallies_b3_player_id_fkey"
             columns: ["b3_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rallies_d_player_id_fkey"
             columns: ["d_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
@@ -403,14 +403,14 @@ export type Database = {
             foreignKeyName: "rallies_r_player_id_fkey"
             columns: ["r_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rallies_s_player_id_fkey"
             columns: ["s_player_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "match_players"
             referencedColumns: ["id"]
           },
         ]
