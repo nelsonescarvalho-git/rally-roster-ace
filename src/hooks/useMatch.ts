@@ -85,6 +85,53 @@ export function useMatch(matchId: string | null) {
     return { home, away };
   }, [getRalliesForSet]);
 
+  // Check if a set is complete based on volleyball rules
+  const isSetComplete = useCallback((setNo: number): { 
+    complete: boolean; 
+    winner: Side | null;
+    homeScore: number;
+    awayScore: number;
+  } => {
+    const { home, away } = calculateScore(setNo);
+    const targetPoints = setNo === 5 ? 15 : 25;
+    const margin = Math.abs(home - away);
+    
+    // Set ends when someone reaches target AND has 2+ point advantage
+    if (home >= targetPoints && margin >= 2 && home > away) {
+      return { complete: true, winner: 'CASA', homeScore: home, awayScore: away };
+    }
+    if (away >= targetPoints && margin >= 2 && away > home) {
+      return { complete: true, winner: 'FORA', homeScore: home, awayScore: away };
+    }
+    
+    return { complete: false, winner: null, homeScore: home, awayScore: away };
+  }, [calculateScore]);
+
+  // Get overall match status
+  const getMatchStatus = useCallback((): {
+    setsHome: number;
+    setsAway: number;
+    matchComplete: boolean;
+    matchWinner: Side | null;
+    setResults: Array<{ setNo: number; home: number; away: number; winner: Side | null; complete: boolean }>;
+  } => {
+    let setsHome = 0;
+    let setsAway = 0;
+    const setResults: Array<{ setNo: number; home: number; away: number; winner: Side | null; complete: boolean }> = [];
+    
+    for (let s = 1; s <= 5; s++) {
+      const result = isSetComplete(s);
+      setResults.push({ setNo: s, home: result.homeScore, away: result.awayScore, winner: result.winner, complete: result.complete });
+      if (result.winner === 'CASA') setsHome++;
+      else if (result.winner === 'FORA') setsAway++;
+    }
+    
+    const matchComplete = setsHome >= 3 || setsAway >= 3;
+    const matchWinner = matchComplete ? (setsHome >= 3 ? 'CASA' : 'FORA') : null;
+    
+    return { setsHome, setsAway, matchComplete, matchWinner, setResults };
+  }, [isSetComplete]);
+
   const getGameState = useCallback((setNo: number): GameState | null => {
     if (!match) return null;
 
@@ -259,6 +306,8 @@ export function useMatch(matchId: string | null) {
     getRalliesForSet,
     getServerPlayer,
     calculateScore,
+    isSetComplete,
+    getMatchStatus,
     getGameState,
     saveRally,
     updateRally,
