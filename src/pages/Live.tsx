@@ -7,18 +7,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
-import { Side, Reason, Player, MatchPlayer, Rally } from '@/types/volleyball';
+import { Side, Reason, Player, MatchPlayer, Rally, PassDestination } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
 const CODES = [0, 1, 2, 3];
+const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK', 'OUTROS'];
 
-type WizardStep = 'serve' | 'reception' | 'attack' | 'block' | 'defense' | 'outcome';
+type WizardStep = 'serve' | 'reception' | 'setter' | 'attack' | 'block' | 'defense' | 'outcome';
 
 interface RallyDetails {
   s_player_id: string | null;
   s_code: number | null;
   r_player_id: string | null;
   r_code: number | null;
+  setter_player_id: string | null;
+  pass_destination: PassDestination | null;
   a_player_id: string | null;
   a_code: number | null;
   b1_player_id: string | null;
@@ -52,6 +55,8 @@ export default function Live() {
     s_code: null,
     r_player_id: null,
     r_code: null,
+    setter_player_id: null,
+    pass_destination: null,
     a_player_id: null,
     a_code: null,
     b1_player_id: null,
@@ -88,6 +93,8 @@ export default function Live() {
       s_code: null,
       r_player_id: null,
       r_code: null,
+      setter_player_id: null,
+      pass_destination: null,
       a_player_id: null,
       a_code: null,
       b1_player_id: null,
@@ -185,8 +192,10 @@ export default function Live() {
   const handlePrevStep = () => {
     if (currentStep === 'reception') {
       setCurrentStep('serve');
-    } else if (currentStep === 'attack') {
+    } else if (currentStep === 'setter') {
       setCurrentStep('reception');
+    } else if (currentStep === 'attack') {
+      setCurrentStep('setter');
     } else if (currentStep === 'block') {
       setCurrentStep('attack');
     } else if (currentStep === 'defense') {
@@ -212,6 +221,8 @@ export default function Live() {
       }
       setCurrentStep('reception');
     } else if (currentStep === 'reception') {
+      setCurrentStep('setter');
+    } else if (currentStep === 'setter') {
       setCurrentStep('attack');
     } else if (currentStep === 'attack') {
       if (autoOutcome) return; // Already have outcome
@@ -227,6 +238,8 @@ export default function Live() {
 
   const handleSkipStep = () => {
     if (currentStep === 'reception') {
+      setCurrentStep('setter');
+    } else if (currentStep === 'setter') {
       setCurrentStep('attack');
     } else if (currentStep === 'attack') {
       setCurrentStep('block');
@@ -285,6 +298,8 @@ export default function Live() {
       d_player_id: rallyDetails.d_player_id,
       d_no: dPlayer?.jersey_number ?? null,
       d_code: rallyDetails.d_code,
+      setter_player_id: rallyDetails.setter_player_id,
+      pass_destination: rallyDetails.pass_destination,
     };
 
     const success = await saveRally(rallyData);
@@ -296,6 +311,8 @@ export default function Live() {
           s_code: null,
           r_player_id: null,
           r_code: null,
+          setter_player_id: null,
+          pass_destination: null,
           a_player_id: null,
           a_code: null,
           b1_player_id: null,
@@ -398,7 +415,7 @@ export default function Live() {
 
         {/* Step Progress */}
         <div className="flex items-center justify-center gap-1 text-xs">
-          {(['serve', 'reception', 'attack', 'block', 'defense'] as WizardStep[]).map((step, idx) => (
+          {(['serve', 'reception', 'setter', 'attack', 'block', 'defense'] as WizardStep[]).map((step, idx) => (
             <div key={step} className="flex items-center">
               <div 
                 className={`px-2 py-1 rounded ${
@@ -411,11 +428,12 @@ export default function Live() {
               >
                 {step === 'serve' && 'S'}
                 {step === 'reception' && 'R'}
+                {step === 'setter' && 'Se'}
                 {step === 'attack' && 'A'}
                 {step === 'block' && 'B'}
                 {step === 'defense' && 'D'}
               </div>
-              {idx < 4 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              {idx < 5 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
             </div>
           ))}
         </div>
@@ -447,6 +465,17 @@ export default function Live() {
                 onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, r_code: code }))}
                 optional
                 disabled={!!isLaterPhase}
+              />
+            )}
+
+            {/* SETTER STEP */}
+            {currentStep === 'setter' && (
+              <SetterSection
+                players={uniquePlayers(recvPlayers)}
+                selectedSetter={rallyDetails.setter_player_id}
+                selectedDestination={rallyDetails.pass_destination}
+                onSetterChange={(id) => setRallyDetails(prev => ({ ...prev, setter_player_id: id }))}
+                onDestinationChange={(dest) => setRallyDetails(prev => ({ ...prev, pass_destination: dest }))}
               />
             )}
 
@@ -584,7 +613,7 @@ export default function Live() {
               <div className="flex-1" />
 
               {/* Skip button for optional steps */}
-              {(currentStep === 'reception' || currentStep === 'attack' || currentStep === 'block' || currentStep === 'defense') && !autoOutcome && (
+              {(currentStep === 'reception' || currentStep === 'setter' || currentStep === 'attack' || currentStep === 'block' || currentStep === 'defense') && !autoOutcome && (
                 <Button
                   variant="outline"
                   onClick={handleSkipStep}
@@ -804,6 +833,67 @@ function WizardSectionBlock({
       </div>
       <div className="text-xs text-muted-foreground text-center">
         3=ponto • 2=positivo • 1=toque • 0=erro
+      </div>
+    </div>
+  );
+}
+
+// Setter Section for distribution tracking
+interface SetterSectionProps {
+  players: Player[];
+  selectedSetter: string | null;
+  selectedDestination: PassDestination | null;
+  onSetterChange: (id: string | null) => void;
+  onDestinationChange: (dest: PassDestination | null) => void;
+}
+
+function SetterSection({
+  players,
+  selectedSetter,
+  selectedDestination,
+  onSetterChange,
+  onDestinationChange,
+}: SetterSectionProps) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">
+          Distribuição
+          <span className="text-muted-foreground ml-1">(opcional)</span>
+        </span>
+      </div>
+      <Select
+        value={selectedSetter || '__none__'}
+        onValueChange={(val) => onSetterChange(val === '__none__' ? null : val)}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Selecionar setter" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Nenhum</SelectItem>
+          {players.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              #{p.jersey_number} {p.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      
+      <div className="text-xs text-muted-foreground">Destino da distribuição:</div>
+      <div className="grid grid-cols-4 gap-2">
+        {DESTINATIONS.map((dest) => (
+          <Button
+            key={dest}
+            variant={selectedDestination === dest ? 'default' : 'outline'}
+            className="h-10 text-xs"
+            onClick={() => onDestinationChange(selectedDestination === dest ? null : dest)}
+          >
+            {dest}
+          </Button>
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground text-center">
+        P2/P3/P4=Pontas • OP=Oposto • PIPE/BACK=2ª linha
       </div>
     </div>
   );
