@@ -1,8 +1,25 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart3, TrendingUp, Target, Award } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { BarChart3, TrendingUp, Target, Award, Loader2, Zap, Shield } from 'lucide-react';
+import { useGlobalStats } from '@/hooks/useGlobalStats';
 
 export default function KPIs() {
+  const { loading, summary, topAttackers, topReceivers, topServers, topBlockers } = useGlobalStats();
+
+  if (loading) {
+    return (
+      <MainLayout title="KPIs">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const hasData = summary.totalMatches > 0;
+
   return (
     <MainLayout title="KPIs">
       <div className="space-y-4">
@@ -10,48 +27,304 @@ export default function KPIs() {
           Estatísticas globais agregadas de todos os jogos.
         </p>
 
+        {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-3">
           <Card>
             <CardContent className="flex flex-col items-center py-4">
               <Target className="mb-1 h-5 w-5 text-primary" />
-              <span className="text-2xl font-bold">—</span>
-              <span className="text-xs text-muted-foreground">% Ataque</span>
+              <span className="text-2xl font-bold">
+                {hasData ? `${(summary.avgAttackEfficiency * 100).toFixed(0)}%` : '—'}
+              </span>
+              <span className="text-xs text-muted-foreground">Efic. Ataque</span>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center py-4">
               <TrendingUp className="mb-1 h-5 w-5 text-success" />
-              <span className="text-2xl font-bold">—</span>
-              <span className="text-xs text-muted-foreground">% Side-Out</span>
+              <span className="text-2xl font-bold">
+                {hasData ? `${summary.avgSideoutPercent.toFixed(0)}%` : '—'}
+              </span>
+              <span className="text-xs text-muted-foreground">Side-Out</span>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center py-4">
               <Award className="mb-1 h-5 w-5 text-warning" />
-              <span className="text-2xl font-bold">—</span>
+              <span className="text-2xl font-bold">
+                {hasData ? summary.acesPerMatch.toFixed(1) : '—'}
+              </span>
               <span className="text-xs text-muted-foreground">Aces/Jogo</span>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center py-4">
-              <BarChart3 className="mb-1 h-5 w-5 text-away" />
-              <span className="text-2xl font-bold">—</span>
+              <Shield className="mb-1 h-5 w-5 text-away" />
+              <span className="text-2xl font-bold">
+                {hasData ? summary.blocksPerMatch.toFixed(1) : '—'}
+              </span>
               <span className="text-xs text-muted-foreground">Blocos/Jogo</span>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <BarChart3 className="h-8 w-8 text-muted-foreground" />
+        {/* Stats summary */}
+        <Card>
+          <CardContent className="py-3">
+            <div className="flex justify-around text-center">
+              <div>
+                <p className="text-xl font-bold">{summary.totalMatches}</p>
+                <p className="text-xs text-muted-foreground">Jogos</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">{summary.totalRallies}</p>
+                <p className="text-xs text-muted-foreground">Pontos</p>
+              </div>
             </div>
-            <h3 className="mb-2 text-lg font-semibold">Em breve</h3>
-            <p className="text-sm text-muted-foreground">
-              Os KPIs globais serão calculados a partir dos dados de todos os jogos registados.
-            </p>
           </CardContent>
         </Card>
+
+        {!hasData ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <BarChart3 className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="mb-2 text-lg font-semibold">Sem dados</h3>
+              <p className="text-sm text-muted-foreground">
+                Registe jogos para ver os KPIs globais.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Tabs defaultValue="attack" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="attack" className="text-xs">
+                <Zap className="mr-1 h-3 w-3" />
+                Ataque
+              </TabsTrigger>
+              <TabsTrigger value="reception" className="text-xs">
+                <TrendingUp className="mr-1 h-3 w-3" />
+                Receção
+              </TabsTrigger>
+              <TabsTrigger value="serve" className="text-xs">
+                <Award className="mr-1 h-3 w-3" />
+                Serviço
+              </TabsTrigger>
+              <TabsTrigger value="block" className="text-xs">
+                <Shield className="mr-1 h-3 w-3" />
+                Bloco
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="attack" className="mt-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Top Atacantes (Eficiência)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Jogador</TableHead>
+                        <TableHead className="text-right">Att</TableHead>
+                        <TableHead className="text-right">K</TableHead>
+                        <TableHead className="text-right">E</TableHead>
+                        <TableHead className="text-right">Eff%</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topAttackers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                            Dados insuficientes (min. 5 ataques)
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        topAttackers.map((player, idx) => (
+                          <TableRow key={player.playerId}>
+                            <TableCell className="font-medium">{idx + 1}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  #{player.jerseyNumber} {player.playerName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {player.teamName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">{player.attAttempts}</TableCell>
+                            <TableCell className="text-right text-success">{player.attPoints}</TableCell>
+                            <TableCell className="text-right text-destructive">{player.attErrors}</TableCell>
+                            <TableCell className="text-right font-bold">
+                              {(player.attEfficiency * 100).toFixed(0)}%
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="reception" className="mt-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Top Recetores (Média)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Jogador</TableHead>
+                        <TableHead className="text-right">Rec</TableHead>
+                        <TableHead className="text-right">+</TableHead>
+                        <TableHead className="text-right">-</TableHead>
+                        <TableHead className="text-right">Avg</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topReceivers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                            Dados insuficientes (min. 5 receções)
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        topReceivers.map((player, idx) => (
+                          <TableRow key={player.playerId}>
+                            <TableCell className="font-medium">{idx + 1}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  #{player.jerseyNumber} {player.playerName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {player.teamName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">{player.recAttempts}</TableCell>
+                            <TableCell className="text-right text-success">{player.recPoints}</TableCell>
+                            <TableCell className="text-right text-destructive">{player.recErrors}</TableCell>
+                            <TableCell className="text-right font-bold">
+                              {player.recAvg.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="serve" className="mt-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Top Servidores (Média)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Jogador</TableHead>
+                        <TableHead className="text-right">Srv</TableHead>
+                        <TableHead className="text-right">Aces</TableHead>
+                        <TableHead className="text-right">Err</TableHead>
+                        <TableHead className="text-right">Avg</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topServers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                            Dados insuficientes (min. 5 serviços)
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        topServers.map((player, idx) => (
+                          <TableRow key={player.playerId}>
+                            <TableCell className="font-medium">{idx + 1}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  #{player.jerseyNumber} {player.playerName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {player.teamName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">{player.serveAttempts}</TableCell>
+                            <TableCell className="text-right text-success">{player.servePoints}</TableCell>
+                            <TableCell className="text-right text-destructive">{player.serveErrors}</TableCell>
+                            <TableCell className="text-right font-bold">
+                              {player.serveAvg.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="block" className="mt-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Top Bloqueadores (Pontos)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Jogador</TableHead>
+                        <TableHead className="text-right">Blk</TableHead>
+                        <TableHead className="text-right">Pts</TableHead>
+                        <TableHead className="text-right">Err</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topBlockers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+                            Dados insuficientes (min. 3 blocos)
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        topBlockers.map((player, idx) => (
+                          <TableRow key={player.playerId}>
+                            <TableCell className="font-medium">{idx + 1}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  #{player.jerseyNumber} {player.playerName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {player.teamName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">{player.blkAttempts}</TableCell>
+                            <TableCell className="text-right text-success">{player.blkPoints}</TableCell>
+                            <TableCell className="text-right text-destructive">{player.blkErrors}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </MainLayout>
   );
