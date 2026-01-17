@@ -1,220 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, ChevronDown, ChevronRight, AlertTriangle, Pencil, Filter } from 'lucide-react';
-import { Rally, Player, MatchPlayer, Side } from '@/types/volleyball';
+import { 
+  ArrowLeft, 
+  ChevronDown, 
+  ChevronRight, 
+  Filter, 
+  Pencil,
+  CircleDot,
+  Shield,
+  Target,
+  Swords,
+  Square,
+  ShieldCheck,
+  LayoutList,
+  LayoutGrid
+} from 'lucide-react';
+import { Rally, Player, MatchPlayer } from '@/types/volleyball';
 import { EditRallyModal } from '@/components/EditRallyModal';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { RallySummary } from '@/components/rally/RallySummary';
+import { TimelineItem } from '@/components/rally/TimelineItem';
+import { cn } from '@/lib/utils';
 
-function getCodeColor(code: number | null): string {
-  switch (code) {
-    case 0: return 'bg-destructive text-destructive-foreground';
-    case 1: return 'bg-orange-500 text-white';
-    case 2: return 'bg-blue-500 text-white';
-    case 3: return 'bg-green-500 text-white';
-    default: return 'bg-muted text-muted-foreground';
-  }
-}
-
-function getCodeLabel(code: number | null): string {
-  switch (code) {
-    case 0: return 'Erro';
-    case 1: return 'Fraco';
-    case 2: return 'Bom';
-    case 3: return 'Excelente';
-    default: return '-';
-  }
-}
-
-interface ActionBadgeProps {
-  label: string;
-  code: number | null;
-  playerNumber: number | null;
-  playerName?: string;
-  className?: string;
-}
-
-function ActionBadge({ label, code, playerNumber, playerName, className = '' }: ActionBadgeProps) {
-  if (code === null && playerNumber === null) return null;
-  
-  return (
-    <div className={`flex items-center gap-1 ${className}`}>
-      <span className="text-xs text-muted-foreground">{label}:</span>
-      {playerNumber !== null && (
-        <Badge variant="outline" className="text-xs font-mono">
-          #{playerNumber}
-        </Badge>
-      )}
-      {playerName && (
-        <span className="text-xs text-muted-foreground truncate max-w-20">{playerName}</span>
-      )}
-      {code !== null && (
-        <Badge className={`text-[10px] px-1.5 ${getCodeColor(code)}`}>
-          {code}
-        </Badge>
-      )}
-    </div>
-  );
-}
-
-interface RallyPhaseCardProps {
-  rally: Rally;
-  players: (Player | MatchPlayer)[];
-  homeName: string;
-  awayName: string;
-  onEdit: (rally: Rally) => void;
-}
-
-function RallyPhaseCard({ rally, players, homeName, awayName, onEdit }: RallyPhaseCardProps) {
-  const sPlayer = players.find(p => p.id === rally.s_player_id);
-  const rPlayer = players.find(p => p.id === rally.r_player_id);
-  const setterPlayer = players.find(p => p.id === rally.setter_player_id);
-  const aPlayer = players.find(p => p.id === rally.a_player_id);
-  const b1Player = players.find(p => p.id === rally.b1_player_id);
-  const b2Player = players.find(p => p.id === rally.b2_player_id);
-  const b3Player = players.find(p => p.id === rally.b3_player_id);
-  const dPlayer = players.find(p => p.id === rally.d_player_id);
-
-  const hasIssue = rally.reason === 'KILL' && !rally.a_player_id;
-  const serveSideName = rally.serve_side === 'CASA' ? homeName : awayName;
-  const recvSideName = rally.recv_side === 'CASA' ? homeName : awayName;
-  const attackSide = rally.phase % 2 === 1 ? rally.recv_side : rally.serve_side;
-  const attackSideName = attackSide === 'CASA' ? homeName : awayName;
-  const defSideName = attackSide === 'CASA' ? awayName : homeName;
-
-  return (
-    <div className={`border rounded-lg p-3 space-y-2 ${hasIssue ? 'border-destructive bg-destructive/5' : 'bg-card'}`}>
-      {/* Phase Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            Fase {rally.phase}
-          </Badge>
-          {hasIssue && (
-            <Badge variant="destructive" className="text-xs gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              Atacante em falta
-            </Badge>
-          )}
-        </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(rally)}>
-          <Pencil className="h-3 w-3" />
-        </Button>
-      </div>
-
-      {/* Actions Grid */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        {/* Serve */}
-        {(rally.s_player_id || rally.s_code !== null) && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-14">Serviço</span>
-            <Badge variant="secondary" className="text-[10px]">{serveSideName.slice(0, 3)}</Badge>
-            {sPlayer && <span className="font-mono">#{sPlayer.jersey_number}</span>}
-            {rally.s_code !== null && (
-              <Badge className={`text-[10px] px-1 ${getCodeColor(rally.s_code)}`}>{rally.s_code}</Badge>
-            )}
-          </div>
-        )}
-
-        {/* Reception */}
-        {(rally.r_player_id || rally.r_code !== null) && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-14">Receção</span>
-            <Badge variant="secondary" className="text-[10px]">{recvSideName.slice(0, 3)}</Badge>
-            {rPlayer && <span className="font-mono">#{rPlayer.jersey_number}</span>}
-            {rally.r_code !== null && (
-              <Badge className={`text-[10px] px-1 ${getCodeColor(rally.r_code)}`}>{rally.r_code}</Badge>
-            )}
-          </div>
-        )}
-
-        {/* Setter */}
-        {(rally.setter_player_id || rally.pass_destination) && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-14">Passe</span>
-            {setterPlayer && <span className="font-mono">#{setterPlayer.jersey_number}</span>}
-            {rally.pass_destination && (
-              <Badge variant="outline" className="text-[10px]">{rally.pass_destination}</Badge>
-            )}
-            {rally.pass_code !== null && (
-              <Badge className={`text-[10px] px-1 ${getCodeColor(rally.pass_code)}`}>{rally.pass_code}</Badge>
-            )}
-          </div>
-        )}
-
-        {/* Attack */}
-        {(rally.a_player_id || rally.a_code !== null) && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-14">Ataque</span>
-            <Badge variant="secondary" className="text-[10px]">{attackSideName.slice(0, 3)}</Badge>
-            {aPlayer && <span className="font-mono">#{aPlayer.jersey_number}</span>}
-            {rally.a_code !== null && (
-              <Badge className={`text-[10px] px-1 ${getCodeColor(rally.a_code)}`}>{rally.a_code}</Badge>
-            )}
-            {rally.kill_type && (
-              <Badge variant="outline" className="text-[10px]">
-                {rally.kill_type === 'BLOCKOUT' ? 'B.Out' : 'Chão'}
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Block */}
-        {(rally.b1_player_id || rally.b_code !== null) && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-14">Bloco</span>
-            <Badge variant="secondary" className="text-[10px]">{defSideName.slice(0, 3)}</Badge>
-            {b1Player && <span className="font-mono">#{b1Player.jersey_number}</span>}
-            {b2Player && <span className="font-mono">#{b2Player.jersey_number}</span>}
-            {b3Player && <span className="font-mono">#{b3Player.jersey_number}</span>}
-            {rally.b_code !== null && (
-              <Badge className={`text-[10px] px-1 ${getCodeColor(rally.b_code)}`}>{rally.b_code}</Badge>
-            )}
-          </div>
-        )}
-
-        {/* Defense */}
-        {(rally.d_player_id || rally.d_code !== null) && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-14">Defesa</span>
-            <Badge variant="secondary" className="text-[10px]">{defSideName.slice(0, 3)}</Badge>
-            {dPlayer && <span className="font-mono">#{dPlayer.jersey_number}</span>}
-            {rally.d_code !== null && (
-              <Badge className={`text-[10px] px-1 ${getCodeColor(rally.d_code)}`}>{rally.d_code}</Badge>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Outcome */}
-      {rally.point_won_by && (
-        <div className="flex items-center gap-2 pt-1 border-t">
-          <span className="text-xs text-muted-foreground">Resultado:</span>
-          <Badge 
-            className={rally.point_won_by === 'CASA' ? 'bg-home text-home-foreground' : 'bg-away text-away-foreground'}
-          >
-            {rally.point_won_by === 'CASA' ? homeName : awayName}
-          </Badge>
-          {rally.reason && (
-            <Badge variant="outline">{rally.reason}</Badge>
-          )}
-        </div>
-      )}
-
-      {/* Rotations */}
-      <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-1">
-        <span>{serveSideName.slice(0, 3)} R{rally.serve_rot}</span>
-        <span>{recvSideName.slice(0, 3)} R{rally.recv_rot}</span>
-      </div>
-    </div>
-  );
-}
+type ViewMode = 'compact' | 'timeline';
 
 interface RallyGroupProps {
   rallyNo: number;
@@ -223,53 +37,296 @@ interface RallyGroupProps {
   homeName: string;
   awayName: string;
   onEdit: (rally: Rally) => void;
-  defaultOpen?: boolean;
+  scoreBefore?: { home: number; away: number };
+  scoreAfter?: { home: number; away: number };
+  viewMode: ViewMode;
 }
 
-function RallyGroup({ rallyNo, phases, players, homeName, awayName, onEdit, defaultOpen = false }: RallyGroupProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+function RallyGroup({ 
+  rallyNo, 
+  phases, 
+  players, 
+  homeName, 
+  awayName, 
+  onEdit,
+  scoreBefore,
+  scoreAfter,
+  viewMode
+}: RallyGroupProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const sortedPhases = [...phases].sort((a, b) => a.phase - b.phase);
-  const finalPhase = sortedPhases[sortedPhases.length - 1];
   const hasIssue = phases.some(p => p.reason === 'KILL' && !p.a_player_id);
   
-  const winnerName = finalPhase?.point_won_by === 'CASA' ? homeName : awayName;
+  const getPlayer = (id: string | null) => players.find(p => p.id === id);
+  
+  const renderTimelinePhase = (rally: Rally, isLastPhase: boolean) => {
+    const items: JSX.Element[] = [];
+    const serveSideName = rally.serve_side === 'CASA' ? homeName : awayName;
+    const recvSideName = rally.recv_side === 'CASA' ? homeName : awayName;
+    const attackSide = rally.phase % 2 === 1 ? rally.recv_side : rally.serve_side;
+    const attackSideName = attackSide === 'CASA' ? homeName : awayName;
+    const defSideName = attackSide === 'CASA' ? awayName : homeName;
+    
+    // Serve
+    if (rally.s_player_id || rally.s_code !== null) {
+      const sPlayer = getPlayer(rally.s_player_id);
+      items.push(
+        <TimelineItem
+          key={`${rally.id}-serve`}
+          icon={CircleDot}
+          action="Serviço"
+          team={serveSideName.slice(0, 3)}
+          teamColor={rally.serve_side === 'CASA' ? 'home' : 'away'}
+          playerNumber={sPlayer?.jersey_number}
+          playerName={sPlayer?.name}
+          code={rally.s_code}
+        />
+      );
+    }
+    
+    // Reception
+    if (rally.r_player_id || rally.r_code !== null) {
+      const rPlayer = getPlayer(rally.r_player_id);
+      items.push(
+        <TimelineItem
+          key={`${rally.id}-recv`}
+          icon={Shield}
+          action="Receção"
+          team={recvSideName.slice(0, 3)}
+          teamColor={rally.recv_side === 'CASA' ? 'home' : 'away'}
+          playerNumber={rPlayer?.jersey_number}
+          playerName={rPlayer?.name}
+          code={rally.r_code}
+        />
+      );
+    }
+    
+    // Setter/Pass
+    if (rally.setter_player_id || rally.pass_destination) {
+      const setterPlayer = getPlayer(rally.setter_player_id);
+      items.push(
+        <TimelineItem
+          key={`${rally.id}-set`}
+          icon={Target}
+          action="Passe"
+          team={recvSideName.slice(0, 3)}
+          teamColor={rally.recv_side === 'CASA' ? 'home' : 'away'}
+          playerNumber={setterPlayer?.jersey_number}
+          playerName={setterPlayer?.name}
+          code={rally.pass_code}
+          extra={rally.pass_destination || undefined}
+        />
+      );
+    }
+    
+    // Attack
+    if (rally.a_player_id || rally.a_code !== null) {
+      const aPlayer = getPlayer(rally.a_player_id);
+      const isKill = rally.reason === 'KILL';
+      items.push(
+        <TimelineItem
+          key={`${rally.id}-attack`}
+          icon={Swords}
+          action="Ataque"
+          team={attackSideName.slice(0, 3)}
+          teamColor={attackSide === 'CASA' ? 'home' : 'away'}
+          playerNumber={aPlayer?.jersey_number}
+          playerName={aPlayer?.name}
+          code={rally.a_code}
+          extra={rally.kill_type || undefined}
+          highlight={isKill}
+        />
+      );
+    }
+    
+    // Block
+    if (rally.b1_player_id || rally.b_code !== null) {
+      const b1Player = getPlayer(rally.b1_player_id);
+      const b2Player = getPlayer(rally.b2_player_id);
+      const blockNumbers = [b1Player, b2Player].filter(Boolean).map(p => p?.jersey_number).join(',');
+      items.push(
+        <TimelineItem
+          key={`${rally.id}-block`}
+          icon={Square}
+          action="Bloco"
+          team={defSideName.slice(0, 3)}
+          teamColor={attackSide === 'CASA' ? 'away' : 'home'}
+          playerNumber={b1Player?.jersey_number}
+          playerName={b2Player ? `+#${b2Player.jersey_number}` : undefined}
+          code={rally.b_code}
+        />
+      );
+    }
+    
+    // Defense
+    if (rally.d_player_id || rally.d_code !== null) {
+      const dPlayer = getPlayer(rally.d_player_id);
+      items.push(
+        <TimelineItem
+          key={`${rally.id}-def`}
+          icon={ShieldCheck}
+          action="Defesa"
+          team={defSideName.slice(0, 3)}
+          teamColor={attackSide === 'CASA' ? 'away' : 'home'}
+          playerNumber={dPlayer?.jersey_number}
+          playerName={dPlayer?.name}
+          code={rally.d_code}
+          isLast={isLastPhase && !rally.point_won_by}
+        />
+      );
+    }
+    
+    // Mark last item
+    if (items.length > 0) {
+      const lastItem = items[items.length - 1];
+      items[items.length - 1] = { ...lastItem, props: { ...lastItem.props, isLast: isLastPhase } };
+    }
+    
+    return items;
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <div className={`flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${hasIssue ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/30'}`}>
-          <div className="flex items-center gap-3">
-            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <span className="font-mono font-medium">Rally #{rallyNo}</span>
-            <Badge variant="outline" className="text-xs">
-              {phases.length} fase{phases.length > 1 ? 's' : ''}
-            </Badge>
-            {hasIssue && (
-              <Badge variant="destructive" className="text-xs gap-1">
-                <AlertTriangle className="h-3 w-3" />
-              </Badge>
-            )}
-          </div>
+        <div className="cursor-pointer">
           <div className="flex items-center gap-2">
-            {finalPhase?.point_won_by && (
-              <Badge className={finalPhase.point_won_by === 'CASA' ? 'bg-home text-home-foreground' : 'bg-away text-away-foreground'}>
-                +{winnerName.slice(0, 3)} {finalPhase.reason}
-              </Badge>
-            )}
+            <div className={cn(
+              'flex-shrink-0 transition-transform duration-200',
+              isOpen && 'rotate-90'
+            )}>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <RallySummary
+                rallyNo={rallyNo}
+                phases={sortedPhases}
+                homeName={homeName}
+                awayName={awayName}
+                scoreBefore={scoreBefore}
+                scoreAfter={scoreAfter}
+                hasIssue={hasIssue}
+                isExpanded={isOpen}
+              />
+            </div>
           </div>
         </div>
       </CollapsibleTrigger>
+      
       <CollapsibleContent>
-        <div className="pl-6 pr-2 py-2 space-y-2">
-          {sortedPhases.map((phase) => (
-            <RallyPhaseCard
-              key={phase.id}
-              rally={phase}
-              players={players}
-              homeName={homeName}
-              awayName={awayName}
-              onEdit={onEdit}
-            />
+        <div className="ml-6 mt-2 space-y-4">
+          {sortedPhases.map((phase, phaseIdx) => (
+            <div key={phase.id} className="border rounded-lg bg-card/50 overflow-hidden">
+              {/* Phase Header */}
+              <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">
+                    Fase {phase.phase}
+                  </Badge>
+                  {phase.reason === 'KILL' && !phase.a_player_id && (
+                    <Badge variant="destructive" className="text-[10px]">
+                      Atacante em falta
+                    </Badge>
+                  )}
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(phase);
+                  }}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              </div>
+              
+              {/* Timeline View */}
+              {viewMode === 'timeline' && (
+                <div className="p-4">
+                  {renderTimelinePhase(phase, phaseIdx === sortedPhases.length - 1)}
+                </div>
+              )}
+              
+              {/* Compact View */}
+              {viewMode === 'compact' && (
+                <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {(phase.s_player_id || phase.s_code !== null) && (
+                    <div className="flex items-center gap-1.5 bg-muted/30 rounded px-2 py-1">
+                      <CircleDot className="h-3 w-3 text-muted-foreground" />
+                      <span>S</span>
+                      {getPlayer(phase.s_player_id)?.jersey_number && (
+                        <span className="font-mono">#{getPlayer(phase.s_player_id)?.jersey_number}</span>
+                      )}
+                      {phase.s_code !== null && (
+                        <Badge className={cn(
+                          'text-[10px] px-1 h-4',
+                          phase.s_code === 3 && 'bg-success',
+                          phase.s_code === 2 && 'bg-primary',
+                          phase.s_code === 1 && 'bg-warning',
+                          phase.s_code === 0 && 'bg-destructive'
+                        )}>{phase.s_code}</Badge>
+                      )}
+                    </div>
+                  )}
+                  {(phase.r_player_id || phase.r_code !== null) && (
+                    <div className="flex items-center gap-1.5 bg-muted/30 rounded px-2 py-1">
+                      <Shield className="h-3 w-3 text-muted-foreground" />
+                      <span>R</span>
+                      {getPlayer(phase.r_player_id)?.jersey_number && (
+                        <span className="font-mono">#{getPlayer(phase.r_player_id)?.jersey_number}</span>
+                      )}
+                      {phase.r_code !== null && (
+                        <Badge className={cn(
+                          'text-[10px] px-1 h-4',
+                          phase.r_code === 3 && 'bg-success',
+                          phase.r_code === 2 && 'bg-primary',
+                          phase.r_code === 1 && 'bg-warning',
+                          phase.r_code === 0 && 'bg-destructive'
+                        )}>{phase.r_code}</Badge>
+                      )}
+                    </div>
+                  )}
+                  {(phase.a_player_id || phase.a_code !== null) && (
+                    <div className={cn(
+                      'flex items-center gap-1.5 rounded px-2 py-1',
+                      phase.reason === 'KILL' && !phase.a_player_id ? 'bg-destructive/10' : 'bg-muted/30'
+                    )}>
+                      <Swords className="h-3 w-3 text-muted-foreground" />
+                      <span>A</span>
+                      {getPlayer(phase.a_player_id)?.jersey_number && (
+                        <span className="font-mono">#{getPlayer(phase.a_player_id)?.jersey_number}</span>
+                      )}
+                      {phase.a_code !== null && (
+                        <Badge className={cn(
+                          'text-[10px] px-1 h-4',
+                          phase.a_code === 3 && 'bg-success',
+                          phase.a_code === 2 && 'bg-primary',
+                          phase.a_code === 1 && 'bg-warning',
+                          phase.a_code === 0 && 'bg-destructive'
+                        )}>{phase.a_code}</Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Outcome */}
+              {phase.point_won_by && (
+                <div className="flex items-center gap-2 px-3 py-2 border-t bg-muted/20">
+                  <span className="text-xs text-muted-foreground">Ponto:</span>
+                  <Badge className={cn(
+                    'text-xs',
+                    phase.point_won_by === 'CASA' ? 'bg-home text-home-foreground' : 'bg-away text-away-foreground'
+                  )}>
+                    {phase.point_won_by === 'CASA' ? homeName : awayName}
+                  </Badge>
+                  {phase.reason && (
+                    <Badge variant="outline" className="text-[10px]">{phase.reason}</Badge>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </CollapsibleContent>
@@ -285,10 +342,44 @@ export default function RallyHistory() {
   const [selectedSet, setSelectedSet] = useState(0);
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
 
   useEffect(() => {
     if (matchId) loadMatch();
   }, [matchId, loadMatch]);
+
+  // Calculate score progression for each rally
+  const scoreProgression = useMemo(() => {
+    const scores = new Map<string, { before: { home: number; away: number }; after: { home: number; away: number } }>();
+    
+    // Get all rallies with outcomes, sorted by set and rally number
+    const ralliesWithOutcomes = rallies
+      .filter(r => r.point_won_by)
+      .sort((a, b) => a.set_no - b.set_no || a.rally_no - b.rally_no);
+    
+    // Track scores per set
+    const setScores = new Map<number, { home: number; away: number }>();
+    
+    ralliesWithOutcomes.forEach(rally => {
+      if (!setScores.has(rally.set_no)) {
+        setScores.set(rally.set_no, { home: 0, away: 0 });
+      }
+      
+      const current = setScores.get(rally.set_no)!;
+      const before = { ...current };
+      
+      if (rally.point_won_by === 'CASA') {
+        current.home++;
+      } else if (rally.point_won_by === 'FORA') {
+        current.away++;
+      }
+      
+      const key = `${rally.set_no}-${rally.rally_no}`;
+      scores.set(key, { before, after: { ...current } });
+    });
+    
+    return scores;
+  }, [rallies]);
 
   if (loading || !match) {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
@@ -308,11 +399,10 @@ export default function RallyHistory() {
 
   // Group by set for display
   const setGroups = new Map<number, { rallyNo: number; phases: Rally[] }[]>();
-  rallyGroups.forEach((phases, key) => {
+  rallyGroups.forEach((phases) => {
     const setNo = phases[0].set_no;
     const rallyNo = phases[0].rally_no;
     
-    // Filter by issues if needed
     if (showOnlyIssues) {
       const hasIssue = phases.some(p => p.reason === 'KILL' && !p.a_player_id);
       if (!hasIssue) return;
@@ -324,8 +414,8 @@ export default function RallyHistory() {
     setGroups.get(setNo)!.push({ rallyNo, phases });
   });
 
-  // Sort each set's rallies by rally number (descending - newest first)
-  setGroups.forEach((rallies, setNo) => {
+  // Sort each set's rallies by rally number (descending)
+  setGroups.forEach((rallies) => {
     rallies.sort((a, b) => b.rallyNo - a.rallyNo);
   });
 
@@ -344,11 +434,31 @@ export default function RallyHistory() {
             <h1 className="font-semibold">Histórico de Rallies</h1>
             <p className="text-xs text-muted-foreground">{match.title}</p>
           </div>
+          
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 border rounded-lg p-0.5">
+            <Button
+              variant={viewMode === 'timeline' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setViewMode('timeline')}
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'compact' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setViewMode('compact')}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
       <div className="p-4 space-y-4">
-        {/* Filters */}
+        {/* Set Filters */}
         <div className="flex gap-2 flex-wrap">
           <Button
             variant={selectedSet === 0 ? 'default' : 'outline'}
@@ -379,40 +489,48 @@ export default function RallyHistory() {
             />
             <Label htmlFor="issues-filter" className="text-sm cursor-pointer flex items-center gap-2">
               <Filter className="h-4 w-4" />
-              Mostrar apenas com problemas
+              Apenas com problemas
             </Label>
           </div>
           {issueCount > 0 && (
-            <Badge variant="destructive">{issueCount} com problemas</Badge>
+            <Badge variant="destructive">{issueCount}</Badge>
           )}
         </div>
 
         {/* Rally Groups by Set */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {Array.from(setGroups.entries())
             .sort(([a], [b]) => a - b)
             .map(([setNo, rallyList]) => (
-              <Card key={setNo}>
-                <CardHeader className="py-3">
+              <Card key={setNo} className="overflow-hidden">
+                <CardHeader className="py-3 bg-muted/30">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Badge variant="outline">Set {setNo}</Badge>
-                    <span className="text-muted-foreground font-normal">
-                      {rallyList.length} rally{rallyList.length > 1 ? 's' : ''}
+                    <Badge className="bg-primary">Set {setNo}</Badge>
+                    <span className="text-muted-foreground font-normal text-xs">
+                      {rallyList.length} rallies
                     </span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="py-0 pb-3 space-y-1">
-                  {rallyList.map(({ rallyNo, phases }) => (
-                    <RallyGroup
-                      key={`${setNo}-${rallyNo}`}
-                      rallyNo={rallyNo}
-                      phases={phases}
-                      players={players}
-                      homeName={match.home_name}
-                      awayName={match.away_name}
-                      onEdit={setEditingRally}
-                    />
-                  ))}
+                <CardContent className="p-2 space-y-1">
+                  {rallyList.map(({ rallyNo, phases }) => {
+                    const scoreKey = `${setNo}-${rallyNo}`;
+                    const scores = scoreProgression.get(scoreKey);
+                    
+                    return (
+                      <RallyGroup
+                        key={`${setNo}-${rallyNo}`}
+                        rallyNo={rallyNo}
+                        phases={phases}
+                        players={players}
+                        homeName={match.home_name}
+                        awayName={match.away_name}
+                        onEdit={setEditingRally}
+                        scoreBefore={scores?.before}
+                        scoreAfter={scores?.after}
+                        viewMode={viewMode}
+                      />
+                    );
+                  })}
                 </CardContent>
               </Card>
             ))}
@@ -420,7 +538,7 @@ export default function RallyHistory() {
           {setGroups.size === 0 && (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                {showOnlyIssues ? 'Nenhum rally com problemas encontrado.' : 'Nenhum rally registado.'}
+                {showOnlyIssues ? 'Nenhum rally com problemas.' : 'Nenhum rally registado.'}
               </CardContent>
             </Card>
           )}
