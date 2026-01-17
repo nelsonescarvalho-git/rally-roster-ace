@@ -136,26 +136,61 @@ export function ActionSelector({
     });
   }
 
+  const attackingTeamName = attackSide === 'CASA' ? homeName : awayName;
+  const defendingTeamName = defenseSide === 'CASA' ? homeName : awayName;
+
   return (
     <Card>
       <CardContent className="p-3">
+        {/* Team Status Indicator */}
+        <div className="flex items-center justify-between mb-3 p-2 bg-muted/30 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium',
+              attackSide === 'CASA' 
+                ? 'bg-home/20 text-home border border-home/30' 
+                : 'bg-away/20 text-away border border-away/30'
+            )}>
+              <Swords className="h-3.5 w-3.5" />
+              <span>{attackingTeamName}</span>
+            </div>
+            <span className="text-muted-foreground text-xs">ataca</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground text-xs">defende</span>
+            <div className={cn(
+              'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium',
+              defenseSide === 'CASA' 
+                ? 'bg-home/20 text-home border border-home/30' 
+                : 'bg-away/20 text-away border border-away/30'
+            )}>
+              <Shield className="h-3.5 w-3.5" />
+              <span>{defendingTeamName}</span>
+            </div>
+          </div>
+        </div>
+
         <div className="text-xs font-medium text-muted-foreground mb-2">
-          Próxima Ação
+          Próxima Ação - Fase {currentPhase}
         </div>
         <div className="grid grid-cols-5 gap-2">
           {actionOptions.map((option) => {
             const Icon = option.icon;
             const isNewPhase = option.type === 'new_phase';
-            const sideColor = option.side === 'CASA' ? 'home' : 'away';
+            const isAttacking = option.side === attackSide && (option.type === 'setter' || option.type === 'attack');
+            const isDefending = option.side === defenseSide && (option.type === 'block' || option.type === 'defense');
             
             return (
               <Button
                 key={option.type}
                 variant="outline"
                 className={cn(
-                  'flex-col h-16 gap-1 relative',
-                  !isNewPhase && option.side && `border-${sideColor}/50 hover:bg-${sideColor}/10`,
-                  isNewPhase && 'border-dashed'
+                  'flex-col h-16 gap-1 relative transition-all',
+                  isAttacking && option.side === 'CASA' && 'border-home bg-home/5 hover:bg-home/15',
+                  isAttacking && option.side === 'FORA' && 'border-away bg-away/5 hover:bg-away/15',
+                  isDefending && option.side === 'CASA' && 'border-home/50 hover:bg-home/10',
+                  isDefending && option.side === 'FORA' && 'border-away/50 hover:bg-away/10',
+                  isNewPhase && 'border-dashed border-muted-foreground/50'
                 )}
                 onClick={() => {
                   if (isNewPhase) {
@@ -165,11 +200,17 @@ export function ActionSelector({
                   }
                 }}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className={cn(
+                  'h-5 w-5',
+                  isAttacking && option.side === 'CASA' && 'text-home',
+                  isAttacking && option.side === 'FORA' && 'text-away',
+                  isDefending && option.side === 'CASA' && 'text-home/70',
+                  isDefending && option.side === 'FORA' && 'text-away/70'
+                )} />
                 <span className="text-[10px]">{option.fullLabel}</span>
                 {!isNewPhase && option.side && (
                   <span className={cn(
-                    'absolute top-0.5 right-0.5 text-[8px] px-1 rounded',
+                    'absolute top-0.5 right-0.5 text-[8px] px-1 rounded font-medium',
                     option.side === 'CASA' ? 'bg-home/20 text-home' : 'bg-away/20 text-away'
                   )}>
                     {option.side === 'CASA' ? homeName.slice(0, 3) : awayName.slice(0, 3)}
