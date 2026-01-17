@@ -1034,42 +1034,25 @@ export default function Live() {
                   </div>
                 )}
 
-                {/* Attack difficulty reference table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-muted/50 px-3 py-1.5 text-xs font-medium border-b">
-                    Dificuldade por Qualidade de Distribuição
+                {/* Attack distribution quality selection */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Qualidade da Distribuição
                   </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="text-xs">
-                        <TableHead className="h-7 px-2">Dist.</TableHead>
-                        <TableHead className="h-7 px-2">Qualidade</TableHead>
-                        <TableHead className="h-7 px-2">Dificuldade</TableHead>
-                        <TableHead className="h-7 px-2 text-right">Efic. Esp.</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[3, 2, 1, 0].map((code) => {
-                        const info = ATTACK_DIFFICULTY_BY_DISTRIBUTION[code];
-                        const isCurrentPassCode = rallyDetails.pass_code === code;
-                        return (
-                          <TableRow 
-                            key={code} 
-                            className={isCurrentPassCode ? 'bg-primary/10 font-medium' : ''}
-                          >
-                            <TableCell className="py-1 px-2 text-xs">
-                              {code} {info.emoji}
-                            </TableCell>
-                            <TableCell className="py-1 px-2 text-xs">{info.label}</TableCell>
-                            <TableCell className="py-1 px-2 text-xs">{info.difficulty}</TableCell>
-                            <TableCell className="py-1 px-2 text-xs text-right">
-                              {Math.round(info.expectedKillRate * 100)}%
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[0, 1, 2, 3].map((code) => (
+                      <ColoredRatingButton
+                        key={code}
+                        code={code}
+                        selected={rallyDetails.pass_code === code}
+                        onClick={() => setRallyDetails(prev => ({ 
+                          ...prev, 
+                          pass_code: prev.pass_code === code ? null : code 
+                        }))}
+                        size="md"
+                      />
+                    ))}
+                  </div>
                 </div>
 
                 <WizardSection
