@@ -135,11 +135,24 @@ export function useMatch(matchId: string | null) {
     return { setsHome, setsAway, matchComplete, matchWinner, setResults };
   }, [isSetComplete]);
 
+  // Helper: Calculate who serves first in each set (alternates)
+  const getFirstServeForSet = useCallback((setNo: number): Side => {
+    if (!match) return 'CASA';
+    // Odd sets (1, 3, 5): first_serve_side
+    // Even sets (2, 4): opposite team
+    if (setNo % 2 === 1) {
+      return match.first_serve_side;
+    } else {
+      return match.first_serve_side === 'CASA' ? 'FORA' : 'CASA';
+    }
+  }, [match]);
+
   const getGameState = useCallback((setNo: number): GameState | null => {
     if (!match) return null;
 
     const setRallies = getRalliesForSet(setNo);
     const { home, away } = calculateScore(setNo);
+    const firstServe = getFirstServeForSet(setNo);
 
     if (setRallies.length === 0) {
       const homeLineup = getLineupForSet(setNo, 'CASA');
@@ -151,9 +164,9 @@ export function useMatch(matchId: string | null) {
         currentSet: setNo,
         currentRally: 1,
         currentPhase: 1,
-        serveSide: match.first_serve_side,
+        serveSide: firstServe,
         serveRot: 1,
-        recvSide: match.first_serve_side === 'CASA' ? 'FORA' : 'CASA',
+        recvSide: firstServe === 'CASA' ? 'FORA' : 'CASA',
         recvRot: 1,
         homeScore: 0,
         awayScore: 0,
@@ -201,9 +214,9 @@ export function useMatch(matchId: string | null) {
         currentSet: setNo,
         currentRally: 1,
         currentPhase: 1,
-        serveSide: match.first_serve_side,
+        serveSide: firstServe,
         serveRot: 1,
-        recvSide: match.first_serve_side === 'CASA' ? 'FORA' : 'CASA',
+        recvSide: firstServe === 'CASA' ? 'FORA' : 'CASA',
         recvRot: 1,
         homeScore: 0,
         awayScore: 0,
@@ -245,7 +258,7 @@ export function useMatch(matchId: string | null) {
       awayScore: away,
       detailedMode: false,
     };
-  }, [match, getRalliesForSet, calculateScore, getLineupForSet]);
+  }, [match, getRalliesForSet, calculateScore, getLineupForSet, getFirstServeForSet]);
 
   const saveRally = useCallback(async (rallyData: Partial<Rally>) => {
     try {
