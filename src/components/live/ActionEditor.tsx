@@ -3,7 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColoredRatingButton } from './ColoredRatingButton';
 import { WizardSectionCard } from './WizardSectionCard';
-import { X, Check } from 'lucide-react';
+import { X, Check, AlertCircle } from 'lucide-react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   RallyActionType, 
@@ -304,6 +305,31 @@ export function ActionEditor({
     }
   };
 
+  // Validation logic
+  const validation = useMemo(() => {
+    if (actionType === 'attack' && selectedCode === 3) {
+      const errors: string[] = [];
+      if (!selectedPlayer) {
+        errors.push('Selecione o atacante');
+      }
+      if (!selectedKillType) {
+        errors.push('Selecione o tipo de kill');
+      }
+      return {
+        isValid: errors.length === 0,
+        errors,
+      };
+    }
+    return { isValid: true, errors: [] };
+  }, [actionType, selectedCode, selectedPlayer, selectedKillType]);
+
+  const handleConfirm = () => {
+    if (!validation.isValid) {
+      return;
+    }
+    onConfirm();
+  };
+
   return (
     <WizardSectionCard
       actionType={actionType}
@@ -311,12 +337,25 @@ export function ActionEditor({
       teamSide={teamSide}
     >
       {renderContent()}
+      
+      {/* Validation errors */}
+      {!validation.isValid && (
+        <div className="flex items-center gap-2 p-2 mt-3 text-sm text-destructive bg-destructive/10 rounded-md">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{validation.errors.join(' • ')}</span>
+        </div>
+      )}
+      
       <div className="flex gap-2 mt-4">
         <Button variant="outline" className="flex-1" onClick={onCancel}>
           <X className="h-4 w-4 mr-1" />
           Cancelar
         </Button>
-        <Button className="flex-1" onClick={onConfirm}>
+        <Button 
+          className="flex-1" 
+          onClick={handleConfirm}
+          disabled={!validation.isValid}
+        >
           <Check className="h-4 w-4 mr-1" />
           Confirmar
         </Button>
