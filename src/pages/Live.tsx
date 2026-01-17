@@ -6,11 +6,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight, Trophy, Lock, Check, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight, Trophy, Lock, Check, RefreshCw, Swords } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { WizardLegend } from '@/components/WizardLegend';
 import { RecentPlays } from '@/components/RecentPlays';
 import { SubstitutionModal } from '@/components/SubstitutionModal';
+import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
+import { StepProgressBar } from '@/components/live/StepProgressBar';
+import { WizardSectionCard } from '@/components/live/WizardSectionCard';
 import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -712,32 +715,20 @@ export default function Live() {
           );
         })()}
 
-        {/* Score Display */}
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-around text-center">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-home">{match.home_name}</div>
-                <div className="text-4xl font-bold">{gameState.homeScore}</div>
-              </div>
-              <div className="text-muted-foreground">-</div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-away">{match.away_name}</div>
-                <div className="text-4xl font-bold">{gameState.awayScore}</div>
-              </div>
-            </div>
-            
-            {/* Players on Court Display */}
-            <div className="mt-3 flex gap-4 justify-between">
-              {/* Home Team Players */}
-              <div className="flex-1">
-                <div className="flex flex-wrap gap-1 justify-center">
+        {/* Score Display - Enhanced with gradients */}
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            <div className="flex items-stretch">
+              {/* Home Team */}
+              <div className="flex-1 bg-home/10 border-r border-home/20 p-4 text-center">
+                <div className="text-sm font-semibold text-home">{match.home_name}</div>
+                <div className="text-5xl font-bold text-home mt-1">{gameState.homeScore}</div>
+                <div className="flex flex-wrap gap-1 justify-center mt-2">
                   {(() => {
                     const homePlayers = getPlayersOnCourt(currentSet, 'CASA', gameState.currentRally);
                     const homeSubsForSet = getSubstitutionsForSet(currentSet, 'CASA');
                     
                     return homePlayers.map(player => {
-                      // Check if this player is currently a libero replacement
                       const isLiberoIn = homeSubsForSet.some(
                         s => s.is_libero && s.player_in_id === player.id && s.rally_no <= gameState.currentRally
                       );
@@ -746,8 +737,8 @@ export default function Live() {
                       return (
                         <Badge
                           key={player.id}
-                          variant={isLibero ? 'default' : 'secondary'}
-                          className={`text-xs ${isLibero ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}`}
+                          variant="secondary"
+                          className={`text-xs ${isLibero ? 'bg-warning text-warning-foreground' : 'bg-home/20 text-home'}`}
                         >
                           #{player.jersey_number}
                           {isLibero && ' L'}
@@ -758,15 +749,25 @@ export default function Live() {
                 </div>
               </div>
               
-              {/* Away Team Players */}
-              <div className="flex-1">
-                <div className="flex flex-wrap gap-1 justify-center">
+              {/* Divider with rally info */}
+              <div className="flex flex-col items-center justify-center px-3 py-2 bg-muted/50">
+                <div className="text-lg font-bold text-muted-foreground">—</div>
+                <div className="text-[10px] text-muted-foreground text-center leading-tight mt-1">
+                  <div>R{gameState.currentRally}</div>
+                  {gameState.currentPhase > 1 && <div>F{gameState.currentPhase}</div>}
+                </div>
+              </div>
+              
+              {/* Away Team */}
+              <div className="flex-1 bg-away/10 border-l border-away/20 p-4 text-center">
+                <div className="text-sm font-semibold text-away">{match.away_name}</div>
+                <div className="text-5xl font-bold text-away mt-1">{gameState.awayScore}</div>
+                <div className="flex flex-wrap gap-1 justify-center mt-2">
                   {(() => {
                     const awayPlayers = getPlayersOnCourt(currentSet, 'FORA', gameState.currentRally);
                     const awaySubsForSet = getSubstitutionsForSet(currentSet, 'FORA');
                     
                     return awayPlayers.map(player => {
-                      // Check if this player is currently a libero replacement
                       const isLiberoIn = awaySubsForSet.some(
                         s => s.is_libero && s.player_in_id === player.id && s.rally_no <= gameState.currentRally
                       );
@@ -775,8 +776,8 @@ export default function Live() {
                       return (
                         <Badge
                           key={player.id}
-                          variant={isLibero ? 'default' : 'secondary'}
-                          className={`text-xs ${isLibero ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}`}
+                          variant="secondary"
+                          className={`text-xs ${isLibero ? 'bg-warning text-warning-foreground' : 'bg-away/20 text-away'}`}
                         >
                           #{player.jersey_number}
                           {isLibero && ' L'}
@@ -788,9 +789,13 @@ export default function Live() {
               </div>
             </div>
             
-            <div className="mt-2 text-center text-xs text-muted-foreground">
-              Rally #{gameState.currentRally} {gameState.currentPhase > 1 && `• Fase ${gameState.currentPhase}`} • Serve: {gameState.serveSide === 'CASA' ? match.home_name : match.away_name} (R{gameState.serveRot})
-              {serverPlayer && ` • #${serverPlayer.jersey_number}`}
+            {/* Server info bar */}
+            <div className="px-4 py-2 bg-muted/30 text-center text-xs text-muted-foreground border-t">
+              Serve: <span className={gameState.serveSide === 'CASA' ? 'text-home font-medium' : 'text-away font-medium'}>
+                {gameState.serveSide === 'CASA' ? match.home_name : match.away_name}
+              </span>
+              {' '}(R{gameState.serveRot})
+              {serverPlayer && <span className="font-medium"> • #{serverPlayer.jersey_number}</span>}
             </div>
           </CardContent>
         </Card>
@@ -823,56 +828,45 @@ export default function Live() {
           </Button>
         </div>
 
-        {/* Step Progress - Phase aware */}
-        <div className="flex items-center justify-center gap-1 text-xs">
-          {(isLaterPhase 
-            ? (['setter', 'attack', 'block', 'defense'] as WizardStep[])
-            : (['serve', 'reception', 'setter', 'attack', 'block', 'defense'] as WizardStep[])
-          ).map((step, idx, arr) => (
-            <div key={step} className="flex items-center">
-              <div 
-                className={`px-2 py-1 rounded ${
-                  isStepActive(step) 
-                    ? 'bg-primary text-primary-foreground' 
-                    : isStepCompleted(step) 
-                      ? 'bg-primary/20 text-primary' 
-                      : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {step === 'serve' && 'S'}
-                {step === 'reception' && 'R'}
-                {step === 'setter' && 'Se'}
-                {step === 'attack' && 'A'}
-                {step === 'block' && 'B'}
-                {step === 'defense' && 'D'}
-              </div>
-              {idx < arr.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-            </div>
-          ))}
-        </div>
+        {/* Step Progress - Enhanced with icons */}
+        <StepProgressBar
+          steps={phaseSteps}
+          currentStep={currentStep}
+          getStepIndex={getStepIndex}
+        />
 
-        {/* Attack Indicator - shows which team is attacking this phase */}
-        <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/50 border">
-          <span className="text-sm text-muted-foreground">Fase {gameState.currentPhase}:</span>
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium text-sm ${
-            attackSide === 'CASA' 
-              ? 'bg-home/20 text-home border border-home/30' 
-              : 'bg-away/20 text-away border border-away/30'
-          }`}>
-            <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                attackSide === 'CASA' ? 'bg-home' : 'bg-away'
-              }`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                attackSide === 'CASA' ? 'bg-home' : 'bg-away'
-              }`}></span>
-            </span>
-            <span>{attackSide === 'CASA' ? match.home_name : match.away_name} ataca</span>
+        {/* Attack Indicator - Enhanced visual design */}
+        <Card className={`overflow-hidden ${
+          attackSide === 'CASA' 
+            ? 'border-home/30 bg-home/5' 
+            : 'border-away/30 bg-away/5'
+        }`}>
+          <div className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${
+                attackSide === 'CASA' ? 'bg-home text-home-foreground' : 'bg-away text-away-foreground'
+              }`}>
+                <Swords className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Fase {gameState.currentPhase}</div>
+                <div className={`font-semibold ${
+                  attackSide === 'CASA' ? 'text-home' : 'text-away'
+                }`}>
+                  {attackSide === 'CASA' ? match.home_name : match.away_name} ataca
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Defende</div>
+              <div className={`text-sm font-medium ${
+                defSide === 'CASA' ? 'text-home' : 'text-away'
+              }`}>
+                {defSide === 'CASA' ? match.home_name : match.away_name}
+              </div>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">
-            ({defSide === 'CASA' ? match.home_name : match.away_name} defende)
-          </span>
-        </div>
+        </Card>
 
         {/* Legend for new users */}
         <WizardLegend homeName={match.home_name} awayName={match.away_name} />
@@ -887,12 +881,16 @@ export default function Live() {
         />
 
         {/* Wizard Steps */}
-        <Card>
-          <CardContent className="py-4 space-y-4">
-            {/* SERVE STEP */}
-            {currentStep === 'serve' && (
+        <div className="space-y-3">
+          {/* SERVE STEP */}
+          {currentStep === 'serve' && (
+            <WizardSectionCard
+              actionType="serve"
+              teamName={gameState.serveSide === 'CASA' ? match.home_name : match.away_name}
+              teamSide={gameState.serveSide === 'CASA' ? 'home' : 'away'}
+            >
               <WizardSection
-                title="Serviço"
+                title=""
                 players={uniquePlayers(servePlayers)}
                 selectedPlayer={rallyDetails.s_player_id}
                 selectedCode={rallyDetails.s_code}
@@ -900,12 +898,19 @@ export default function Live() {
                 onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, s_code: code }))}
                 disabled={!!isLaterPhase}
               />
-            )}
+            </WizardSectionCard>
+          )}
 
-            {/* RECEPTION STEP */}
-            {currentStep === 'reception' && (
+          {/* RECEPTION STEP */}
+          {currentStep === 'reception' && (
+            <WizardSectionCard
+              actionType="reception"
+              teamName={gameState.recvSide === 'CASA' ? match.home_name : match.away_name}
+              teamSide={gameState.recvSide === 'CASA' ? 'home' : 'away'}
+              optional
+            >
               <WizardSection
-                title="Receção"
+                title=""
                 players={uniquePlayers(recvPlayers)}
                 selectedPlayer={rallyDetails.r_player_id}
                 selectedCode={rallyDetails.r_code}
@@ -914,10 +919,17 @@ export default function Live() {
                 optional
                 disabled={!!isLaterPhase}
               />
-            )}
+            </WizardSectionCard>
+          )}
 
-            {/* SETTER STEP */}
-            {currentStep === 'setter' && (
+          {/* SETTER STEP */}
+          {currentStep === 'setter' && (
+            <WizardSectionCard
+              actionType="setter"
+              teamName={attackSide === 'CASA' ? match.home_name : match.away_name}
+              teamSide={attackSide === 'CASA' ? 'home' : 'away'}
+              optional
+            >
               <SetterSection
                 players={uniquePlayers(attackPlayers)}
                 selectedSetter={rallyDetails.setter_player_id}
@@ -927,19 +939,27 @@ export default function Live() {
                 onDestinationChange={(dest) => setRallyDetails(prev => ({ ...prev, pass_destination: dest }))}
                 onPassCodeChange={(code) => setRallyDetails(prev => ({ ...prev, pass_code: code }))}
               />
-            )}
+            </WizardSectionCard>
+          )}
 
-            {/* ATTACK STEP */}
-            {currentStep === 'attack' && (
+          {/* ATTACK STEP */}
+          {currentStep === 'attack' && (
+            <WizardSectionCard
+              actionType="attack"
+              teamName={attackSide === 'CASA' ? match.home_name : match.away_name}
+              teamSide={attackSide === 'CASA' ? 'home' : 'away'}
+              optional
+            >
               <div className="space-y-3">
                 {/* Attack side toggle for phase > 1 */}
                 {isLaterPhase && (
                   <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/50">
-                    <span className="text-sm">Ataque é de:</span>
+                    <span className="text-sm">Quem ataca:</span>
                     <div className="flex gap-1">
                       <Button
                         variant={attackSide === 'CASA' ? 'default' : 'outline'}
                         size="sm"
+                        className={attackSide === 'CASA' ? 'bg-home hover:bg-home/90' : ''}
                         onClick={() => setAttackSideOverride('CASA')}
                       >
                         {match.home_name}
@@ -947,6 +967,7 @@ export default function Live() {
                       <Button
                         variant={attackSide === 'FORA' ? 'default' : 'outline'}
                         size="sm"
+                        className={attackSide === 'FORA' ? 'bg-away hover:bg-away/90' : ''}
                         onClick={() => setAttackSideOverride('FORA')}
                       >
                         {match.away_name}
@@ -955,7 +976,7 @@ export default function Live() {
                   </div>
                 )}
                 <WizardSection
-                  title="Ataque"
+                  title=""
                   players={uniquePlayers(attackPlayers)}
                   selectedPlayer={rallyDetails.a_player_id}
                   selectedCode={rallyDetails.a_code}
@@ -965,16 +986,17 @@ export default function Live() {
                 />
                 {/* Kill Type Selection - Only show when a_code = 3 (KILL) - REQUIRED */}
                 {rallyDetails.a_code === 3 && (
-                  <div className={`flex items-center justify-between p-2 border rounded-lg ${
-                    rallyDetails.kill_type === null ? 'bg-destructive/10 border-destructive/50' : 'bg-muted/50'
+                  <div className={`flex items-center justify-between p-3 border-2 rounded-lg ${
+                    rallyDetails.kill_type === null ? 'bg-success/10 border-success animate-pulse' : 'bg-success/5 border-success/30'
                   }`}>
-                    <span className="text-sm">
-                      Tipo de Kill: <span className="text-destructive">*</span>
+                    <span className="text-sm font-medium">
+                      Tipo de Kill <span className="text-destructive">*</span>
                     </span>
-                    <div className="flex gap-1">
+                    <div className="flex gap-2">
                       <Button
                         variant={rallyDetails.kill_type === 'FLOOR' ? 'default' : 'outline'}
                         size="sm"
+                        className={rallyDetails.kill_type === 'FLOOR' ? 'bg-success hover:bg-success/90' : ''}
                         onClick={() => setRallyDetails(prev => ({ ...prev, kill_type: 'FLOOR' }))}
                       >
                         🏐 Chão
@@ -982,6 +1004,7 @@ export default function Live() {
                       <Button
                         variant={rallyDetails.kill_type === 'BLOCKOUT' ? 'default' : 'outline'}
                         size="sm"
+                        className={rallyDetails.kill_type === 'BLOCKOUT' ? 'bg-success hover:bg-success/90' : ''}
                         onClick={() => setRallyDetails(prev => ({ ...prev, kill_type: 'BLOCKOUT' }))}
                       >
                         🚫 Block-out
@@ -990,12 +1013,19 @@ export default function Live() {
                   </div>
                 )}
               </div>
-            )}
+            </WizardSectionCard>
+          )}
 
-            {/* BLOCK STEP */}
-            {currentStep === 'block' && (
+          {/* BLOCK STEP */}
+          {currentStep === 'block' && (
+            <WizardSectionCard
+              actionType="block"
+              teamName={defSide === 'CASA' ? match.home_name : match.away_name}
+              teamSide={defSide === 'CASA' ? 'home' : 'away'}
+              optional
+            >
               <WizardSectionBlock
-                title="Bloco"
+                title=""
                 players={uniquePlayers(blockDefPlayers)}
                 selectedPlayer1={rallyDetails.b1_player_id}
                 selectedPlayer2={rallyDetails.b2_player_id}
@@ -1007,12 +1037,19 @@ export default function Live() {
                 onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, b_code: code }))}
                 optional
               />
-            )}
+            </WizardSectionCard>
+          )}
 
-            {/* DEFENSE STEP */}
-            {currentStep === 'defense' && (
+          {/* DEFENSE STEP */}
+          {currentStep === 'defense' && (
+            <WizardSectionCard
+              actionType="defense"
+              teamName={defSide === 'CASA' ? match.home_name : match.away_name}
+              teamSide={defSide === 'CASA' ? 'home' : 'away'}
+              optional
+            >
               <WizardSection
-                title="Defesa"
+                title=""
                 players={uniquePlayers(blockDefPlayers)}
                 selectedPlayer={rallyDetails.d_player_id}
                 selectedCode={rallyDetails.d_code}
@@ -1020,24 +1057,26 @@ export default function Live() {
                 onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, d_code: code }))}
                 optional
               />
-            )}
+            </WizardSectionCard>
+          )}
 
-            {/* OUTCOME STEP (manual) */}
-            {currentStep === 'outcome' && !autoOutcome && (
-              <div className="space-y-3">
+          {/* OUTCOME STEP (manual) */}
+          {currentStep === 'outcome' && !autoOutcome && (
+            <Card className="border-l-4 border-l-muted">
+              <CardContent className="p-4 space-y-3">
                 <div className="text-sm font-medium">Resultado (manual)</div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={manualOutcome.winner === 'CASA' ? 'default' : 'outline'}
                     onClick={() => setManualOutcome(prev => ({ ...prev, winner: 'CASA' }))}
-                    className="h-12"
+                    className={`h-12 ${manualOutcome.winner === 'CASA' ? 'bg-home hover:bg-home/90' : ''}`}
                   >
                     {match.home_name}
                   </Button>
                   <Button
                     variant={manualOutcome.winner === 'FORA' ? 'default' : 'outline'}
                     onClick={() => setManualOutcome(prev => ({ ...prev, winner: 'FORA' }))}
-                    className="h-12"
+                    className={`h-12 ${manualOutcome.winner === 'FORA' ? 'bg-away hover:bg-away/90' : ''}`}
                   >
                     {match.away_name}
                   </Button>
@@ -1053,102 +1092,121 @@ export default function Live() {
                     </Button>
                   </div>
                 )}
-              </div>
-            )}
+              </CardContent>
+            </Card>
+          )}
 
-            {/* Auto Outcome Display */}
-            {autoOutcome && (
-              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                <div className="text-sm font-medium text-center">
-                  {autoOutcome.reason}: Ponto {autoOutcome.point_won_by === 'CASA' ? match.home_name : match.away_name}
+          {/* Auto Outcome Display */}
+          {autoOutcome && (
+            <Card className={`border-2 ${
+              autoOutcome.point_won_by === 'CASA' 
+                ? 'border-home bg-home/10' 
+                : 'border-away bg-away/10'
+            }`}>
+              <CardContent className="p-4">
+                <div className={`text-center font-semibold ${
+                  autoOutcome.point_won_by === 'CASA' ? 'text-home' : 'text-away'
+                }`}>
+                  <span className="text-lg">{autoOutcome.reason}</span>
+                  <span className="mx-2">•</span>
+                  <span>Ponto {autoOutcome.point_won_by === 'CASA' ? match.home_name : match.away_name}</span>
                 </div>
-              </div>
-            )}
+              </CardContent>
+            </Card>
+          )}
 
-            {/* Navigation Buttons */}
-            <div className="flex gap-2 pt-2">
-              {/* Show back button unless at first step of current phase */}
-              {!(isLaterPhase ? currentStep === 'setter' : currentStep === 'serve') && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrevStep}
-                >
-                  ← Voltar
-                </Button>
-              )}
-              {currentStep !== 'serve' && (
-                isLaterPhase ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        Anular rally
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Anular rally em curso?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta ação vai apagar todas as fases deste rally e voltar ao início de um novo rally.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Não</AlertDialogCancel>
-                        <AlertDialogAction onClick={hardResetToNewRally}>Sim, anular</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : (
+          {/* Navigation Buttons */}
+          <Card>
+            <CardContent className="py-3">
+              <div className="flex gap-2">
+                {/* Show back button unless at first step of current phase */}
+                {!(isLaterPhase ? currentStep === 'setter' : currentStep === 'serve') && (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    onClick={resetWizard}
+                    onClick={handlePrevStep}
                   >
-                    Cancelar
+                    ← Voltar
                   </Button>
-                )
-              )}
-              
-              <div className="flex-1" />
+                )}
+                {currentStep !== 'serve' && (
+                  isLaterPhase ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          Anular rally
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Anular rally em curso?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação vai apagar todas as fases deste rally e voltar ao início de um novo rally.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Não</AlertDialogCancel>
+                          <AlertDialogAction onClick={hardResetToNewRally}>Sim, anular</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetWizard}
+                    >
+                      Cancelar
+                    </Button>
+                  )
+                )}
+                
+                <div className="flex-1" />
 
-              {/* Skip button for optional steps */}
-              {(currentStep === 'reception' || currentStep === 'setter' || currentStep === 'attack' || currentStep === 'block' || currentStep === 'defense') && !autoOutcome && (
-                <Button
-                  variant="outline"
-                  onClick={handleSkipStep}
-                >
-                  Saltar
-                </Button>
-              )}
+                {/* Skip button for optional steps */}
+                {(currentStep === 'reception' || currentStep === 'setter' || currentStep === 'attack' || currentStep === 'block' || currentStep === 'defense') && !autoOutcome && (
+                  <Button
+                    variant="outline"
+                    onClick={handleSkipStep}
+                  >
+                    Saltar
+                  </Button>
+                )}
 
-              {/* Next button */}
-              {!autoOutcome && !isServeTerminal && currentStep !== 'outcome' && (
-                <Button onClick={handleNextStep}>
-                  Próximo <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              )}
+                {/* Next button */}
+                {!autoOutcome && !isServeTerminal && currentStep !== 'outcome' && (
+                  <Button onClick={handleNextStep} className="bg-primary">
+                    Próximo <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                )}
 
-              {/* +Phase button in detailed mode */}
-              {detailedMode && (currentStep !== 'serve' || rallyDetails.s_code !== null) && (
-                <Button
-                  variant="outline"
-                  onClick={handleAddPhase}
-                  className="gap-1"
-                >
-                  <Plus className="h-4 w-4" />
-                  +Fase
-                </Button>
-              )}
+                {/* +Phase button in detailed mode */}
+                {detailedMode && (currentStep !== 'serve' || rallyDetails.s_code !== null) && (
+                  <Button
+                    variant="outline"
+                    onClick={handleAddPhase}
+                    className="gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    +Fase
+                  </Button>
+                )}
 
-              {/* Save button when we have an outcome */}
-              {(autoOutcome || (currentStep === 'outcome' && finalOutcome)) && (
-                <Button onClick={() => handleSavePoint(false)}>
-                  Guardar Ponto
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {/* Save button when we have an outcome */}
+                {(autoOutcome || (currentStep === 'outcome' && finalOutcome)) && (
+                  <Button 
+                    onClick={() => handleSavePoint(false)}
+                    className={`${
+                      autoOutcome?.point_won_by === 'CASA' ? 'bg-home hover:bg-home/90' : 'bg-away hover:bg-away/90'
+                    }`}
+                  >
+                    Guardar Ponto
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Step Help */}
         <WizardStepHelp currentStep={currentStep} />
@@ -1253,19 +1311,14 @@ function WizardSection({
       </Select>
       <div className="grid grid-cols-4 gap-2">
         {CODES.map((code) => (
-          <Button
+          <ColoredRatingButton
             key={code}
-            variant={selectedCode === code ? 'default' : 'outline'}
-            className="h-12 text-lg"
+            code={code}
+            selected={selectedCode === code}
             onClick={() => onCodeChange(selectedCode === code ? null : code)}
             disabled={disabled}
-          >
-            {code}
-          </Button>
+          />
         ))}
-      </div>
-      <div className="text-xs text-muted-foreground text-center">
-        3=excelente • 2=positivo • 1=negativo • 0=erro
       </div>
     </div>
   );
@@ -1359,18 +1412,13 @@ function WizardSectionBlock({
       </div>
       <div className="grid grid-cols-4 gap-2">
         {CODES.map((code) => (
-          <Button
+          <ColoredRatingButton
             key={code}
-            variant={selectedCode === code ? 'default' : 'outline'}
-            className="h-12 text-lg"
+            code={code}
+            selected={selectedCode === code}
             onClick={() => onCodeChange(selectedCode === code ? null : code)}
-          >
-            {code}
-          </Button>
+          />
         ))}
-      </div>
-      <div className="text-xs text-muted-foreground text-center">
-        3=ponto • 2=positivo • 1=toque • 0=erro
       </div>
     </div>
   );
@@ -1424,18 +1472,14 @@ function SetterSection({
       <div className="text-xs text-muted-foreground">Qualidade do passe:</div>
       <div className="grid grid-cols-4 gap-2">
         {CODES.map((code) => (
-          <Button
+          <ColoredRatingButton
             key={code}
-            variant={selectedPassCode === code ? 'default' : 'outline'}
-            className="h-10 text-lg"
+            code={code}
+            selected={selectedPassCode === code}
             onClick={() => onPassCodeChange(selectedPassCode === code ? null : code)}
-          >
-            {code}
-          </Button>
+            size="sm"
+          />
         ))}
-      </div>
-      <div className="text-xs text-muted-foreground text-center">
-        3=excelente • 2=positivo • 1=negativo • 0=erro
       </div>
       
       <div className="text-xs text-muted-foreground">Destino da distribuição:</div>
