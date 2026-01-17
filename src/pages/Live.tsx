@@ -313,6 +313,22 @@ export default function Live() {
     if (isLaterPhase) {
       // For phase > 1, skip serve and reception
       if (currentStep === 'setter') {
+        // Validate destination against d_code in later phases
+        if (rallyDetails.pass_destination) {
+          const effectiveReceptionCode = rallyDetails.d_code;
+          const availablePositions = effectiveReceptionCode !== null && effectiveReceptionCode !== undefined
+            ? POSITIONS_BY_RECEPTION[effectiveReceptionCode] || []
+            : [];
+          
+          if (availablePositions.length > 0 && !availablePositions.includes(rallyDetails.pass_destination)) {
+            toast({ 
+              title: 'Destino inválido', 
+              description: 'O destino selecionado não está disponível para esta qualidade.',
+              variant: 'destructive' 
+            });
+            return;
+          }
+        }
         setCurrentStep('attack');
       } else if (currentStep === 'attack') {
         // Validate attacker selection if code is selected
@@ -987,12 +1003,44 @@ export default function Live() {
               teamSide={attackSide === 'CASA' ? 'home' : 'away'}
               optional
             >
+              {/* In later phases, show quality selection for incoming ball (replaces reception quality) */}
+              {isLaterPhase && (
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Qualidade da Bola (da defesa anterior)
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[0, 1, 2, 3].map((code) => (
+                      <ColoredRatingButton
+                        key={code}
+                        code={code}
+                        selected={rallyDetails.d_code === code}
+                        onClick={() => {
+                          setRallyDetails(prev => {
+                            const newCode = prev.d_code === code ? null : code;
+                            const newDetails = { ...prev, d_code: newCode };
+                            // Clear destination if no longer valid for new code
+                            if (prev.pass_destination && newCode !== null) {
+                              const availablePositions = POSITIONS_BY_RECEPTION[newCode] || [];
+                              if (!availablePositions.includes(prev.pass_destination)) {
+                                newDetails.pass_destination = null;
+                              }
+                            }
+                            return newDetails;
+                          });
+                        }}
+                        size="md"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <SetterSection
                 players={uniquePlayers(attackPlayers)}
                 selectedSetter={rallyDetails.setter_player_id}
                 selectedDestination={rallyDetails.pass_destination}
                 selectedPassCode={rallyDetails.pass_code}
-                receptionCode={rallyDetails.r_code}
+                receptionCode={isLaterPhase ? rallyDetails.d_code : rallyDetails.r_code}
                 onSetterChange={(id) => setRallyDetails(prev => ({ ...prev, setter_player_id: id }))}
                 onDestinationChange={(dest) => setRallyDetails(prev => ({ ...prev, pass_destination: dest }))}
                 onPassCodeChange={(code) => setRallyDetails(prev => ({ ...prev, pass_code: code }))}
@@ -1128,15 +1176,39 @@ export default function Live() {
               teamSide={defSide === 'CASA' ? 'home' : 'away'}
               optional
             >
-              <WizardSection
-                title=""
-                players={uniquePlayers(blockDefPlayers)}
-                selectedPlayer={rallyDetails.d_player_id}
-                selectedCode={rallyDetails.d_code}
-                onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, d_player_id: id }))}
-                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, d_code: code }))}
-                optional
-              />
+              <div className="space-y-3">
+                {/* Defense quality dashboard */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Qualidade da Defesa
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[0, 1, 2, 3].map((code) => (
+                      <ColoredRatingButton
+                        key={code}
+                        code={code}
+                        selected={rallyDetails.d_code === code}
+                        onClick={() => setRallyDetails(prev => ({ 
+                          ...prev, 
+                          d_code: prev.d_code === code ? null : code 
+                        }))}
+                        size="md"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Player selection */}
+                <WizardSection
+                  title="Defensor"
+                  players={uniquePlayers(blockDefPlayers)}
+                  selectedPlayer={rallyDetails.d_player_id}
+                  selectedCode={null}
+                  onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, d_player_id: id }))}
+                  onCodeChange={() => {}}
+                  optional
+                />
+              </div>
             </WizardSectionCard>
           )}
 
