@@ -72,6 +72,18 @@ export interface Lineup {
   created_at: string;
 }
 
+export interface Substitution {
+  id: string;
+  match_id: string;
+  set_no: number;
+  side: Side;
+  rally_no: number;
+  player_out_id: string;
+  player_in_id: string;
+  is_libero: boolean;
+  created_at: string;
+}
+
 export type PassDestination = 'P2' | 'P3' | 'P4' | 'OP' | 'PIPE' | 'BACK' | 'OUTROS';
 
 export interface Rally {
