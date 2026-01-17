@@ -702,6 +702,68 @@ export default function Live() {
                 <div className="text-4xl font-bold">{gameState.awayScore}</div>
               </div>
             </div>
+            
+            {/* Players on Court Display */}
+            <div className="mt-3 flex gap-4 justify-between">
+              {/* Home Team Players */}
+              <div className="flex-1">
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {(() => {
+                    const homePlayers = getPlayersOnCourt(currentSet, 'CASA', gameState.currentRally);
+                    const homeSubsForSet = getSubstitutionsForSet(currentSet, 'CASA');
+                    
+                    return homePlayers.map(player => {
+                      // Check if this player is currently a libero replacement
+                      const isLiberoIn = homeSubsForSet.some(
+                        s => s.is_libero && s.player_in_id === player.id && s.rally_no <= gameState.currentRally
+                      );
+                      const isLibero = player.position === 'L' || isLiberoIn;
+                      
+                      return (
+                        <Badge
+                          key={player.id}
+                          variant={isLibero ? 'default' : 'secondary'}
+                          className={`text-xs ${isLibero ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}`}
+                        >
+                          #{player.jersey_number}
+                          {isLibero && ' L'}
+                        </Badge>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+              
+              {/* Away Team Players */}
+              <div className="flex-1">
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {(() => {
+                    const awayPlayers = getPlayersOnCourt(currentSet, 'FORA', gameState.currentRally);
+                    const awaySubsForSet = getSubstitutionsForSet(currentSet, 'FORA');
+                    
+                    return awayPlayers.map(player => {
+                      // Check if this player is currently a libero replacement
+                      const isLiberoIn = awaySubsForSet.some(
+                        s => s.is_libero && s.player_in_id === player.id && s.rally_no <= gameState.currentRally
+                      );
+                      const isLibero = player.position === 'L' || isLiberoIn;
+                      
+                      return (
+                        <Badge
+                          key={player.id}
+                          variant={isLibero ? 'default' : 'secondary'}
+                          className={`text-xs ${isLibero ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}`}
+                        >
+                          #{player.jersey_number}
+                          {isLibero && ' L'}
+                        </Badge>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+            
             <div className="mt-2 text-center text-xs text-muted-foreground">
               Rally #{gameState.currentRally} {gameState.currentPhase > 1 && `• Fase ${gameState.currentPhase}`} • Serve: {gameState.serveSide === 'CASA' ? match.home_name : match.away_name} (R{gameState.serveRot})
               {serverPlayer && ` • #${serverPlayer.jersey_number}`}
