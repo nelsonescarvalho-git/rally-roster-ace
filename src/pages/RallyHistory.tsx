@@ -19,8 +19,15 @@ import {
   ShieldCheck,
   LayoutList,
   LayoutGrid,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown as DropdownChevron
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Rally, Player, MatchPlayer } from '@/types/volleyball';
 import { EditRallyModal } from '@/components/EditRallyModal';
@@ -389,8 +396,10 @@ export default function RallyHistory() {
     return player ? `#${player.jersey_number} ${player.name}` : '';
   };
 
-  const exportToExcel = () => {
-    if (rallies.length === 0) {
+  const exportToExcel = (exportAll: boolean = true) => {
+    const dataToExport = exportAll ? rallies : filteredRallies;
+    
+    if (dataToExport.length === 0) {
       toast.error('Sem dados para exportar');
       return;
     }
@@ -406,7 +415,7 @@ export default function RallyHistory() {
       'Ponto', 'Razão'
     ];
 
-    const rows = rallies.map(r => [
+    const rows = dataToExport.map(r => [
       r.set_no,
       r.rally_no,
       r.phase,
@@ -439,18 +448,22 @@ export default function RallyHistory() {
       ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
     ].join('\n');
 
+    // Create filename with set info if filtered
+    const setInfo = !exportAll && selectedSet > 0 ? `_set${selectedSet}` : '';
+    const filename = `rallies_${match?.title.replace(/\s+/g, '_') || 'match'}${setInfo}.csv`;
+
     // Create and download file
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `rallies_${match?.title.replace(/\s+/g, '_') || 'match'}.csv`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    toast.success('Ficheiro exportado com sucesso');
+    toast.success(`Ficheiro exportado com sucesso${!exportAll && selectedSet > 0 ? ` (Set ${selectedSet})` : ''}`);
   };
 
   if (loading || !match) {
@@ -508,14 +521,27 @@ export default function RallyHistory() {
           </div>
           
           {/* Export Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={exportToExcel}
-            title="Exportar para Excel"
-          >
-            <FileSpreadsheet className="h-5 w-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Exportar para Excel"
+              >
+                <FileSpreadsheet className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportToExcel(true)}>
+                Exportar Tudo
+              </DropdownMenuItem>
+              {selectedSet > 0 && (
+                <DropdownMenuItem onClick={() => exportToExcel(false)}>
+                  Exportar Set {selectedSet}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           {/* View Mode Toggle */}
           <div className="flex items-center gap-1 border rounded-lg p-0.5">
