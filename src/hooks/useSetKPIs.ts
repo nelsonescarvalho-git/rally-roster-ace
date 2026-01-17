@@ -158,6 +158,19 @@ export function useSetKPIs(
     // Convert to array sorted by rally_no
     const setRallies = Array.from(consolidatedMap.values()).sort((a, b) => a.rally_no - b.rally_no);
     
+    // === DEBUG LOGGING ===
+    console.group(`🏐 KPI Debug - Set ${setNo}`);
+    console.log(`📊 Raw rallies: ${rawSetRallies.length}, Consolidated: ${setRallies.length}`);
+    console.table(setRallies.map(r => ({
+      rally_no: r.rally_no,
+      serve_side: r.serve_side,
+      recv_side: r.recv_side,
+      s_code: r.s_code,
+      r_code: r.r_code,
+      reason: r.reason,
+      point_won_by: r.point_won_by,
+    })));
+    
     const home = createEmptyTeamKPIs();
     const away = createEmptyTeamKPIs();
     
@@ -376,6 +389,34 @@ export function useSetKPIs(
       };
     }
     
+    // === DEBUG: Log raw counts before percentages ===
+    console.log('🏠 CASA (Home) Raw Stats:');
+    console.table({
+      'Serve Total': home.serveTotal,
+      'Serve Errors': home.serveErrors,
+      'Serve Aces': home.serveAces,
+      'Serve Pressure (1+2)': home.servePressure,
+      'Serve Sum Check': home.serveErrors + home.serveAces + home.servePressure,
+      'Reception Total': home.recTotal,
+      'Rec Perfect (3)': home.recPerfect,
+      'Rec Positive (2+3)': home.recPositive,
+      'Rec Errors (0)': home.recErrors,
+      'Rec Under Pressure (1)': home.recUnderPressure,
+    });
+    console.log('🚗 FORA (Away) Raw Stats:');
+    console.table({
+      'Serve Total': away.serveTotal,
+      'Serve Errors': away.serveErrors,
+      'Serve Aces': away.serveAces,
+      'Serve Pressure (1+2)': away.servePressure,
+      'Serve Sum Check': away.serveErrors + away.serveAces + away.servePressure,
+      'Reception Total': away.recTotal,
+      'Rec Perfect (3)': away.recPerfect,
+      'Rec Positive (2+3)': away.recPositive,
+      'Rec Errors (0)': away.recErrors,
+      'Rec Under Pressure (1)': away.recUnderPressure,
+    });
+    
     // Calculate percentages
     const calcPercent = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0;
     
@@ -476,6 +517,14 @@ export function useSetKPIs(
         awaySideoutDelta: away.sideoutPercent - prevAwaySO,
       };
     }
+    
+    // === DEBUG: Final percentages validation ===
+    console.log('📈 Final Percentages:');
+    console.log(`  CASA Serve: Erro=${home.serveErrorPercent}% + Pressão=${home.servePressurePercent}% + ACE=${home.serveAcePercent}% = ${home.serveErrorPercent + home.servePressurePercent + home.serveAcePercent}%`);
+    console.log(`  FORA Serve: Erro=${away.serveErrorPercent}% + Pressão=${away.servePressurePercent}% + ACE=${away.serveAcePercent}% = ${away.serveErrorPercent + away.servePressurePercent + away.serveAcePercent}%`);
+    console.log(`  CASA Rec: Erro=${home.recErrorPercent}% + Pressão=${home.recUnderPressurePercent}% + Positivo=${home.recPositivePercent}% (Perfect=${home.recPerfectPercent}%)`);
+    console.log(`  FORA Rec: Erro=${away.recErrorPercent}% + Pressão=${away.recUnderPressurePercent}% + Positivo=${away.recPositivePercent}% (Perfect=${away.recPerfectPercent}%)`);
+    console.groupEnd();
     
     return {
       home,
