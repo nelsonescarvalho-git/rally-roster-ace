@@ -6,17 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download } from 'lucide-react';
-import { Side } from '@/types/volleyball';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Download, AlertTriangle, Pencil } from 'lucide-react';
+import { Side, Rally } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
+import { EditRallyModal } from '@/components/EditRallyModal';
 
 export default function Stats() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
-  const { match, rallies, loading, loadMatch, getRalliesForSet, getEffectivePlayers } = useMatch(matchId || null);
+  const { match, rallies, loading, loadMatch, getRalliesForSet, getEffectivePlayers, updateRally } = useMatch(matchId || null);
   const effectivePlayers = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0); // 0 = all
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
+  const [editingRally, setEditingRally] = useState<Rally | null>(null);
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -106,7 +109,8 @@ export default function Stats() {
           <TabsList className="w-full">
             <TabsTrigger value="players" className="flex-1">Jogadores</TabsTrigger>
             <TabsTrigger value="rotations" className="flex-1">Rotações</TabsTrigger>
-            <TabsTrigger value="distribution" className="flex-1">Distribuição</TabsTrigger>
+            <TabsTrigger value="rallies" className="flex-1">Rallies</TabsTrigger>
+            <TabsTrigger value="distribution" className="flex-1">Dist.</TabsTrigger>
           </TabsList>
 
           <TabsContent value="players">
@@ -179,6 +183,130 @@ export default function Stats() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="rallies">
+            <Card>
+              <CardContent className="p-0 overflow-x-auto">
+                {(() => {
+                  // Get rallies with issues (KILL without attacker)
+                  const ralliesWithIssues = filteredRallies.filter(r => 
+                    r.reason === 'KILL' && !r.a_player_id
+                  );
+                  
+                  // Group rallies by rally_no and get final phase
+                  const rallyMap = new Map<string, Rally>();
+                  filteredRallies.forEach(r => {
+                    const key = `${r.set_no}-${r.rally_no}`;
+                    const existing = rallyMap.get(key);
+                    if (!existing || r.phase > existing.phase) {
+                      rallyMap.set(key, r);
+                    }
+                  });
+                  
+                  const uniqueRallies = Array.from(rallyMap.values())
+                    .sort((a, b) => {
+                      if (a.set_no !== b.set_no) return a.set_no - b.set_no;
+                      return b.rally_no - a.rally_no;
+                    });
+
+                  return (
+                    <>
+                      {ralliesWithIssues.length > 0 && (
+                        <div className="p-3 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive" />
+                          <span className="text-sm text-destructive">
+                            {ralliesWithIssues.length} rally(s) com dados em falta (KILL sem atacante)
+                          </span>
+                        </div>
+                      )}
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12">Set</TableHead>
+                            <TableHead className="w-12">#</TableHead>
+                            <TableHead>Serv</TableHead>
+                            <TableHead>Rec</TableHead>
+                            <TableHead>Atq</TableHead>
+                            <TableHead>Result</TableHead>
+                            <TableHead className="w-12"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {uniqueRallies.map((r) => {
+                            const hasIssue = r.reason === 'KILL' && !r.a_player_id;
+                            const sPlayer = effectivePlayers.find(p => p.id === r.s_player_id);
+                            const rPlayer = effectivePlayers.find(p => p.id === r.r_player_id);
+                            const aPlayer = effectivePlayers.find(p => p.id === r.a_player_id);
+                            
+                            return (
+                              <TableRow 
+                                key={r.id} 
+                                className={hasIssue ? 'bg-destructive/5' : ''}
+                              >
+                                <TableCell className="font-mono text-xs">S{r.set_no}</TableCell>
+                                <TableCell className="font-mono text-xs">#{r.rally_no}</TableCell>
+                                <TableCell className="text-xs">
+                                  {sPlayer ? `#${sPlayer.jersey_number}` : '-'}
+                                  {r.s_code !== null && (
+                                    <Badge variant="outline" className="ml-1 text-[10px] px-1">
+                                      {r.s_code}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                  {rPlayer ? `#${rPlayer.jersey_number}` : '-'}
+                                  {r.r_code !== null && (
+                                    <Badge variant="outline" className="ml-1 text-[10px] px-1">
+                                      {r.r_code}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                  {aPlayer ? (
+                                    `#${aPlayer.jersey_number}`
+                                  ) : hasIssue ? (
+                                    <Badge variant="destructive" className="text-[10px]">
+                                      <AlertTriangle className="h-3 w-3 mr-1" />
+                                      Falta
+                                    </Badge>
+                                  ) : '-'}
+                                  {r.a_code !== null && aPlayer && (
+                                    <Badge variant="outline" className="ml-1 text-[10px] px-1">
+                                      {r.a_code}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                  {r.point_won_by && (
+                                    <Badge 
+                                      variant={r.point_won_by === 'CASA' ? 'default' : 'secondary'}
+                                      className="text-[10px]"
+                                    >
+                                      {r.point_won_by === 'CASA' ? match.home_name.slice(0, 3) : match.away_name.slice(0, 3)} {r.reason}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => setEditingRally(r)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="distribution">
             <DistributionTab
               rallies={rallies}
@@ -189,6 +317,16 @@ export default function Stats() {
             />
           </TabsContent>
         </Tabs>
+
+        <EditRallyModal
+          open={!!editingRally}
+          onOpenChange={(open) => !open && setEditingRally(null)}
+          rally={editingRally}
+          players={effectivePlayers}
+          onSave={updateRally}
+          homeName={match.home_name}
+          awayName={match.away_name}
+        />
       </div>
     </div>
   );
