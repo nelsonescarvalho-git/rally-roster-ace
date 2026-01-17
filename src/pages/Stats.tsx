@@ -63,6 +63,9 @@ export default function Stats() {
             <Download className="h-4 w-4" />
             CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/history/${matchId}`)} className="gap-1">
+            Histórico
+          </Button>
         </div>
       </header>
 
