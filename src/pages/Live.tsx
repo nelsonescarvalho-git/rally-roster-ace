@@ -14,7 +14,8 @@ import { SubstitutionModal } from '@/components/SubstitutionModal';
 import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
 import { StepProgressBar } from '@/components/live/StepProgressBar';
 import { WizardSectionCard } from '@/components/live/WizardSectionCard';
-import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType } from '@/types/volleyball';
+import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType, POSITIONS_BY_RECEPTION, RECEPTION_LABELS } from '@/types/volleyball';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -951,6 +952,7 @@ export default function Live() {
                 selectedSetter={rallyDetails.setter_player_id}
                 selectedDestination={rallyDetails.pass_destination}
                 selectedPassCode={rallyDetails.pass_code}
+                receptionCode={rallyDetails.r_code}
                 onSetterChange={(id) => setRallyDetails(prev => ({ ...prev, setter_player_id: id }))}
                 onDestinationChange={(dest) => setRallyDetails(prev => ({ ...prev, pass_destination: dest }))}
                 onPassCodeChange={(code) => setRallyDetails(prev => ({ ...prev, pass_code: code }))}
@@ -1475,6 +1477,7 @@ interface SetterSectionProps {
   selectedSetter: string | null;
   selectedDestination: PassDestination | null;
   selectedPassCode: number | null;
+  receptionCode?: number | null;
   onSetterChange: (id: string | null) => void;
   onDestinationChange: (dest: PassDestination | null) => void;
   onPassCodeChange: (code: number | null) => void;
@@ -1485,10 +1488,16 @@ function SetterSection({
   selectedSetter,
   selectedDestination,
   selectedPassCode,
+  receptionCode,
   onSetterChange,
   onDestinationChange,
   onPassCodeChange,
 }: SetterSectionProps) {
+  // Get available positions based on reception quality
+  const availablePositions = receptionCode !== null && receptionCode !== undefined
+    ? POSITIONS_BY_RECEPTION[receptionCode] || []
+    : [];
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -1529,19 +1538,62 @@ function SetterSection({
       
       <div className="text-xs text-muted-foreground">Destino da distribuição:</div>
       <div className="grid grid-cols-4 gap-2">
-        {DESTINATIONS.map((dest) => (
-          <Button
-            key={dest}
-            variant={selectedDestination === dest ? 'default' : 'outline'}
-            className="h-10 text-xs"
-            onClick={() => onDestinationChange(selectedDestination === dest ? null : dest)}
-          >
-            {dest}
-          </Button>
-        ))}
+        {DESTINATIONS.map((dest) => {
+          const isAvailable = receptionCode === null || receptionCode === undefined || availablePositions.includes(dest);
+          return (
+            <Button
+              key={dest}
+              variant={selectedDestination === dest ? 'default' : 'outline'}
+              className={`h-10 text-xs ${!isAvailable && receptionCode !== null && receptionCode !== undefined ? 'opacity-50' : ''}`}
+              onClick={() => onDestinationChange(selectedDestination === dest ? null : dest)}
+            >
+              {dest}
+            </Button>
+          );
+        })}
       </div>
       <div className="text-xs text-muted-foreground text-center">
         P2/P3/P4=Pontas • OP=Oposto • PIPE/BACK=2ª linha
+      </div>
+
+      {/* Reference table for positions by reception quality */}
+      <div className="mt-4 border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead className="text-xs py-2 px-2">r_code</TableHead>
+              <TableHead className="text-xs py-2 px-2">Qualidade</TableHead>
+              <TableHead className="text-xs py-2 px-2">Posições Disponíveis</TableHead>
+              <TableHead className="text-xs py-2 px-2 text-center">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {[3, 2, 1, 0].map((code) => {
+              const info = RECEPTION_LABELS[code];
+              const positions = POSITIONS_BY_RECEPTION[code];
+              const isHighlighted = receptionCode === code;
+              return (
+                <TableRow 
+                  key={code} 
+                  className={isHighlighted ? 'bg-primary/10 font-medium' : ''}
+                >
+                  <TableCell className="text-xs py-1.5 px-2">
+                    {code} {info.emoji}
+                  </TableCell>
+                  <TableCell className="text-xs py-1.5 px-2">
+                    {info.label}
+                  </TableCell>
+                  <TableCell className="text-xs py-1.5 px-2">
+                    {positions.join(', ')}
+                  </TableCell>
+                  <TableCell className="text-xs py-1.5 px-2 text-center">
+                    {positions.length}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
