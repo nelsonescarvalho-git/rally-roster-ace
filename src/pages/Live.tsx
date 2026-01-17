@@ -348,6 +348,21 @@ export default function Live() {
       } else if (currentStep === 'reception') {
         setCurrentStep('setter');
       } else if (currentStep === 'setter') {
+        // Validate destination if selected
+        if (rallyDetails.pass_destination) {
+          const availablePositions = rallyDetails.r_code !== null && rallyDetails.r_code !== undefined
+            ? POSITIONS_BY_RECEPTION[rallyDetails.r_code] || []
+            : [];
+          
+          if (availablePositions.length > 0 && !availablePositions.includes(rallyDetails.pass_destination)) {
+            toast({ 
+              title: 'Destino inválido', 
+              description: 'O destino selecionado não está disponível para esta qualidade de receção.',
+              variant: 'destructive' 
+            });
+            return;
+          }
+        }
         setCurrentStep('attack');
       } else if (currentStep === 'attack') {
         // Validate attacker selection if code is selected
@@ -372,6 +387,21 @@ export default function Live() {
     if (currentStep === 'reception') {
       setCurrentStep('setter');
     } else if (currentStep === 'setter') {
+      // Validate destination if selected
+      if (rallyDetails.pass_destination) {
+        const availablePositions = rallyDetails.r_code !== null && rallyDetails.r_code !== undefined
+          ? POSITIONS_BY_RECEPTION[rallyDetails.r_code] || []
+          : [];
+        
+        if (availablePositions.length > 0 && !availablePositions.includes(rallyDetails.pass_destination)) {
+          toast({ 
+            title: 'Destino inválido', 
+            description: 'O destino selecionado não está disponível para esta qualidade de receção.',
+            variant: 'destructive' 
+          });
+          return;
+        }
+      }
       setCurrentStep('attack');
     } else if (currentStep === 'attack') {
       // Validate attacker selection if code is selected before skipping
@@ -932,7 +962,17 @@ export default function Live() {
                 selectedPlayer={rallyDetails.r_player_id}
                 selectedCode={rallyDetails.r_code}
                 onPlayerChange={(id) => setRallyDetails(prev => ({ ...prev, r_player_id: id }))}
-                onCodeChange={(code) => setRallyDetails(prev => ({ ...prev, r_code: code }))}
+                onCodeChange={(code) => setRallyDetails(prev => {
+                  const newDetails = { ...prev, r_code: code };
+                  // Clear destination if it's no longer available with the new r_code
+                  if (prev.pass_destination && code !== null) {
+                    const availablePositions = POSITIONS_BY_RECEPTION[code] || [];
+                    if (!availablePositions.includes(prev.pass_destination)) {
+                      newDetails.pass_destination = null;
+                    }
+                  }
+                  return newDetails;
+                })}
                 optional
                 disabled={!!isLaterPhase}
               />
@@ -1538,19 +1578,21 @@ function SetterSection({
       
       <div className="text-xs text-muted-foreground">Destino da distribuição:</div>
       <div className="grid grid-cols-4 gap-2">
-        {DESTINATIONS.map((dest) => {
-          const isAvailable = receptionCode === null || receptionCode === undefined || availablePositions.includes(dest);
-          return (
-            <Button
-              key={dest}
-              variant={selectedDestination === dest ? 'default' : 'outline'}
-              className={`h-10 text-xs ${!isAvailable && receptionCode !== null && receptionCode !== undefined ? 'opacity-50' : ''}`}
-              onClick={() => onDestinationChange(selectedDestination === dest ? null : dest)}
-            >
-              {dest}
-            </Button>
-          );
-        })}
+        {DESTINATIONS.filter((dest) => {
+          // If no r_code defined, show all destinations
+          if (receptionCode === null || receptionCode === undefined) return true;
+          // Otherwise, show only available destinations
+          return availablePositions.includes(dest);
+        }).map((dest) => (
+          <Button
+            key={dest}
+            variant={selectedDestination === dest ? 'default' : 'outline'}
+            className="h-10 text-xs"
+            onClick={() => onDestinationChange(selectedDestination === dest ? null : dest)}
+          >
+            {dest}
+          </Button>
+        ))}
       </div>
       <div className="text-xs text-muted-foreground text-center">
         P2/P3/P4=Pontas • OP=Oposto • PIPE/BACK=2ª linha
