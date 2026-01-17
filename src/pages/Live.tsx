@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
+import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
 import { WizardLegend } from '@/components/WizardLegend';
 import { RecentPlays } from '@/components/RecentPlays';
 import { SubstitutionModal } from '@/components/SubstitutionModal';
@@ -512,38 +513,43 @@ export default function Live() {
         const setStatus = isSetComplete(currentSet);
         const matchStatus = getMatchStatus();
         
+        // Get previous set rallies for delta calculation
+        const previousSetRallies = currentSet > 1 
+          ? rallies.filter(r => r.set_no === currentSet - 1)
+          : undefined;
+        
         if (setStatus.complete) {
           return (
-            <div className="fixed inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 p-4">
-              <div className="text-center space-y-6 max-w-md">
+            <div className="fixed inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center z-50 p-4 overflow-y-auto">
+              <div className="text-center space-y-4 max-w-lg w-full py-6">
                 <div className="flex justify-center">
-                  <div className="p-4 rounded-full bg-primary/10">
-                    <Trophy className="h-12 w-12 text-primary" />
+                  <div className="p-3 rounded-full bg-primary/10">
+                    <Trophy className="h-8 w-8 text-primary" />
                   </div>
                 </div>
                 
-                <h2 className="text-2xl font-bold">Set {currentSet} Terminado!</h2>
+                <h2 className="text-xl font-bold">Set {currentSet} Terminado!</h2>
                 
-                <div className="text-5xl font-bold flex items-center justify-center gap-4">
+                <div className="text-4xl font-bold flex items-center justify-center gap-3">
                   <span className={setStatus.winner === 'CASA' ? 'text-home' : 'text-muted-foreground'}>
                     {setStatus.homeScore}
                   </span>
-                  <span className="text-muted-foreground text-3xl">-</span>
+                  <span className="text-muted-foreground text-2xl">-</span>
                   <span className={setStatus.winner === 'FORA' ? 'text-away' : 'text-muted-foreground'}>
                     {setStatus.awayScore}
                   </span>
                 </div>
                 
-                <p className="text-lg">
+                <p className="text-base">
                   <span className={setStatus.winner === 'CASA' ? 'text-home font-semibold' : 'text-away font-semibold'}>
                     {setStatus.winner === 'CASA' ? match.home_name : match.away_name}
                   </span>
                   {' '}ganhou o set!
                 </p>
                 
-                <div className="py-4 px-6 rounded-lg bg-muted/50">
-                  <div className="text-sm text-muted-foreground mb-2">Resultado por Sets</div>
-                  <div className="text-3xl font-bold">
+                <div className="py-2 px-4 rounded-lg bg-muted/50 inline-block">
+                  <div className="text-xs text-muted-foreground mb-1">Resultado por Sets</div>
+                  <div className="text-2xl font-bold">
                     <span className={matchStatus.setsHome > matchStatus.setsAway ? 'text-home' : ''}>
                       {matchStatus.setsHome}
                     </span>
@@ -554,10 +560,21 @@ export default function Live() {
                   </div>
                 </div>
                 
+                {/* KPI Dashboard */}
+                <SetSummaryKPIs
+                  rallies={rallies}
+                  setNo={currentSet}
+                  homeName={match.home_name}
+                  awayName={match.away_name}
+                  homeScore={setStatus.homeScore}
+                  awayScore={setStatus.awayScore}
+                  previousSetRallies={previousSetRallies}
+                />
+                
                 {matchStatus.matchComplete ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-center gap-2 text-xl font-semibold text-primary">
-                      <Trophy className="h-6 w-6" />
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-center gap-2 text-lg font-semibold text-primary">
+                      <Trophy className="h-5 w-5" />
                       <span>
                         {matchStatus.matchWinner === 'CASA' ? match.home_name : match.away_name} vence o jogo!
                       </span>
@@ -567,9 +584,11 @@ export default function Live() {
                     </Button>
                   </div>
                 ) : (
-                  <Button size="lg" onClick={() => { setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
-                    Iniciar Set {currentSet + 1}
-                  </Button>
+                  <div className="pt-4">
+                    <Button size="lg" onClick={() => { setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
+                      Iniciar Set {currentSet + 1}
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
