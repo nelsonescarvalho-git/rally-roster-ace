@@ -236,9 +236,12 @@ export default function Live() {
       return { point_won_by: attackSide, reason: 'OP' };
     }
     // D=3 => DEF (great defense, but doesn't give point - skip for now)
-    // D=0 => KILL for attacker
-    if (rallyDetails.d_code === 0) {
-      return { point_won_by: attackSide, reason: 'KILL' };
+    // D=0 => KILL for attacker (only if attacker is selected)
+    if (rallyDetails.d_code === 0 && rallyDetails.a_player_id) {
+      const attacker = getEffectivePlayers().find(p => p.id === rallyDetails.a_player_id);
+      if (attacker) {
+        return { point_won_by: attacker.side as Side, reason: 'KILL' };
+      }
     }
     
     return null;
@@ -289,6 +292,11 @@ export default function Live() {
       if (currentStep === 'setter') {
         setCurrentStep('attack');
       } else if (currentStep === 'attack') {
+        // Validate attacker selection if code is selected
+        if (rallyDetails.a_code !== null && !rallyDetails.a_player_id) {
+          toast({ title: 'Selecione o atacante', variant: 'destructive' });
+          return;
+        }
         if (autoOutcome) return;
         setCurrentStep('block');
       } else if (currentStep === 'block') {
@@ -319,6 +327,11 @@ export default function Live() {
       } else if (currentStep === 'setter') {
         setCurrentStep('attack');
       } else if (currentStep === 'attack') {
+        // Validate attacker selection if code is selected
+        if (rallyDetails.a_code !== null && !rallyDetails.a_player_id) {
+          toast({ title: 'Selecione o atacante', variant: 'destructive' });
+          return;
+        }
         if (autoOutcome) return;
         setCurrentStep('block');
       } else if (currentStep === 'block') {
@@ -338,6 +351,11 @@ export default function Live() {
     } else if (currentStep === 'setter') {
       setCurrentStep('attack');
     } else if (currentStep === 'attack') {
+      // Validate attacker selection if code is selected before skipping
+      if (rallyDetails.a_code !== null && !rallyDetails.a_player_id) {
+        toast({ title: 'Selecione o atacante antes de avançar', variant: 'destructive' });
+        return;
+      }
       setCurrentStep('block');
     } else if (currentStep === 'block') {
       setCurrentStep('defense');
@@ -352,6 +370,12 @@ export default function Live() {
     const outcome = finalOutcome;
     if (!outcome && !saveAsPhase) {
       toast({ title: 'Resultado não determinado', variant: 'destructive' });
+      return;
+    }
+
+    // Validate attacker is selected when outcome is KILL
+    if (outcome?.reason === 'KILL' && !rallyDetails.a_player_id) {
+      toast({ title: 'Selecione o atacante para registar o KILL', variant: 'destructive' });
       return;
     }
 
