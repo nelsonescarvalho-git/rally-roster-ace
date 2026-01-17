@@ -14,7 +14,7 @@ import { SubstitutionModal } from '@/components/SubstitutionModal';
 import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
 import { StepProgressBar } from '@/components/live/StepProgressBar';
 import { WizardSectionCard } from '@/components/live/WizardSectionCard';
-import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType, POSITIONS_BY_RECEPTION, RECEPTION_LABELS } from '@/types/volleyball';
+import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType, POSITIONS_BY_RECEPTION, RECEPTION_LABELS, ATTACK_DIFFICULTY_BY_DISTRIBUTION, DISTRIBUTION_LABELS } from '@/types/volleyball';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -1033,6 +1033,45 @@ export default function Live() {
                     </div>
                   </div>
                 )}
+
+                {/* Attack difficulty reference table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 px-3 py-1.5 text-xs font-medium border-b">
+                    Dificuldade por Qualidade de Distribuição
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="h-7 px-2">Dist.</TableHead>
+                        <TableHead className="h-7 px-2">Qualidade</TableHead>
+                        <TableHead className="h-7 px-2">Dificuldade</TableHead>
+                        <TableHead className="h-7 px-2 text-right">Efic. Esp.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[3, 2, 1, 0].map((code) => {
+                        const info = ATTACK_DIFFICULTY_BY_DISTRIBUTION[code];
+                        const isCurrentPassCode = rallyDetails.pass_code === code;
+                        return (
+                          <TableRow 
+                            key={code} 
+                            className={isCurrentPassCode ? 'bg-primary/10 font-medium' : ''}
+                          >
+                            <TableCell className="py-1 px-2 text-xs">
+                              {code} {info.emoji}
+                            </TableCell>
+                            <TableCell className="py-1 px-2 text-xs">{info.label}</TableCell>
+                            <TableCell className="py-1 px-2 text-xs">{info.difficulty}</TableCell>
+                            <TableCell className="py-1 px-2 text-xs text-right">
+                              {Math.round(info.expectedKillRate * 100)}%
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
                 <WizardSection
                   title=""
                   players={uniquePlayers(attackPlayers)}
