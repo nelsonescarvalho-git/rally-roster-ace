@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
 import { WizardLegend } from '@/components/WizardLegend';
@@ -579,12 +579,22 @@ export default function Live() {
                         {matchStatus.matchWinner === 'CASA' ? match.home_name : match.away_name} vence o jogo!
                       </span>
                     </div>
-                    <Button size="lg" onClick={() => navigate(`/stats/${matchId}`)}>
-                      Ver Estatísticas
-                    </Button>
+                    <div className="flex gap-3 justify-center">
+                      <Button variant="outline" size="lg" onClick={() => navigate('/')}>
+                        <Home className="h-4 w-4 mr-2" />
+                        Início
+                      </Button>
+                      <Button size="lg" onClick={() => navigate(`/stats/${matchId}`)}>
+                        Ver Estatísticas
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="pt-4">
+                  <div className="pt-4 flex gap-3 justify-center">
+                    <Button variant="outline" size="lg" onClick={() => navigate('/')}>
+                      <Home className="h-4 w-4 mr-2" />
+                      Início
+                    </Button>
                     <Button size="lg" onClick={() => { setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
                       Iniciar Set {currentSet + 1}
                     </Button>
