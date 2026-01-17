@@ -3,6 +3,28 @@ export type Reason = 'ACE' | 'SE' | 'KILL' | 'AE' | 'BLK' | 'DEF' | 'OP';
 export type KPhase = 'K1' | 'K2' | 'K3';
 export type KillType = 'FLOOR' | 'BLOCKOUT';
 
+// Action types for modular wizard
+export type RallyActionType = 'serve' | 'reception' | 'setter' | 'attack' | 'block' | 'defense';
+
+// Recorded action in the modular rally
+export interface RallyAction {
+  type: RallyActionType;
+  side: Side;
+  phase: number;
+  playerId?: string | null;
+  playerNo?: number | null;
+  code?: number | null;
+  // Extra data for specific action types
+  killType?: KillType | null;
+  setterId?: string | null;
+  passDestination?: PassDestination | null;
+  passCode?: number | null;
+  // Block can have multiple players
+  b1PlayerId?: string | null;
+  b2PlayerId?: string | null;
+  b3PlayerId?: string | null;
+}
+
 // Persistent team (reusable across matches)
 export interface Team {
   id: string;
@@ -31,6 +53,7 @@ export interface Match {
   first_serve_side: Side;
   home_team_id: string | null;
   away_team_id: string | null;
+  set5_serve_side: Side | null;
   created_at: string;
 }
 
