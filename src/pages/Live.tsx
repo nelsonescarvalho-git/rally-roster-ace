@@ -868,9 +868,6 @@ export default function Live() {
           </div>
         </Card>
 
-        {/* Legend for new users */}
-        <WizardLegend homeName={match.home_name} awayName={match.away_name} />
-
         {/* Recent plays summary */}
         <RecentPlays 
           rallies={rallies} 
@@ -1238,6 +1235,9 @@ export default function Live() {
             </AlertDialogContent>
           </AlertDialog>
         )}
+
+        {/* Legend for new users - at the bottom */}
+        <WizardLegend homeName={match.home_name} awayName={match.away_name} />
       </div>
 
       {/* Substitution Modal */}
