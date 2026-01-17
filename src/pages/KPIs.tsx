@@ -18,6 +18,8 @@ export default function KPIs() {
     teamDefenseStats,
     setterDistributionStats,
     globalReceptionBreakdown,
+    attackByDistributionBreakdown,
+    adaptableAttackers,
   } = useGlobalStats();
 
   if (loading) {
@@ -37,6 +39,14 @@ export default function KPIs() {
     name: `${r.emoji} ${r.receptionCode}`,
     Distribuições: r.totalRallies,
     'Pos. Disp.': r.availableCount,
+  }));
+
+  // Prepare chart data for attack by distribution
+  const attackDistChartData = attackByDistributionBreakdown.map(a => ({
+    name: `${a.emoji} ${a.distributionCode}`,
+    Ataques: a.totalAttempts,
+    Kills: a.totalKills,
+    Eficiência: Math.round(a.efficiency * 100),
   }));
 
   // Chart colors
@@ -174,7 +184,142 @@ export default function KPIs() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="attack" className="mt-4">
+            <TabsContent value="attack" className="mt-4 space-y-4">
+              {/* Attack by distribution chart */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Eficiência de Ataque por Qualidade de Distribuição</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Como a qualidade da distribuição afeta a eficiência dos atacantes
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {attackByDistributionBreakdown.some(a => a.totalAttempts > 0) ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <RechartsBarChart data={attackDistChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                        <YAxis tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))', 
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Bar dataKey="Eficiência" name="Efic. %" radius={[4, 4, 0, 0]}>
+                          {attackDistChartData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                      Sem dados de ataque
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Attack by distribution table */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Detalhes por Qualidade de Distribuição</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Dist.</TableHead>
+                        <TableHead className="text-center">Dific.</TableHead>
+                        <TableHead className="text-center">Att</TableHead>
+                        <TableHead className="text-center">K</TableHead>
+                        <TableHead className="text-center">E</TableHead>
+                        <TableHead className="text-center">Efic.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attackByDistributionBreakdown.map(row => (
+                        <TableRow key={row.distributionCode} className={row.totalAttempts === 0 ? 'opacity-50' : ''}>
+                          <TableCell className="font-medium">
+                            <span className="mr-1">{row.emoji}</span>
+                            {row.distributionCode} - {row.qualityLabel}
+                          </TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground">{row.difficulty}</TableCell>
+                          <TableCell className="text-center">{row.totalAttempts}</TableCell>
+                          <TableCell className="text-center text-success">{row.totalKills}</TableCell>
+                          <TableCell className="text-center text-destructive">{row.totalErrors}</TableCell>
+                          <TableCell className="text-center font-bold">
+                            {row.totalAttempts > 0 ? `${(row.efficiency * 100).toFixed(0)}%` : '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Adaptable attackers */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Atacantes Mais Adaptáveis</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Atacantes que mantêm eficiência mesmo com má distribuição
+                  </p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Jogador</TableHead>
+                        <TableHead className="text-right">Att</TableHead>
+                        <TableHead className="text-right text-xs">Efic. c/Boa</TableHead>
+                        <TableHead className="text-right text-xs">Efic. c/Má</TableHead>
+                        <TableHead className="text-right">Adapt.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adaptableAttackers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                            Dados insuficientes (min. 5 ataques, 2 com má dist.)
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        adaptableAttackers.map((attacker, idx) => (
+                          <TableRow key={attacker.playerId}>
+                            <TableCell className="font-medium">{idx + 1}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  #{attacker.jerseyNumber} {attacker.playerName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {attacker.teamName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">{attacker.totalAttempts}</TableCell>
+                            <TableCell className="text-right text-success">
+                              {(attacker.efficiencyWithGoodDist * 100).toFixed(0)}%
+                            </TableCell>
+                            <TableCell className="text-right text-warning">
+                              {(attacker.efficiencyWithBadDist * 100).toFixed(0)}%
+                            </TableCell>
+                            <TableCell className="text-right font-bold">
+                              {attacker.adaptabilityScore.toFixed(0)}%
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Original top attackers table */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Top Atacantes (Eficiência)</CardTitle>

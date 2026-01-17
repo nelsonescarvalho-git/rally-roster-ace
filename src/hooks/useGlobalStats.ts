@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Rally, MatchPlayer, PlayerStats, Side, PassDestination, POSITIONS_BY_RECEPTION } from '@/types/volleyball';
+import { Rally, MatchPlayer, PlayerStats, Side, PassDestination, POSITIONS_BY_RECEPTION, ATTACK_DIFFICULTY_BY_DISTRIBUTION } from '@/types/volleyball';
 
 interface GlobalPlayerStats extends PlayerStats {
   teamName: string;
@@ -55,9 +55,35 @@ interface GlobalSummary {
   acesPerMatch: number;
   blocksPerMatch: number;
   avgPassQuality: number;
-  // New distribution KPIs
+  // Distribution KPIs
   avgDistributionWithinAvailable: number;
   avgAvailablePositions: number;
+  // Attack by distribution KPIs
+  avgDistributionForAttacks: number;
+  attackEfficiencyWithGoodDist: number;
+  attackEfficiencyWithBadDist: number;
+}
+
+interface AttackByDistributionBreakdown {
+  distributionCode: number;
+  emoji: string;
+  qualityLabel: string;
+  difficulty: string;
+  totalAttempts: number;
+  totalKills: number;
+  totalErrors: number;
+  efficiency: number;
+}
+
+interface AdaptableAttacker {
+  playerId: string;
+  playerName: string;
+  jerseyNumber: number;
+  teamName: string;
+  totalAttempts: number;
+  efficiencyWithGoodDist: number;
+  efficiencyWithBadDist: number;
+  adaptabilityScore: number; // How well they maintain efficiency with bad distribution
 }
 
 interface TeamDefenseStats {
@@ -283,6 +309,12 @@ export function useGlobalStats() {
     let usedWithinAvailableCount = 0;
     let distributionCount = 0;
 
+    // Attack by distribution KPIs
+    let attackPassCodeSum = 0;
+    let attackCount = 0;
+    let attacksWithGoodDist = { attempts: 0, kills: 0, errors: 0 };
+    let attacksWithBadDist = { attempts: 0, kills: 0, errors: 0 };
+
     // Process all rallies for pass quality (not just final phases)
     rallies.forEach(rally => {
       if (rally.pass_code !== null && rally.setter_player_id) {
@@ -303,6 +335,23 @@ export function useGlobalStats() {
         
         if (availablePositions.includes(dest)) {
           usedWithinAvailableCount++;
+        }
+      }
+
+      // Attack by distribution quality
+      if (rally.a_player_id && rally.a_code !== null) {
+        const passCode = rally.pass_code ?? 2;
+        attackPassCodeSum += passCode;
+        attackCount++;
+        
+        if (passCode >= 2) {
+          attacksWithGoodDist.attempts++;
+          if (rally.a_code === 3) attacksWithGoodDist.kills++;
+          if (rally.a_code === 0) attacksWithGoodDist.errors++;
+        } else {
+          attacksWithBadDist.attempts++;
+          if (rally.a_code === 3) attacksWithBadDist.kills++;
+          if (rally.a_code === 0) attacksWithBadDist.errors++;
         }
       }
     });
@@ -338,6 +387,15 @@ export function useGlobalStats() {
         : 0,
       avgAvailablePositions: distributionCount > 0 
         ? totalAvailablePositions / distributionCount 
+        : 0,
+      avgDistributionForAttacks: attackCount > 0 
+        ? attackPassCodeSum / attackCount 
+        : 0,
+      attackEfficiencyWithGoodDist: attacksWithGoodDist.attempts > 0
+        ? (attacksWithGoodDist.kills - attacksWithGoodDist.errors) / attacksWithGoodDist.attempts
+        : 0,
+      attackEfficiencyWithBadDist: attacksWithBadDist.attempts > 0
+        ? (attacksWithBadDist.kills - attacksWithBadDist.errors) / attacksWithBadDist.attempts
         : 0,
     };
   }, [rallies, matches, playerStats]);
@@ -691,6 +749,145 @@ export function useGlobalStats() {
     return Object.values(teamStatsMap).filter(t => t.killsSuffered > 0);
   }, [rallies, matches]);
 
+  // Attack breakdown by distribution quality
+  const attackByDistributionBreakdown = useMemo((): AttackByDistributionBreakdown[] => {
+    const finalPhases = rallies.reduce((acc, rally) => {
+      const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
+      if (!acc[key] || rally.phase > acc[key].phase) {
+        acc[key] = rally;
+      }
+      return acc;
+    }, {} as Record<string, Rally>);
+
+    const byDist: Record<number, { attempts: number; kills: number; errors: number }> = {
+      0: { attempts: 0, kills: 0, errors: 0 },
+      1: { attempts: 0, kills: 0, errors: 0 },
+      2: { attempts: 0, kills: 0, errors: 0 },
+      3: { attempts: 0, kills: 0, errors: 0 },
+    };
+
+    Object.values(finalPhases).forEach(rally => {
+      if (rally.a_player_id && rally.a_code !== null) {
+        const passCode = rally.pass_code ?? 2;
+        if (!byDist[passCode]) {
+          byDist[passCode] = { attempts: 0, kills: 0, errors: 0 };
+        }
+        byDist[passCode].attempts++;
+        if (rally.a_code === 3) byDist[passCode].kills++;
+        if (rally.a_code === 0) byDist[passCode].errors++;
+      }
+    });
+
+    return [3, 2, 1, 0].map(code => {
+      const data = byDist[code];
+      const info = ATTACK_DIFFICULTY_BY_DISTRIBUTION[code];
+      return {
+        distributionCode: code,
+        emoji: info.emoji,
+        qualityLabel: info.label,
+        difficulty: info.difficulty,
+        totalAttempts: data.attempts,
+        totalKills: data.kills,
+        totalErrors: data.errors,
+        efficiency: data.attempts > 0 ? (data.kills - data.errors) / data.attempts : 0,
+      };
+    });
+  }, [rallies]);
+
+  // Adaptable attackers - those who maintain good efficiency with bad distribution
+  const adaptableAttackers = useMemo((): AdaptableAttacker[] => {
+    const finalPhases = rallies.reduce((acc, rally) => {
+      const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
+      if (!acc[key] || rally.phase > acc[key].phase) {
+        acc[key] = rally;
+      }
+      return acc;
+    }, {} as Record<string, Rally>);
+
+    // Create mapping from match_player id to aggregation key
+    const playerIdToKey: Record<string, string> = {};
+    const playerIdToInfo: Record<string, { name: string; jerseyNumber: number; teamName: string }> = {};
+
+    players.forEach(p => {
+      const key = p.team_player_id || p.id;
+      playerIdToKey[p.id] = key;
+      const match = matches.find(m => m.id === p.match_id);
+      const teamName = p.side === 'CASA'
+        ? match?.home_name || 'Casa'
+        : match?.away_name || 'Fora';
+      playerIdToInfo[p.id] = {
+        name: p.name,
+        jerseyNumber: p.jersey_number,
+        teamName,
+      };
+    });
+
+    const attackerMap: Record<string, {
+      info: { name: string; jerseyNumber: number; teamName: string };
+      totalAttempts: number;
+      goodDist: { attempts: number; kills: number; errors: number };
+      badDist: { attempts: number; kills: number; errors: number };
+    }> = {};
+
+    Object.values(finalPhases).forEach(rally => {
+      if (!rally.a_player_id || rally.a_code === null) return;
+
+      const key = playerIdToKey[rally.a_player_id];
+      const info = playerIdToInfo[rally.a_player_id];
+      if (!key || !info) return;
+
+      if (!attackerMap[key]) {
+        attackerMap[key] = {
+          info,
+          totalAttempts: 0,
+          goodDist: { attempts: 0, kills: 0, errors: 0 },
+          badDist: { attempts: 0, kills: 0, errors: 0 },
+        };
+      }
+
+      const passCode = rally.pass_code ?? 2;
+      attackerMap[key].totalAttempts++;
+
+      if (passCode >= 2) {
+        attackerMap[key].goodDist.attempts++;
+        if (rally.a_code === 3) attackerMap[key].goodDist.kills++;
+        if (rally.a_code === 0) attackerMap[key].goodDist.errors++;
+      } else {
+        attackerMap[key].badDist.attempts++;
+        if (rally.a_code === 3) attackerMap[key].badDist.kills++;
+        if (rally.a_code === 0) attackerMap[key].badDist.errors++;
+      }
+    });
+
+    return Object.entries(attackerMap)
+      .filter(([, data]) => data.totalAttempts >= 5 && data.badDist.attempts >= 2)
+      .map(([playerId, data]) => {
+        const effGood = data.goodDist.attempts > 0
+          ? (data.goodDist.kills - data.goodDist.errors) / data.goodDist.attempts
+          : 0;
+        const effBad = data.badDist.attempts > 0
+          ? (data.badDist.kills - data.badDist.errors) / data.badDist.attempts
+          : 0;
+        
+        // Adaptability score: higher = better at handling bad distribution
+        // Score based on maintaining efficiency with bad dist
+        const adaptabilityScore = effBad > 0 ? (effBad / Math.max(effGood, 0.1)) * 100 : 0;
+
+        return {
+          playerId,
+          playerName: data.info.name,
+          jerseyNumber: data.info.jerseyNumber,
+          teamName: data.info.teamName,
+          totalAttempts: data.totalAttempts,
+          efficiencyWithGoodDist: effGood,
+          efficiencyWithBadDist: effBad,
+          adaptabilityScore,
+        };
+      })
+      .sort((a, b) => b.adaptabilityScore - a.adaptabilityScore)
+      .slice(0, 10);
+  }, [rallies, players, matches]);
+
   return {
     loading,
     summary,
@@ -704,5 +901,7 @@ export function useGlobalStats() {
     teamDefenseStats,
     setterDistributionStats,
     globalReceptionBreakdown,
+    attackByDistributionBreakdown,
+    adaptableAttackers,
   };
 }
