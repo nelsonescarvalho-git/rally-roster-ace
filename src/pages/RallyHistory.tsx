@@ -18,8 +18,10 @@ import {
   Square,
   ShieldCheck,
   LayoutList,
-  LayoutGrid
+  LayoutGrid,
+  FileSpreadsheet
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Rally, Player, MatchPlayer } from '@/types/volleyball';
 import { EditRallyModal } from '@/components/EditRallyModal';
 import { Switch } from '@/components/ui/switch';
@@ -381,6 +383,76 @@ export default function RallyHistory() {
     return scores;
   }, [rallies]);
 
+  const getPlayerName = (id: string | null) => {
+    if (!id) return '';
+    const player = players.find(p => p.id === id);
+    return player ? `#${player.jersey_number} ${player.name}` : '';
+  };
+
+  const exportToExcel = () => {
+    if (rallies.length === 0) {
+      toast.error('Sem dados para exportar');
+      return;
+    }
+
+    // CSV header
+    const headers = [
+      'Set', 'Rally', 'Fase', 'Serve Side', 'Serve Rot', 'Recv Side', 'Recv Rot',
+      'Servidor', 'S Code', 'Recetor', 'R Code', 
+      'Passador', 'Pass Code', 'Pass Dest',
+      'Atacante', 'A Code', 'Kill Type',
+      'Bloco 1', 'Bloco 2', 'B Code',
+      'Defesa', 'D Code',
+      'Ponto', 'Razão'
+    ];
+
+    const rows = rallies.map(r => [
+      r.set_no,
+      r.rally_no,
+      r.phase,
+      r.serve_side,
+      r.serve_rot,
+      r.recv_side,
+      r.recv_rot,
+      getPlayerName(r.s_player_id),
+      r.s_code ?? '',
+      getPlayerName(r.r_player_id),
+      r.r_code ?? '',
+      getPlayerName(r.setter_player_id),
+      r.pass_code ?? '',
+      r.pass_destination ?? '',
+      getPlayerName(r.a_player_id),
+      r.a_code ?? '',
+      r.kill_type ?? '',
+      getPlayerName(r.b1_player_id),
+      getPlayerName(r.b2_player_id),
+      r.b_code ?? '',
+      getPlayerName(r.d_player_id),
+      r.d_code ?? '',
+      r.point_won_by ?? '',
+      r.reason ?? ''
+    ]);
+
+    // Build CSV content
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rallies_${match?.title.replace(/\s+/g, '_') || 'match'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success('Ficheiro exportado com sucesso');
+  };
+
   if (loading || !match) {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
   }
@@ -434,6 +506,16 @@ export default function RallyHistory() {
             <h1 className="font-semibold">Histórico de Rallies</h1>
             <p className="text-xs text-muted-foreground">{match.title}</p>
           </div>
+          
+          {/* Export Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={exportToExcel}
+            title="Exportar para Excel"
+          >
+            <FileSpreadsheet className="h-5 w-5" />
+          </Button>
           
           {/* View Mode Toggle */}
           <div className="flex items-center gap-1 border rounded-lg p-0.5">
