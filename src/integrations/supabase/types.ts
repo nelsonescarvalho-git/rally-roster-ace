@@ -434,6 +434,64 @@ export type Database = {
           },
         ]
       }
+      substitutions: {
+        Row: {
+          created_at: string
+          id: string
+          is_libero: boolean
+          match_id: string
+          player_in_id: string
+          player_out_id: string
+          rally_no: number
+          set_no: number
+          side: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_libero?: boolean
+          match_id: string
+          player_in_id: string
+          player_out_id: string
+          rally_no: number
+          set_no: number
+          side: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_libero?: boolean
+          match_id?: string
+          player_in_id?: string
+          player_out_id?: string
+          rally_no?: number
+          set_no?: number
+          side?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "substitutions_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "substitutions_player_in_id_fkey"
+            columns: ["player_in_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "substitutions_player_out_id_fkey"
+            columns: ["player_out_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_players: {
         Row: {
           active: boolean

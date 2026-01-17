@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight, Trophy, Lock, Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, BarChart2, Undo2, Settings, Plus, ChevronRight, Trophy, Lock, Check, RefreshCw } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { WizardLegend } from '@/components/WizardLegend';
 import { RecentPlays } from '@/components/RecentPlays';
+import { SubstitutionModal } from '@/components/SubstitutionModal';
 import { Side, Reason, Player, MatchPlayer, Rally, PassDestination, KillType } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -56,7 +58,13 @@ export default function Live() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { match, rallies, lineups, loading, loadMatch, getGameState, getServerPlayer, saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, isSetComplete, getMatchStatus } = useMatch(matchId || null);
+  const { 
+    match, rallies, lineups, loading, loadMatch, getGameState, getServerPlayer, 
+    saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, 
+    isSetComplete, getMatchStatus,
+    // Substitution functions
+    getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayersOnBench, makeSubstitution, undoSubstitution
+  } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
   const [currentStep, setCurrentStep] = useState<WizardStep>('serve');
@@ -64,6 +72,7 @@ export default function Live() {
   const [manualOutcome, setManualOutcome] = useState<{ winner: Side | null; reason: Reason | null }>({ winner: null, reason: null });
   const [attackSideOverride, setAttackSideOverride] = useState<Side | null>(null); // Only for phase > 1
   const [suspendPhaseSync, setSuspendPhaseSync] = useState(false); // Temporarily disable phase sync after hard reset
+  const [subModalSide, setSubModalSide] = useState<Side | null>(null); // Which side's substitution modal is open
   
   // Rally details state
   const [rallyDetails, setRallyDetails] = useState<RallyDetails>({
@@ -700,6 +709,34 @@ export default function Live() {
           </CardContent>
         </Card>
 
+        {/* Substitution Buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 gap-2"
+            onClick={() => setSubModalSide('CASA')}
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="text-home">{match.home_name}</span>
+            <Badge variant="secondary" className="ml-auto">
+              {getSubstitutionsUsed(currentSet, 'CASA')}/6
+            </Badge>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 gap-2"
+            onClick={() => setSubModalSide('FORA')}
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="text-away">{match.away_name}</span>
+            <Badge variant="secondary" className="ml-auto">
+              {getSubstitutionsUsed(currentSet, 'FORA')}/6
+            </Badge>
+          </Button>
+        </div>
+
         {/* Step Progress - Phase aware */}
         <div className="flex items-center justify-center gap-1 text-xs">
           {(isLaterPhase 
@@ -1058,6 +1095,25 @@ export default function Live() {
           </AlertDialog>
         )}
       </div>
+
+      {/* Substitution Modal */}
+      {subModalSide && gameState && (
+        <SubstitutionModal
+          open={!!subModalSide}
+          onClose={() => setSubModalSide(null)}
+          side={subModalSide}
+          sideName={subModalSide === 'CASA' ? match.home_name : match.away_name}
+          playersOnCourt={getPlayersOnCourt(currentSet, subModalSide, gameState.currentRally)}
+          playersOnBench={getPlayersOnBench(currentSet, subModalSide, gameState.currentRally)}
+          substitutionsUsed={getSubstitutionsUsed(currentSet, subModalSide)}
+          maxSubstitutions={6}
+          onSubstitute={async (playerOutId, playerInId, isLibero) => {
+            await makeSubstitution(currentSet, subModalSide, gameState.currentRally, playerOutId, playerInId, isLibero);
+          }}
+          recentSubstitutions={getSubstitutionsForSet(currentSet, subModalSide)}
+          onUndoSubstitution={undoSubstitution}
+        />
+      )}
     </div>
   );
 }

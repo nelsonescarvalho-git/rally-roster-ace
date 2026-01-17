@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Match, Player, MatchPlayer, Lineup, Rally, Side, GameState } from '@/types/volleyball';
+import { Match, Player, MatchPlayer, Lineup, Rally, Side, GameState, Substitution } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
 export function useMatch(matchId: string | null) {
@@ -10,18 +10,20 @@ export function useMatch(matchId: string | null) {
   const [matchPlayers, setMatchPlayers] = useState<MatchPlayer[]>([]);
   const [lineups, setLineups] = useState<Lineup[]>([]);
   const [rallies, setRallies] = useState<Rally[]>([]);
+  const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadMatch = useCallback(async () => {
     if (!matchId) return;
     setLoading(true);
     try {
-      const [matchRes, playersRes, matchPlayersRes, lineupsRes, ralliesRes] = await Promise.all([
+      const [matchRes, playersRes, matchPlayersRes, lineupsRes, ralliesRes, subsRes] = await Promise.all([
         supabase.from('matches').select('*').eq('id', matchId).maybeSingle(),
         supabase.from('players').select('*').eq('match_id', matchId).order('jersey_number'),
         supabase.from('match_players').select('*').eq('match_id', matchId).order('jersey_number'),
         supabase.from('lineups').select('*').eq('match_id', matchId),
         supabase.from('rallies').select('*').eq('match_id', matchId).order('set_no').order('rally_no').order('phase'),
+        supabase.from('substitutions').select('*').eq('match_id', matchId).order('created_at'),
       ]);
 
       if (matchRes.data) setMatch(matchRes.data as Match);
@@ -29,6 +31,7 @@ export function useMatch(matchId: string | null) {
       if (matchPlayersRes.data) setMatchPlayers(matchPlayersRes.data as MatchPlayer[]);
       if (lineupsRes.data) setLineups(lineupsRes.data as Lineup[]);
       if (ralliesRes.data) setRallies(ralliesRes.data as Rally[]);
+      if (subsRes.data) setSubstitutions(subsRes.data as Substitution[]);
     } catch (error) {
       toast({ title: 'Erro', description: 'Erro ao carregar jogo', variant: 'destructive' });
     } finally {
@@ -292,12 +295,119 @@ export function useMatch(matchId: string | null) {
     }
   }, [matchId, getRalliesForSet, loadMatch, toast]);
 
+  // ============ SUBSTITUTION LOGIC ============
+
+  // Get substitutions for a specific set and side
+  const getSubstitutionsForSet = useCallback((setNo: number, side: Side): Substitution[] => {
+    return substitutions.filter(s => s.set_no === setNo && s.side === side);
+  }, [substitutions]);
+
+  // Count regular (non-libero) substitutions used
+  const getSubstitutionsUsed = useCallback((setNo: number, side: Side): number => {
+    return substitutions.filter(s => s.set_no === setNo && s.side === side && !s.is_libero).length;
+  }, [substitutions]);
+
+  // Get active lineup considering substitutions up to a specific rally
+  const getActiveLineup = useCallback((setNo: number, side: Side, upToRally: number): string[] => {
+    const lineup = getLineupForSet(setNo, side);
+    if (!lineup) return [];
+
+    // Start with the base lineup
+    let activePlayerIds = [
+      lineup.rot1,
+      lineup.rot2,
+      lineup.rot3,
+      lineup.rot4,
+      lineup.rot5,
+      lineup.rot6,
+    ].filter(Boolean) as string[];
+
+    // Apply substitutions up to the current rally
+    const relevantSubs = substitutions
+      .filter(s => s.set_no === setNo && s.side === side && s.rally_no <= upToRally)
+      .sort((a, b) => a.rally_no - b.rally_no);
+
+    for (const sub of relevantSubs) {
+      const outIndex = activePlayerIds.indexOf(sub.player_out_id);
+      if (outIndex !== -1) {
+        activePlayerIds[outIndex] = sub.player_in_id;
+      }
+    }
+
+    return activePlayerIds;
+  }, [getLineupForSet, substitutions]);
+
+  // Get players currently on court
+  const getPlayersOnCourt = useCallback((setNo: number, side: Side, currentRally: number): (Player | MatchPlayer)[] => {
+    const activeIds = getActiveLineup(setNo, side, currentRally);
+    const effectivePlayers = getEffectivePlayers();
+    return activeIds
+      .map(id => effectivePlayers.find(p => p.id === id))
+      .filter(Boolean) as (Player | MatchPlayer)[];
+  }, [getActiveLineup, getEffectivePlayers]);
+
+  // Get players on bench (not currently on court)
+  const getPlayersOnBench = useCallback((setNo: number, side: Side, currentRally: number): (Player | MatchPlayer)[] => {
+    const activeIds = getActiveLineup(setNo, side, currentRally);
+    const allSidePlayers = getPlayersForSide(side);
+    return allSidePlayers.filter(p => !activeIds.includes(p.id));
+  }, [getActiveLineup, getPlayersForSide]);
+
+  // Make a substitution
+  const makeSubstitution = useCallback(async (
+    setNo: number,
+    side: Side,
+    rallyNo: number,
+    playerOutId: string,
+    playerInId: string,
+    isLibero: boolean
+  ): Promise<boolean> => {
+    if (!matchId) return false;
+
+    try {
+      const { error } = await supabase.from('substitutions').insert([{
+        match_id: matchId,
+        set_no: setNo,
+        side: side,
+        rally_no: rallyNo,
+        player_out_id: playerOutId,
+        player_in_id: playerInId,
+        is_libero: isLibero,
+      }]);
+      if (error) throw error;
+      await loadMatch();
+      toast({ 
+        title: isLibero ? 'Entrada Libero' : 'Substituição', 
+        description: 'Registada com sucesso' 
+      });
+      return true;
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return false;
+    }
+  }, [matchId, loadMatch, toast]);
+
+  // Undo a substitution
+  const undoSubstitution = useCallback(async (subId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.from('substitutions').delete().eq('id', subId);
+      if (error) throw error;
+      await loadMatch();
+      toast({ title: 'Substituição anulada' });
+      return true;
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return false;
+    }
+  }, [loadMatch, toast]);
+
   return {
     match,
     players,
     matchPlayers,
     lineups,
     rallies,
+    substitutions,
     loading,
     loadMatch,
     getPlayersForSide,
@@ -312,5 +422,13 @@ export function useMatch(matchId: string | null) {
     saveRally,
     updateRally,
     deleteLastRally,
+    // Substitution functions
+    getSubstitutionsForSet,
+    getSubstitutionsUsed,
+    getActiveLineup,
+    getPlayersOnCourt,
+    getPlayersOnBench,
+    makeSubstitution,
+    undoSubstitution,
   };
 }
