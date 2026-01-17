@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, AlertTriangle, Pencil } from 'lucide-react';
 import { Side, Rally } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
+import { AttackTab } from '@/components/AttackTab';
 import { EditRallyModal } from '@/components/EditRallyModal';
 
 export default function Stats() {
@@ -113,6 +114,7 @@ export default function Stats() {
             <TabsTrigger value="players" className="flex-1">Jogadores</TabsTrigger>
             <TabsTrigger value="rotations" className="flex-1">Rotações</TabsTrigger>
             <TabsTrigger value="rallies" className="flex-1">Rallies</TabsTrigger>
+            <TabsTrigger value="attack" className="flex-1">Ataque</TabsTrigger>
             <TabsTrigger value="distribution" className="flex-1">Dist.</TabsTrigger>
           </TabsList>
 
@@ -308,6 +310,16 @@ export default function Stats() {
                 })()}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="attack">
+            <AttackTab
+              rallies={rallies}
+              players={effectivePlayers}
+              match={match}
+              selectedSet={selectedSet}
+              getRalliesForSet={getRalliesForSet}
+            />
           </TabsContent>
 
           <TabsContent value="distribution">

@@ -101,6 +101,26 @@ export const RECEPTION_LABELS: Record<number, { emoji: string; label: string }> 
   0: { emoji: '✗', label: 'Má' },
 };
 
+// Attack difficulty based on distribution quality (pass_code)
+export const ATTACK_DIFFICULTY_BY_DISTRIBUTION: Record<number, {
+  label: string;
+  emoji: string;
+  difficulty: string;
+  expectedKillRate: number;
+}> = {
+  3: { label: 'Excelente', emoji: '⭐', difficulty: 'Fácil', expectedKillRate: 0.50 },
+  2: { label: 'Boa', emoji: '+', difficulty: 'Normal', expectedKillRate: 0.35 },
+  1: { label: 'Fraca', emoji: '-', difficulty: 'Difícil', expectedKillRate: 0.20 },
+  0: { label: 'Má', emoji: '✗', difficulty: 'Muito Difícil', expectedKillRate: 0.10 },
+};
+
+export const DISTRIBUTION_LABELS: Record<number, { emoji: string; label: string }> = {
+  3: { emoji: '⭐', label: 'Excelente' },
+  2: { emoji: '+', label: 'Boa' },
+  1: { emoji: '-', label: 'Fraca' },
+  0: { emoji: '✗', label: 'Má' },
+};
+
 export interface Rally {
   id: string;
   match_id: string;
