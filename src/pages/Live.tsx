@@ -66,7 +66,9 @@ export default function Live() {
     saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, 
     isSetComplete, getMatchStatus,
     // Substitution functions
-    getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayersOnBench, makeSubstitution, undoSubstitution
+    getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayersOnBench, makeSubstitution, undoSubstitution,
+    // 5th set serve choice
+    setFifthSetServe, needsFifthSetServeChoice
   } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
@@ -76,6 +78,7 @@ export default function Live() {
   const [attackSideOverride, setAttackSideOverride] = useState<Side | null>(null); // Only for phase > 1
   const [suspendPhaseSync, setSuspendPhaseSync] = useState(false); // Temporarily disable phase sync after hard reset
   const [subModalSide, setSubModalSide] = useState<Side | null>(null); // Which side's substitution modal is open
+  const [showSet5ServeModal, setShowSet5ServeModal] = useState(false); // 5th set serve choice modal
   
   // Rally details state
   const [rallyDetails, setRallyDetails] = useState<RallyDetails>({
@@ -100,6 +103,22 @@ export default function Live() {
   useEffect(() => {
     if (matchId) loadMatch();
   }, [matchId, loadMatch]);
+
+  // Show 5th set serve choice modal when entering set 5 without a choice made
+  useEffect(() => {
+    if (currentSet === 5 && needsFifthSetServeChoice(5)) {
+      setShowSet5ServeModal(true);
+    }
+  }, [currentSet, needsFifthSetServeChoice]);
+
+  const handleSet5ServeChoice = async (side: Side) => {
+    await setFifthSetServe(side);
+    setShowSet5ServeModal(false);
+    toast({
+      title: 'Serviço definido',
+      description: `${side === 'CASA' ? match?.home_name : match?.away_name} serve primeiro no 5º set`
+    });
+  };
 
   const gameState = getGameState(currentSet);
   const serverPlayer = gameState ? getServerPlayer(currentSet, gameState.serveSide, gameState.serveRot) : null;
@@ -1258,6 +1277,32 @@ export default function Live() {
           onUndoSubstitution={undoSubstitution}
         />
       )}
+
+      {/* 5th Set Serve Choice Modal */}
+      <AlertDialog open={showSet5ServeModal}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-center text-xl">🏐 Sorteio do 5º Set</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              Qual equipa ganhou o sorteio e vai servir primeiro no tie-break?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-4 justify-center py-4">
+            <Button 
+              className="flex-1 h-16 text-lg bg-blue-600 hover:bg-blue-700"
+              onClick={() => handleSet5ServeChoice('CASA')}
+            >
+              {match?.home_name}
+            </Button>
+            <Button 
+              className="flex-1 h-16 text-lg bg-orange-600 hover:bg-orange-700"
+              onClick={() => handleSet5ServeChoice('FORA')}
+            >
+              {match?.away_name}
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

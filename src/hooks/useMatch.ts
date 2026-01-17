@@ -135,10 +135,17 @@ export function useMatch(matchId: string | null) {
     return { setsHome, setsAway, matchComplete, matchWinner, setResults };
   }, [isSetComplete]);
 
-  // Helper: Calculate who serves first in each set (alternates)
-  const getFirstServeForSet = useCallback((setNo: number): Side => {
+  // Helper: Calculate who serves first in each set (alternates, except 5th set = coin toss)
+  const getFirstServeForSet = useCallback((setNo: number): Side | null => {
     if (!match) return 'CASA';
-    // Odd sets (1, 3, 5): first_serve_side
+    
+    // 5th set: coin toss - use set5_serve_side if defined, otherwise null (needs choice)
+    if (setNo === 5) {
+      return (match as any).set5_serve_side as Side | null;
+    }
+    
+    // Sets 1-4: alternation pattern
+    // Odd sets (1, 3): first_serve_side
     // Even sets (2, 4): opposite team
     if (setNo % 2 === 1) {
       return match.first_serve_side;
@@ -147,12 +154,37 @@ export function useMatch(matchId: string | null) {
     }
   }, [match]);
 
+  // Set who serves first in the 5th set (after coin toss)
+  const setFifthSetServe = useCallback(async (side: Side) => {
+    if (!match) return;
+    
+    const { error } = await supabase
+      .from('matches')
+      .update({ set5_serve_side: side } as any)
+      .eq('id', match.id);
+      
+    if (!error) {
+      await loadMatch();
+    }
+  }, [match, loadMatch]);
+
+  // Check if 5th set needs serve selection
+  const needsFifthSetServeChoice = useCallback((setNo: number): boolean => {
+    if (!match || setNo !== 5) return false;
+    return !(match as any).set5_serve_side;
+  }, [match]);
+
   const getGameState = useCallback((setNo: number): GameState | null => {
     if (!match) return null;
 
     const setRallies = getRalliesForSet(setNo);
     const { home, away } = calculateScore(setNo);
     const firstServe = getFirstServeForSet(setNo);
+    
+    // If 5th set and no serve choice made yet, return null (needs user choice)
+    if (setNo === 5 && firstServe === null) {
+      return null;
+    }
 
     if (setRallies.length === 0) {
       const homeLineup = getLineupForSet(setNo, 'CASA');
@@ -443,5 +475,8 @@ export function useMatch(matchId: string | null) {
     getPlayersOnBench,
     makeSubstitution,
     undoSubstitution,
+    // 5th set serve choice
+    setFifthSetServe,
+    needsFifthSetServeChoice,
   };
 }
