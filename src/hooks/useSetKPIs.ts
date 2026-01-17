@@ -131,7 +131,33 @@ export function useSetKPIs(
   previousSetRallies?: Rally[]
 ): SetKPIs {
   return useMemo(() => {
-    const setRallies = rallies.filter(r => r.set_no === setNo);
+    const rawSetRallies = rallies.filter(r => r.set_no === setNo);
+    
+    // Consolidate rallies by rally_no (merge multiple records for same rally)
+    const consolidatedMap = new Map<number, Rally>();
+    for (const rally of rawSetRallies) {
+      const existing = consolidatedMap.get(rally.rally_no);
+      if (!existing) {
+        consolidatedMap.set(rally.rally_no, { ...rally });
+      } else {
+        // Merge: use non-null values from later records
+        consolidatedMap.set(rally.rally_no, {
+          ...existing,
+          s_code: rally.s_code ?? existing.s_code,
+          r_code: rally.r_code ?? existing.r_code,
+          a_code: rally.a_code ?? existing.a_code,
+          s_player_id: rally.s_player_id ?? existing.s_player_id,
+          r_player_id: rally.r_player_id ?? existing.r_player_id,
+          a_player_id: rally.a_player_id ?? existing.a_player_id,
+          point_won_by: rally.point_won_by ?? existing.point_won_by,
+          reason: rally.reason ?? existing.reason,
+        });
+      }
+    }
+    
+    // Convert to array sorted by rally_no
+    const setRallies = Array.from(consolidatedMap.values()).sort((a, b) => a.rally_no - b.rally_no);
+    
     const home = createEmptyTeamKPIs();
     const away = createEmptyTeamKPIs();
     
@@ -223,31 +249,54 @@ export function useSetKPIs(
       }
       
       // === SERVE STATS ===
-      if (serveSide === 'CASA' && rally.s_code !== null) {
+      // Count ALL services, not just those with s_code
+      if (serveSide === 'CASA') {
         home.serveTotal++;
-        if (rally.s_code === 0) home.serveErrors++;
+        // Errors: s_code 0 OR reason SE (serve error)
+        if (rally.s_code === 0 || reason === 'SE') home.serveErrors++;
+        // Aces: s_code 3 OR reason ACE
         if (rally.s_code === 3 || reason === 'ACE') home.serveAces++;
+        // Pressure: s_code 1 or 2 (forced difficult reception)
         if (rally.s_code === 1 || rally.s_code === 2) home.servePressure++;
-      } else if (serveSide === 'FORA' && rally.s_code !== null) {
+      } else if (serveSide === 'FORA') {
         away.serveTotal++;
-        if (rally.s_code === 0) away.serveErrors++;
+        if (rally.s_code === 0 || reason === 'SE') away.serveErrors++;
         if (rally.s_code === 3 || reason === 'ACE') away.serveAces++;
         if (rally.s_code === 1 || rally.s_code === 2) away.servePressure++;
       }
       
       // === RECEPTION STATS ===
-      if (recvSide === 'CASA' && rally.r_code !== null) {
-        home.recTotal++;
-        if (rally.r_code === 3) home.recPerfect++;
-        if (rally.r_code >= 2) home.recPositive++;
-        if (rally.r_code === 0) home.recErrors++;
-        if (rally.r_code === 1) home.recUnderPressure++;
-      } else if (recvSide === 'FORA' && rally.r_code !== null) {
-        away.recTotal++;
-        if (rally.r_code === 3) away.recPerfect++;
-        if (rally.r_code >= 2) away.recPositive++;
-        if (rally.r_code === 0) away.recErrors++;
-        if (rally.r_code === 1) away.recUnderPressure++;
+      // Count receptions when: team received AND it wasn't a service error
+      // For ACEs: count as reception error (the team tried to receive but failed)
+      if (recvSide === 'CASA') {
+        if (reason === 'ACE') {
+          // ACE = reception attempt that failed completely
+          home.recTotal++;
+          home.recErrors++;
+        } else if (reason !== 'SE') {
+          // Normal reception (not a service error, rally was played)
+          home.recTotal++;
+          if (rally.r_code !== null) {
+            if (rally.r_code === 3) home.recPerfect++;
+            if (rally.r_code >= 2) home.recPositive++;
+            if (rally.r_code === 0) home.recErrors++;
+            if (rally.r_code === 1) home.recUnderPressure++;
+          }
+        }
+        // SE = service error, no reception attempt
+      } else if (recvSide === 'FORA') {
+        if (reason === 'ACE') {
+          away.recTotal++;
+          away.recErrors++;
+        } else if (reason !== 'SE') {
+          away.recTotal++;
+          if (rally.r_code !== null) {
+            if (rally.r_code === 3) away.recPerfect++;
+            if (rally.r_code >= 2) away.recPositive++;
+            if (rally.r_code === 0) away.recErrors++;
+            if (rally.r_code === 1) away.recUnderPressure++;
+          }
+        }
       }
       
       // === ATTACK STATS ===
