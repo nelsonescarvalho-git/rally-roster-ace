@@ -138,7 +138,7 @@ export default function Live() {
     : [];
   
   // For reception, include players on court PLUS any Liberos on the bench
-  const recvPlayers = useMemo(() => {
+  const recvPlayers = (() => {
     if (!gameState) return [];
     const onCourt = getPlayersOnCourt(currentSet, gameState.recvSide, gameState.currentRally);
     const onBench = getPlayersOnBench(currentSet, gameState.recvSide, gameState.currentRally);
@@ -147,7 +147,7 @@ export default function Live() {
       p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO'
     );
     return [...onCourt, ...benchLiberos];
-  }, [gameState, currentSet, getPlayersOnCourt, getPlayersOnBench]);
+  })();
 
   // Get players currently on court for a specific side
   const getPlayersForActionSide = (side: Side) => {
