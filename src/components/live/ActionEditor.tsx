@@ -17,7 +17,7 @@ import {
   RallyAction
 } from '@/types/volleyball';
 
-const CODES = [3, 2, 1, 0];
+const CODES = [0, 1, 2, 3];
 const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK', 'OUTROS'];
 
 interface ActionEditorProps {
