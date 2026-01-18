@@ -11,6 +11,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -51,23 +53,94 @@ const CODE_EMOJI: Record<number, string> = {
   3: '★',
 };
 
+interface ActionBadgeProps {
+  action: RallyAction;
+  players: Player[];
+  isDragOverlay?: boolean;
+  onRemove?: () => void;
+}
+
+function ActionBadge({ action, players, isDragOverlay, onRemove }: ActionBadgeProps) {
+  const config = ACTION_CONFIG[action.type];
+  const isHome = action.side === 'CASA';
+
+  const getPlayerDisplay = () => {
+    if (action.playerNo) {
+      return `#${action.playerNo}`;
+    }
+    if (action.playerId) {
+      const player = players.find(p => p.id === action.playerId);
+      return player ? `#${player.jersey_number}` : '';
+    }
+    return '';
+  };
+
+  const getCodeDisplay = (code: number | null | undefined) => {
+    if (code === null || code === undefined) return '';
+    return CODE_EMOJI[code] || code.toString();
+  };
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'cursor-grab active:cursor-grabbing group relative pr-5 select-none',
+        isHome ? 'border-home/50 bg-home/10' : 'border-away/50 bg-away/10',
+        isDragOverlay && 'shadow-xl scale-105 ring-2 ring-primary/50 animate-scale-in'
+      )}
+    >
+      <GripVertical className="h-3 w-3 mr-0.5 opacity-40 group-hover:opacity-70" />
+      <span className={cn(
+        'w-4 h-4 rounded-full flex items-center justify-center mr-1 text-[10px] text-white',
+        config.color
+      )}>
+        {config.shortLabel}
+      </span>
+      <span className="font-medium">{getPlayerDisplay()}</span>
+      {action.code !== null && action.code !== undefined && (
+        <span className="ml-0.5 opacity-75">
+          ({getCodeDisplay(action.code)})
+        </span>
+      )}
+      {onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </Badge>
+  );
+}
+
 interface SortableActionProps {
   action: RallyAction;
   index: number;
   id: string;
   players: Player[];
   onRemove: (index: number) => void;
+  isDragging: boolean;
 }
 
-function SortableAction({ action, index, id, players, onRemove }: SortableActionProps) {
+function SortableAction({ action, index, id, players, onRemove, isDragging }: SortableActionProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-    isDragging,
-  } = useSortable({ id });
+    isDragging: isThisDragging,
+  } = useSortable({ 
+    id,
+    transition: {
+      duration: 250,
+      easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+    },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -98,21 +171,21 @@ function SortableAction({ action, index, id, players, onRemove }: SortableAction
       ref={setNodeRef}
       style={style}
       className={cn(
-        'touch-none',
-        isDragging && 'z-50'
+        'touch-none transition-all duration-200',
+        isThisDragging && 'opacity-40 scale-95'
       )}
+      {...attributes}
+      {...listeners}
     >
       <Badge
         variant="outline"
         className={cn(
-          'cursor-grab active:cursor-grabbing transition-all group relative pr-5 select-none',
+          'cursor-grab active:cursor-grabbing group relative pr-5 select-none transition-all duration-200',
           isHome ? 'border-home/50 bg-home/10' : 'border-away/50 bg-away/10',
-          isDragging && 'opacity-80 shadow-lg scale-105 ring-2 ring-primary/50'
+          isDragging && !isThisDragging && 'hover:scale-105'
         )}
-        {...attributes}
-        {...listeners}
       >
-        <GripVertical className="h-3 w-3 mr-0.5 opacity-40 group-hover:opacity-70" />
+        <GripVertical className="h-3 w-3 mr-0.5 opacity-40 group-hover:opacity-70 transition-opacity" />
         <span className={cn(
           'w-4 h-4 rounded-full flex items-center justify-center mr-1 text-[10px] text-white',
           config.color
@@ -147,6 +220,8 @@ export function RallyTimeline({
   homeName, 
   awayName 
 }: RallyTimelineProps) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -168,9 +243,17 @@ export function RallyTimeline({
 
   // Generate unique IDs for each action
   const actionIds = actions.map((_, index) => `action-${index}`);
+  
+  const activeIndex = activeId ? actionIds.indexOf(activeId) : -1;
+  const activeAction = activeIndex >= 0 ? actions[activeIndex] : null;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
 
     if (over && active.id !== over.id) {
       const oldIndex = actionIds.indexOf(active.id as string);
@@ -179,6 +262,10 @@ export function RallyTimeline({
       const reorderedActions = arrayMove(actions, oldIndex, newIndex);
       onReorderActions(reorderedActions);
     }
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
   };
 
   return (
@@ -195,7 +282,9 @@ export function RallyTimeline({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <SortableContext items={actionIds} strategy={horizontalListSortingStrategy}>
           <div className="flex flex-wrap gap-1.5">
@@ -207,10 +296,25 @@ export function RallyTimeline({
                 index={index}
                 players={players}
                 onRemove={onRemoveAction}
+                isDragging={!!activeId}
               />
             ))}
           </div>
         </SortableContext>
+        
+        {/* Drag overlay for smooth animation */}
+        <DragOverlay dropAnimation={{
+          duration: 200,
+          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+        }}>
+          {activeAction ? (
+            <ActionBadge
+              action={activeAction}
+              players={players}
+              isDragOverlay
+            />
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </div>
   );
