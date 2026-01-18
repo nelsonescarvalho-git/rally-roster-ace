@@ -433,6 +433,7 @@ export default function Live() {
       b1PlayerId: pendingAction.b1PlayerId,
       b2PlayerId: pendingAction.b2PlayerId,
       b3PlayerId: pendingAction.b3PlayerId,
+      attackPassQuality: pendingAction.attackPassQuality,
     };
     
     setRegisteredActions(prev => [...prev, newAction]);
@@ -534,6 +535,7 @@ export default function Live() {
       a_player_id: attackAction?.playerId || null,
       a_no: getPlayerNo(attackAction?.playerId),
       a_code: attackAction?.code ?? null,
+      a_pass_quality: attackAction?.attackPassQuality ?? null,
       kill_type: attackAction?.code === 3 ? attackAction?.killType : null,
       // Block
       b1_player_id: blockAction?.b1PlayerId || blockAction?.playerId || null,
