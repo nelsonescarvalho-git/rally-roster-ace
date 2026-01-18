@@ -4,10 +4,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ColoredRatingButton } from './ColoredRatingButton';
 import { WizardSectionCard } from './WizardSectionCard';
 import { PositionBadge } from './PositionBadge';
-import { ChevronLeft, Check, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, AlertCircle } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { 
+import {
   RallyActionType, 
   Side, 
   Player, 
@@ -56,6 +56,12 @@ interface ActionEditorProps {
   onAttackPassQualityChange?: (quality: number | null) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  // Navigation between actions
+  currentActionIndex?: number;
+  totalActions?: number;
+  onNavigatePrev?: () => void;
+  onNavigateNext?: () => void;
+  isEditingExisting?: boolean;
 }
 
 export function ActionEditor({
@@ -88,6 +94,11 @@ export function ActionEditor({
   onAttackPassQualityChange,
   onConfirm,
   onCancel,
+  currentActionIndex,
+  totalActions,
+  onNavigatePrev,
+  onNavigateNext,
+  isEditingExisting,
 }: ActionEditorProps) {
   const teamName = side === 'CASA' ? homeName : awayName;
   const teamSide = side === 'CASA' ? 'home' : 'away';
@@ -472,17 +483,31 @@ export function ActionEditor({
     >
       {renderContent()}
       
-      {/* Navigation footer - only back button, actions auto-confirm */}
-      <div className="flex justify-start pt-3 border-t mt-3">
+      {/* Navigation footer with back/forward buttons */}
+      <div className="flex justify-between pt-3 border-t mt-3">
         <Button 
           variant="ghost" 
           size="sm"
           className="gap-1 text-muted-foreground hover:text-foreground" 
-          onClick={onCancel}
+          onClick={currentActionIndex !== undefined && currentActionIndex > 0 && onNavigatePrev 
+            ? onNavigatePrev 
+            : onCancel}
         >
           <ChevronLeft className="h-3 w-3" />
           Voltar
         </Button>
+        
+        {currentActionIndex !== undefined && totalActions !== undefined && currentActionIndex < totalActions - 1 && onNavigateNext && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="gap-1 text-muted-foreground hover:text-foreground" 
+            onClick={onNavigateNext}
+          >
+            Avançar
+            <ChevronRight className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     </WizardSectionCard>
   );
