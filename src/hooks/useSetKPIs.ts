@@ -68,6 +68,19 @@ interface ClutchInfo {
   totalRallies: number;
 }
 
+interface ZoneDistribution {
+  zone: string;
+  count: number;
+  percent: number;
+}
+
+interface TopAttacker {
+  playerId: string;
+  playerNo: number | null;
+  count: number;
+  percent: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
@@ -77,6 +90,12 @@ export interface SetKPIs {
   clutchPoints: ClutchInfo | null;
   worstRotationHome: RotationBreakdown | null;
   worstRotationAway: RotationBreakdown | null;
+  
+  // Distribution insights
+  topZoneHome: ZoneDistribution | null;
+  topZoneAway: ZoneDistribution | null;
+  topAttackersHome: TopAttacker[];
+  topAttackersAway: TopAttacker[];
   
   // Delta from previous set
   deltaFromPrevious?: {
@@ -526,6 +545,96 @@ export function useSetKPIs(
     console.log(`  FORA Rec: Erro=${away.recErrorPercent}% + Pressão=${away.recUnderPressurePercent}% + Positivo=${away.recPositivePercent}% (Perfect=${away.recPerfectPercent}%)`);
     console.groupEnd();
     
+    // === DISTRIBUTION INSIGHTS ===
+    // Calculate top zones and attackers by team
+    const zoneCountsHome: Record<string, number> = {};
+    const zoneCountsAway: Record<string, number> = {};
+    const attackerCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
+    const attackerCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
+    
+    for (const rally of setRallies) {
+      // Zone distribution - based on recv_side (receiving team does the distribution)
+      if (rally.pass_destination && rally.setter_player_id) {
+        if (rally.recv_side === 'CASA') {
+          zoneCountsHome[rally.pass_destination] = (zoneCountsHome[rally.pass_destination] || 0) + 1;
+        } else {
+          zoneCountsAway[rally.pass_destination] = (zoneCountsAway[rally.pass_destination] || 0) + 1;
+        }
+      }
+      
+      // Attacker counts - based on who attacked
+      if (rally.a_player_id && rally.a_no !== null) {
+        // Determine attacker's team from recv_side (first attack is usually by receiver in K1)
+        // But we need to check if the attack was by serving or receiving team
+        const attackerSide = rally.recv_side; // Simplified: first attack is by receiver
+        
+        if (attackerSide === 'CASA') {
+          if (!attackerCountsHome[rally.a_player_id]) {
+            attackerCountsHome[rally.a_player_id] = { count: 0, playerNo: rally.a_no };
+          }
+          attackerCountsHome[rally.a_player_id].count++;
+        } else {
+          if (!attackerCountsAway[rally.a_player_id]) {
+            attackerCountsAway[rally.a_player_id] = { count: 0, playerNo: rally.a_no };
+          }
+          attackerCountsAway[rally.a_player_id].count++;
+        }
+      }
+    }
+    
+    // Find top zone for each team
+    const totalZonesHome = Object.values(zoneCountsHome).reduce((a, b) => a + b, 0);
+    const totalZonesAway = Object.values(zoneCountsAway).reduce((a, b) => a + b, 0);
+    
+    let topZoneHome: ZoneDistribution | null = null;
+    let topZoneAway: ZoneDistribution | null = null;
+    
+    if (totalZonesHome > 0) {
+      const sortedHome = Object.entries(zoneCountsHome).sort((a, b) => b[1] - a[1]);
+      if (sortedHome.length > 0) {
+        topZoneHome = {
+          zone: sortedHome[0][0],
+          count: sortedHome[0][1],
+          percent: Math.round((sortedHome[0][1] / totalZonesHome) * 100),
+        };
+      }
+    }
+    
+    if (totalZonesAway > 0) {
+      const sortedAway = Object.entries(zoneCountsAway).sort((a, b) => b[1] - a[1]);
+      if (sortedAway.length > 0) {
+        topZoneAway = {
+          zone: sortedAway[0][0],
+          count: sortedAway[0][1],
+          percent: Math.round((sortedAway[0][1] / totalZonesAway) * 100),
+        };
+      }
+    }
+    
+    // Find top 2 attackers for each team
+    const totalAttacksHome = Object.values(attackerCountsHome).reduce((a, b) => a + b.count, 0);
+    const totalAttacksAway = Object.values(attackerCountsAway).reduce((a, b) => a + b.count, 0);
+    
+    const topAttackersHome: TopAttacker[] = Object.entries(attackerCountsHome)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 2)
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        count: data.count,
+        percent: totalAttacksHome > 0 ? Math.round((data.count / totalAttacksHome) * 100) : 0,
+      }));
+    
+    const topAttackersAway: TopAttacker[] = Object.entries(attackerCountsAway)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 2)
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        count: data.count,
+        percent: totalAttacksAway > 0 ? Math.round((data.count / totalAttacksAway) * 100) : 0,
+      }));
+    
     return {
       home,
       away,
@@ -537,6 +646,10 @@ export function useSetKPIs(
       } : null,
       worstRotationHome,
       worstRotationAway,
+      topZoneHome,
+      topZoneAway,
+      topAttackersHome,
+      topAttackersAway,
       deltaFromPrevious,
     };
   }, [rallies, setNo, previousSetRallies]);

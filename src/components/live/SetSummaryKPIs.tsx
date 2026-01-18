@@ -12,7 +12,9 @@ import {
   Shield, 
   Zap,
   AlertTriangle,
-  Trophy
+  Trophy,
+  MapPin,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -394,6 +396,92 @@ export function SetSummaryKPIs({
             </Card>
           )}
           
+          {/* Top Zone Distribution */}
+          {(kpis.topZoneHome || kpis.topZoneAway) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="h-4 w-4 text-violet-500" />
+                  <span className="text-xs font-medium">Zona Preferida (Distribuição)</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  {kpis.topZoneHome ? (
+                    <div>
+                      <span className="text-home font-medium">{homeName}</span>
+                      <span className="text-muted-foreground">: {kpis.topZoneHome.zone}</span>
+                      <Badge variant="outline" className="ml-1 text-xs">
+                        {kpis.topZoneHome.percent}%
+                      </Badge>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-xs">-</div>
+                  )}
+                  {kpis.topZoneAway ? (
+                    <div>
+                      <span className="text-away font-medium">{awayName}</span>
+                      <span className="text-muted-foreground">: {kpis.topZoneAway.zone}</span>
+                      <Badge variant="outline" className="ml-1 text-xs">
+                        {kpis.topZoneAway.percent}%
+                      </Badge>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-xs">-</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Top Attackers */}
+          {(kpis.topAttackersHome.length > 0 || kpis.topAttackersAway.length > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-4 w-4 text-emerald-500" />
+                  <span className="text-xs font-medium">Mais Solicitados (Ataque)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-home font-medium text-xs mb-1">{homeName}</div>
+                    {kpis.topAttackersHome.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.topAttackersHome.map((attacker, idx) => (
+                          <div key={attacker.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{attacker.playerNo}</span>
+                            <span>{attacker.count} ataques</span>
+                            <Badge variant="outline" className="text-[10px] px-1">
+                              {attacker.percent}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-away font-medium text-xs mb-1">{awayName}</div>
+                    {kpis.topAttackersAway.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.topAttackersAway.map((attacker, idx) => (
+                          <div key={attacker.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{attacker.playerNo}</span>
+                            <span>{attacker.count} ataques</span>
+                            <Badge variant="outline" className="text-[10px] px-1">
+                              {attacker.percent}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           {/* Worst rotations */}
           {(kpis.worstRotationHome || kpis.worstRotationAway) && (
             <Card className="bg-muted/30">
@@ -431,7 +519,11 @@ export function SetSummaryKPIs({
            (!kpis.longestRun || kpis.longestRun.length < 3) && 
            !kpis.clutchPoints &&
            !kpis.worstRotationHome && 
-           !kpis.worstRotationAway && (
+           !kpis.worstRotationAway &&
+           !kpis.topZoneHome &&
+           !kpis.topZoneAway &&
+           kpis.topAttackersHome.length === 0 &&
+           kpis.topAttackersAway.length === 0 && (
             <div className="text-center text-sm text-muted-foreground py-4">
               Sem insights disponíveis para este set
             </div>
