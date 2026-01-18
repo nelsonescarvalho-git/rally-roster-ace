@@ -5,7 +5,7 @@ import { ColoredRatingButton } from './ColoredRatingButton';
 import { WizardSectionCard } from './WizardSectionCard';
 import { PositionBadge } from './PositionBadge';
 import { ChevronLeft, Check, AlertCircle } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   RallyActionType, 
@@ -92,6 +92,43 @@ export function ActionEditor({
     ? POSITIONS_BY_RECEPTION[receptionCode] || DESTINATIONS
     : DESTINATIONS;
 
+  // Auto-confirm handlers
+  const handleCodeWithAutoConfirm = useCallback((code: number) => {
+    if (selectedCode === code) {
+      onCodeChange(null);
+      return;
+    }
+    
+    onCodeChange(code);
+    
+    // Auto-confirm for Block and Defense (no additional input needed)
+    if (actionType === 'block' || actionType === 'defense') {
+      setTimeout(() => onConfirm(), 50);
+    }
+    
+    // Auto-confirm for Attack only if code ≠ 3 (code 3 needs Kill Type)
+    if (actionType === 'attack' && code !== 3) {
+      setTimeout(() => onConfirm(), 50);
+    }
+  }, [actionType, selectedCode, onCodeChange, onConfirm]);
+
+  const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
+    onKillTypeChange?.(type);
+    // Always auto-confirm after selecting Kill Type
+    setTimeout(() => onConfirm(), 50);
+  }, [onKillTypeChange, onConfirm]);
+
+  const handleDestinationWithAutoConfirm = useCallback((dest: PassDestination) => {
+    if (selectedDestination === dest) {
+      onDestinationChange?.(null);
+      return;
+    }
+    
+    onDestinationChange?.(dest);
+    // Auto-confirm on destination selection for setter/distribution
+    setTimeout(() => onConfirm(), 50);
+  }, [selectedDestination, onDestinationChange, onConfirm]);
+
   const renderContent = () => {
     switch (actionType) {
       case 'serve':
@@ -128,7 +165,7 @@ export function ActionEditor({
                   key={code}
                   code={code}
                   selected={selectedCode === code}
-                  onClick={() => onCodeChange(selectedCode === code ? null : code)}
+                  onClick={() => handleCodeWithAutoConfirm(code)}
                 />
               ))}
             </div>
@@ -182,7 +219,7 @@ export function ActionEditor({
                   key={dest}
                   variant={selectedDestination === dest ? 'default' : 'outline'}
                   className="h-10 text-xs"
-                  onClick={() => onDestinationChange?.(selectedDestination === dest ? null : dest)}
+                  onClick={() => handleDestinationWithAutoConfirm(dest)}
                 >
                   {dest}
                 </Button>
@@ -223,7 +260,7 @@ export function ActionEditor({
                   key={code}
                   code={code}
                   selected={selectedCode === code}
-                  onClick={() => onCodeChange(selectedCode === code ? null : code)}
+                  onClick={() => handleCodeWithAutoConfirm(code)}
                 />
               ))}
             </div>
@@ -241,7 +278,7 @@ export function ActionEditor({
                     variant={selectedKillType === 'FLOOR' ? 'default' : 'outline'}
                     size="sm"
                     className={selectedKillType === 'FLOOR' ? 'bg-success hover:bg-success/90' : ''}
-                    onClick={() => onKillTypeChange?.('FLOOR')}
+                    onClick={() => handleKillTypeWithAutoConfirm('FLOOR')}
                   >
                     🏐 Chão
                   </Button>
@@ -249,7 +286,7 @@ export function ActionEditor({
                     variant={selectedKillType === 'BLOCKOUT' ? 'default' : 'outline'}
                     size="sm"
                     className={selectedKillType === 'BLOCKOUT' ? 'bg-success hover:bg-success/90' : ''}
-                    onClick={() => onKillTypeChange?.('BLOCKOUT')}
+                    onClick={() => handleKillTypeWithAutoConfirm('BLOCKOUT')}
                   >
                     🚫 Block-out
                   </Button>
@@ -333,7 +370,7 @@ export function ActionEditor({
                   key={code}
                   code={code}
                   selected={selectedCode === code}
-                  onClick={() => onCodeChange(selectedCode === code ? null : code)}
+                  onClick={() => handleCodeWithAutoConfirm(code)}
                 />
               ))}
             </div>
@@ -345,31 +382,6 @@ export function ActionEditor({
     }
   };
 
-  // Validation logic
-  const validation = useMemo(() => {
-    if (actionType === 'attack' && selectedCode === 3) {
-      const errors: string[] = [];
-      if (!selectedPlayer) {
-        errors.push('Selecione o atacante');
-      }
-      if (!selectedKillType) {
-        errors.push('Selecione o tipo de kill');
-      }
-      return {
-        isValid: errors.length === 0,
-        errors,
-      };
-    }
-    return { isValid: true, errors: [] };
-  }, [actionType, selectedCode, selectedPlayer, selectedKillType]);
-
-  const handleConfirm = () => {
-    if (!validation.isValid) {
-      return;
-    }
-    onConfirm();
-  };
-
   return (
     <WizardSectionCard
       actionType={actionType}
@@ -378,15 +390,7 @@ export function ActionEditor({
     >
       {renderContent()}
       
-      {/* Validation errors */}
-      {!validation.isValid && (
-        <div className="flex items-center gap-2 p-2 mt-3 text-sm text-destructive bg-destructive/10 rounded-md">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>{validation.errors.join(' • ')}</span>
-        </div>
-      )}
-      
-      {/* Navigation footer - consistent with all phases */}
+      {/* Navigation footer - only back button, actions auto-confirm */}
       <div className="flex gap-2 pt-3 border-t mt-3">
         <Button 
           variant="outline" 
@@ -395,14 +399,6 @@ export function ActionEditor({
         >
           <ChevronLeft className="h-4 w-4" />
           Voltar
-        </Button>
-        <Button 
-          className="flex-1 gap-2" 
-          onClick={handleConfirm}
-          disabled={!validation.isValid}
-        >
-          Confirmar
-          <Check className="h-4 w-4" />
         </Button>
       </div>
     </WizardSectionCard>
