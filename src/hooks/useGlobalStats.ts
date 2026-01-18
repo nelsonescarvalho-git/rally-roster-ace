@@ -99,6 +99,7 @@ interface TeamDefenseStats {
 export interface GlobalStatsFilters {
   matchId?: string | null; // null = all matches
   side?: 'CASA' | 'FORA' | null; // null = both sides
+  setNo?: number | null; // null = all sets
 }
 
 export function useGlobalStats(filters?: GlobalStatsFilters) {
@@ -133,6 +134,15 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
     loadData();
   }, []);
 
+  // Get available sets for the selected match
+  const availableSets = useMemo(() => {
+    if (!filters?.matchId) return [];
+    
+    const matchRallies = rallies.filter(r => r.match_id === filters.matchId);
+    const setNumbers = [...new Set(matchRallies.map(r => r.set_no))];
+    return setNumbers.sort((a, b) => a - b);
+  }, [rallies, filters?.matchId]);
+
   // Apply filters to rallies and players
   const filteredRallies = useMemo(() => {
     let result = rallies;
@@ -142,8 +152,13 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
       result = result.filter(r => r.match_id === filters.matchId);
     }
     
+    // Filter by set
+    if (filters?.setNo) {
+      result = result.filter(r => r.set_no === filters.setNo);
+    }
+    
     return result;
-  }, [rallies, filters?.matchId]);
+  }, [rallies, filters?.matchId, filters?.setNo]);
 
   const filteredPlayers = useMemo(() => {
     let result = players;
@@ -939,6 +954,7 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
   return {
     loading,
     matches, // Return all matches for filter dropdown
+    availableSets, // Return available sets for filter dropdown
     summary,
     playerStats,
     setterStats,

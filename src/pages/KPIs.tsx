@@ -11,10 +11,12 @@ import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 export default function KPIs() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [selectedSide, setSelectedSide] = useState<'CASA' | 'FORA' | null>(null);
+  const [selectedSetNo, setSelectedSetNo] = useState<number | null>(null);
 
   const { 
     loading, 
     matches,
+    availableSets,
     summary, 
     topAttackers, 
     topReceivers, 
@@ -26,7 +28,7 @@ export default function KPIs() {
     globalReceptionBreakdown,
     attackByDistributionBreakdown,
     adaptableAttackers,
-  } = useGlobalStats({ matchId: selectedMatchId, side: selectedSide });
+  } = useGlobalStats({ matchId: selectedMatchId, side: selectedSide, setNo: selectedSetNo });
 
   // Get team names for the selected match
   const selectedMatch = matches.find(m => m.id === selectedMatchId);
@@ -69,13 +71,16 @@ export default function KPIs() {
 
   // Build filter description
   const getFilterDescription = () => {
-    if (!selectedMatchId && !selectedSide) {
+    if (!selectedMatchId && !selectedSide && !selectedSetNo) {
       return 'Estatísticas globais agregadas de todos os jogos.';
     }
     
     const parts: string[] = [];
     if (selectedMatch) {
       parts.push(`Jogo: ${selectedMatch.home_name} vs ${selectedMatch.away_name}`);
+    }
+    if (selectedSetNo) {
+      parts.push(`Set ${selectedSetNo}`);
     }
     if (selectedSide && selectedMatch) {
       const teamName = selectedSide === 'CASA' ? selectedMatch.home_name : selectedMatch.away_name;
@@ -97,7 +102,10 @@ export default function KPIs() {
                   value={selectedMatchId || 'all'}
                   onValueChange={(value) => {
                     setSelectedMatchId(value === 'all' ? null : value);
-                    if (value === 'all') setSelectedSide(null);
+                    if (value === 'all') {
+                      setSelectedSide(null);
+                      setSelectedSetNo(null);
+                    }
                   }}
                 >
                   <SelectTrigger className="w-[200px] h-8 text-xs">
@@ -112,6 +120,25 @@ export default function KPIs() {
                     ))}
                   </SelectContent>
                 </Select>
+                
+                {selectedMatchId && availableSets.length > 0 && (
+                  <Select
+                    value={selectedSetNo?.toString() || 'all'}
+                    onValueChange={(value) => setSelectedSetNo(value === 'all' ? null : parseInt(value))}
+                  >
+                    <SelectTrigger className="w-[120px] h-8 text-xs">
+                      <SelectValue placeholder="Todos os Sets" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os Sets</SelectItem>
+                      {availableSets.map(setNo => (
+                        <SelectItem key={setNo} value={setNo.toString()}>
+                          Set {setNo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 
                 {selectedMatchId && (
                   <Select
