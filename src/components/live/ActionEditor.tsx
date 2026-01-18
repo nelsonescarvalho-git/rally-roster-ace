@@ -39,6 +39,8 @@ interface ActionEditorProps {
   selectedBlocker3?: string | null;
   // Context for setter (reception quality for destination filtering)
   receptionCode?: number | null;
+  // Attack pass quality (distribution quality for attack)
+  attackPassQuality?: number | null;
   // Zone getter for player zones
   getZoneLabel?: (playerId: string, side: Side) => string;
   // Callbacks
@@ -51,6 +53,7 @@ interface ActionEditorProps {
   onBlocker1Change?: (id: string | null) => void;
   onBlocker2Change?: (id: string | null) => void;
   onBlocker3Change?: (id: string | null) => void;
+  onAttackPassQualityChange?: (quality: number | null) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -71,6 +74,7 @@ export function ActionEditor({
   selectedBlocker2,
   selectedBlocker3,
   receptionCode,
+  attackPassQuality,
   getZoneLabel,
   onPlayerChange,
   onCodeChange,
@@ -81,6 +85,7 @@ export function ActionEditor({
   onBlocker1Change,
   onBlocker2Change,
   onBlocker3Change,
+  onAttackPassQualityChange,
   onConfirm,
   onCancel,
 }: ActionEditorProps) {
@@ -264,6 +269,21 @@ export function ActionEditor({
                 />
               ))}
             </div>
+            
+            {/* Pass Quality Selection */}
+            <div className="text-xs text-muted-foreground">Qualidade do passe:</div>
+            <div className="grid grid-cols-4 gap-2">
+              {CODES.map((code) => (
+                <ColoredRatingButton
+                  key={`pass-${code}`}
+                  code={code}
+                  selected={attackPassQuality === code}
+                  onClick={() => onAttackPassQualityChange?.(attackPassQuality === code ? null : code)}
+                  size="sm"
+                />
+              ))}
+            </div>
+            
             {/* Kill Type Selection when code = 3 */}
             {selectedCode === 3 && (
               <div className={cn(
