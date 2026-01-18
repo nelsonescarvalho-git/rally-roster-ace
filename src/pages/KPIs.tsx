@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, TrendingUp, Target, Award, Loader2, Zap, Shield, Users, BarChart } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BarChart3, TrendingUp, Target, Award, Loader2, Zap, Shield, Users, BarChart, Filter } from 'lucide-react';
 import { useGlobalStats } from '@/hooks/useGlobalStats';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 export default function KPIs() {
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [selectedSide, setSelectedSide] = useState<'CASA' | 'FORA' | null>(null);
+
   const { 
     loading, 
+    matches,
     summary, 
     topAttackers, 
     topReceivers, 
@@ -20,7 +26,16 @@ export default function KPIs() {
     globalReceptionBreakdown,
     attackByDistributionBreakdown,
     adaptableAttackers,
-  } = useGlobalStats();
+  } = useGlobalStats({ matchId: selectedMatchId, side: selectedSide });
+
+  // Get team names for the selected match
+  const selectedMatch = matches.find(m => m.id === selectedMatchId);
+  const teamOptions = selectedMatch 
+    ? [
+        { value: 'CASA', label: selectedMatch.home_name },
+        { value: 'FORA', label: selectedMatch.away_name },
+      ]
+    : [];
 
   if (loading) {
     return (
@@ -52,11 +67,77 @@ export default function KPIs() {
   // Chart colors
   const CHART_COLORS = ['hsl(var(--success))', 'hsl(var(--primary))', 'hsl(var(--warning))', 'hsl(var(--destructive))'];
 
+  // Build filter description
+  const getFilterDescription = () => {
+    if (!selectedMatchId && !selectedSide) {
+      return 'Estatísticas globais agregadas de todos os jogos.';
+    }
+    
+    const parts: string[] = [];
+    if (selectedMatch) {
+      parts.push(`Jogo: ${selectedMatch.home_name} vs ${selectedMatch.away_name}`);
+    }
+    if (selectedSide && selectedMatch) {
+      const teamName = selectedSide === 'CASA' ? selectedMatch.home_name : selectedMatch.away_name;
+      parts.push(`Equipa: ${teamName}`);
+    }
+    return parts.join(' • ');
+  };
+
   return (
     <MainLayout title="KPIs">
       <div className="space-y-4">
+        {/* Filter Bar */}
+        <Card className="bg-muted/30">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex flex-wrap gap-2 flex-1">
+                <Select
+                  value={selectedMatchId || 'all'}
+                  onValueChange={(value) => {
+                    setSelectedMatchId(value === 'all' ? null : value);
+                    if (value === 'all') setSelectedSide(null);
+                  }}
+                >
+                  <SelectTrigger className="w-[200px] h-8 text-xs">
+                    <SelectValue placeholder="Todos os Jogos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Jogos</SelectItem>
+                    {matches.map(match => (
+                      <SelectItem key={match.id} value={match.id}>
+                        {match.home_name} vs {match.away_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {selectedMatchId && (
+                  <Select
+                    value={selectedSide || 'both'}
+                    onValueChange={(value) => setSelectedSide(value === 'both' ? null : value as 'CASA' | 'FORA')}
+                  >
+                    <SelectTrigger className="w-[150px] h-8 text-xs">
+                      <SelectValue placeholder="Ambas Equipas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">Ambas Equipas</SelectItem>
+                      {teamOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <p className="text-sm text-muted-foreground">
-          Estatísticas globais agregadas de todos os jogos.
+          {getFilterDescription()}
         </p>
 
         {/* Summary Cards */}
