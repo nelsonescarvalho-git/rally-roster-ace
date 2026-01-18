@@ -625,13 +625,13 @@ export function useSetKPIs(
       }
     }
     
-    // Find top 2 attackers for each team
+    // Find top 3 attackers for each team
     const totalAttacksHome = Object.values(attackerCountsHome).reduce((a, b) => a + b.count, 0);
     const totalAttacksAway = Object.values(attackerCountsAway).reduce((a, b) => a + b.count, 0);
     
     const topAttackersHome: TopAttacker[] = Object.entries(attackerCountsHome)
       .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 2)
+      .slice(0, 3)
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
@@ -641,7 +641,7 @@ export function useSetKPIs(
     
     const topAttackersAway: TopAttacker[] = Object.entries(attackerCountsAway)
       .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 2)
+      .slice(0, 3)
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
