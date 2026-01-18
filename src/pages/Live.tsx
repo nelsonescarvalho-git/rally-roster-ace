@@ -59,6 +59,7 @@ interface PendingAction {
   b1PlayerId: string | null;
   b2PlayerId: string | null;
   b3PlayerId: string | null;
+  attackPassQuality: number | null;
 }
 
 export default function Live() {
@@ -403,6 +404,7 @@ export default function Live() {
       b1PlayerId: null,
       b2PlayerId: null,
       b3PlayerId: null,
+      attackPassQuality: null,
     });
   };
   
@@ -1117,6 +1119,7 @@ export default function Live() {
               selectedBlocker2={pendingAction.b2PlayerId}
               selectedBlocker3={pendingAction.b3PlayerId}
               receptionCode={getEffectiveReceptionCode()}
+              attackPassQuality={pendingAction.attackPassQuality}
               getZoneLabel={getZoneLabel}
               onPlayerChange={(id) => setPendingAction(prev => prev ? { ...prev, playerId: id } : null)}
               onCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, code } : null)}
@@ -1127,6 +1130,7 @@ export default function Live() {
               onBlocker1Change={(id) => setPendingAction(prev => prev ? { ...prev, b1PlayerId: id } : null)}
               onBlocker2Change={(id) => setPendingAction(prev => prev ? { ...prev, b2PlayerId: id } : null)}
               onBlocker3Change={(id) => setPendingAction(prev => prev ? { ...prev, b3PlayerId: id } : null)}
+              onAttackPassQualityChange={(quality) => setPendingAction(prev => prev ? { ...prev, attackPassQuality: quality } : null)}
               onConfirm={handleConfirmAction}
               onCancel={handleCancelAction}
             />
