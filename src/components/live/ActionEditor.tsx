@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ColoredRatingButton } from './ColoredRatingButton';
 import { WizardSectionCard } from './WizardSectionCard';
 import { PositionBadge } from './PositionBadge';
-import { X, Check, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Check, AlertCircle } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
@@ -386,18 +386,23 @@ export function ActionEditor({
         </div>
       )}
       
-      <div className="flex gap-2 mt-4">
-        <Button variant="outline" className="flex-1" onClick={onCancel}>
-          <X className="h-4 w-4 mr-1" />
-          Cancelar
+      {/* Navigation footer - consistent with all phases */}
+      <div className="flex gap-2 pt-3 border-t mt-3">
+        <Button 
+          variant="outline" 
+          className="flex-1 gap-2" 
+          onClick={onCancel}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Voltar
         </Button>
         <Button 
-          className="flex-1" 
+          className="flex-1 gap-2" 
           onClick={handleConfirm}
           disabled={!validation.isValid}
         >
-          <Check className="h-4 w-4 mr-1" />
           Confirmar
+          <Check className="h-4 w-4" />
         </Button>
       </div>
     </WizardSectionCard>

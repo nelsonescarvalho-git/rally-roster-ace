@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Target, Swords, Square, ShieldCheck, Shield } from 'lucide-react';
+import { Target, Swords, Square, ShieldCheck, Shield, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RallyActionType, Side, RallyAction } from '@/types/volleyball';
 
@@ -14,6 +14,10 @@ interface ActionSelectorProps {
   onSelectAction: (type: RallyActionType, side: Side) => void;
   /** Whether reception is incomplete and should be shown as an option */
   showReceptionOption?: boolean;
+  /** Callback for back navigation */
+  onBack?: () => void;
+  /** Label for back button */
+  backLabel?: string;
 }
 
 const ACTION_OPTIONS = [
@@ -31,6 +35,8 @@ export function ActionSelector({
   awayName,
   onSelectAction,
   showReceptionOption = false,
+  onBack,
+  backLabel = 'Voltar',
 }: ActionSelectorProps) {
   // Selected team state with intelligent inference
   const [selectedSide, setSelectedSide] = useState<Side>(recvSide);
@@ -130,6 +136,21 @@ export function ActionSelector({
             );
           })}
         </div>
+
+        {/* Navigation footer - consistent with all phases */}
+        {onBack && (
+          <div className="flex gap-2 pt-3 border-t mt-3">
+            <Button 
+              variant="outline" 
+              className="flex-1 gap-2" 
+              onClick={onBack}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              {backLabel}
+            </Button>
+            <div className="flex-1" />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
