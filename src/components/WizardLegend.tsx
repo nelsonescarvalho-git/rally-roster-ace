@@ -1,15 +1,87 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { Info, ChevronDown, ChevronUp, Flame, Trophy, Zap, Target, AlertTriangle, MapPin } from 'lucide-react';
+import { Info, ChevronDown, ChevronUp, Flame, Trophy, Zap, Target, AlertTriangle, MapPin, CircleDot, Shield, Swords, Square, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { SetKPIs } from '@/hooks/useSetKPIs';
+import { cn } from '@/lib/utils';
 
 interface WizardLegendProps {
   homeName: string;
   awayName: string;
   kpis?: SetKPIs;
 }
+
+// Rating code definitions by action type
+const RATING_DEFINITIONS = {
+  serve: {
+    icon: CircleDot,
+    label: 'Serviço',
+    codes: [
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Serviço falhado (fora/rede)' },
+      { code: 1, symbol: '−', label: 'Fraco', desc: 'Serviço fácil de receber' },
+      { code: 2, symbol: '+', label: 'Bom', desc: 'Dificulta receção adversária' },
+      { code: 3, symbol: '★', label: 'Ás', desc: 'Ponto direto de serviço' },
+    ]
+  },
+  reception: {
+    icon: Shield,
+    label: 'Receção',
+    codes: [
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Falha total (ponto adversário)' },
+      { code: 1, symbol: '−', label: 'Fraca', desc: 'Limita opções de ataque' },
+      { code: 2, symbol: '+', label: 'Boa', desc: 'Permite ataque organizado' },
+      { code: 3, symbol: '★', label: 'Perfeita', desc: 'Todas opções disponíveis' },
+    ]
+  },
+  attack: {
+    icon: Swords,
+    label: 'Ataque',
+    codes: [
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Ataque falhado (fora/rede)' },
+      { code: 1, symbol: '−', label: 'Bloqueado', desc: 'Bloqueio ponto adversário' },
+      { code: 2, symbol: '+', label: 'Defesa', desc: 'Defendido, rally continua' },
+      { code: 3, symbol: '★', label: 'Kill', desc: 'Ponto direto de ataque' },
+    ]
+  },
+  block: {
+    icon: Square,
+    label: 'Bloco',
+    codes: [
+      { code: 0, symbol: '✕', label: 'Falta', desc: 'Toque na rede ou invasão' },
+      { code: 1, symbol: '−', label: 'Block-out', desc: 'Bola tocou e saiu' },
+      { code: 2, symbol: '+', label: 'Toque', desc: 'Toca e rally continua' },
+      { code: 3, symbol: '★', label: 'Ponto', desc: 'Bloco direto (stuff)' },
+    ]
+  },
+  defense: {
+    icon: ShieldCheck,
+    label: 'Defesa',
+    codes: [
+      { code: 0, symbol: '✕', label: 'Falha', desc: 'Bola não tocada/defendida' },
+      { code: 1, symbol: '−', label: 'Fraca', desc: 'Defesa sem controlo' },
+      { code: 2, symbol: '+', label: 'Boa', desc: 'Permite contra-ataque' },
+      { code: 3, symbol: '★', label: 'Perfeita', desc: 'Bola ideal para distribuidor' },
+    ]
+  },
+  setter: {
+    icon: Target,
+    label: 'Distribuição',
+    codes: [
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Falha no passe/toque duplo' },
+      { code: 1, symbol: '−', label: 'Fraco', desc: 'Atacante com dificuldade' },
+      { code: 2, symbol: '+', label: 'Bom', desc: 'Ataque com opções' },
+      { code: 3, symbol: '★', label: 'Perfeito', desc: 'Atacante livre de bloco' },
+    ]
+  },
+};
+
+const CODE_COLORS = {
+  0: { bg: 'bg-destructive/10', border: 'border-destructive/30', text: 'text-destructive' },
+  1: { bg: 'bg-warning/10', border: 'border-warning/30', text: 'text-warning' },
+  2: { bg: 'bg-success/20', border: 'border-success/40', text: 'text-success' },
+  3: { bg: 'bg-success/30', border: 'border-success/50', text: 'text-success' },
+};
 
 export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -66,6 +138,72 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
               </div>
             </div>
 
+            {/* Rating Codes Explanation */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <div className="text-xs font-medium text-muted-foreground">Códigos de Avaliação</div>
+              
+              {/* Quick overview of codes */}
+              <div className="grid grid-cols-4 gap-1.5 mb-2">
+                {[0, 1, 2, 3].map((code) => {
+                  const colors = CODE_COLORS[code as keyof typeof CODE_COLORS];
+                  return (
+                    <div 
+                      key={code}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded border",
+                        colors.bg,
+                        colors.border
+                      )}
+                    >
+                      <span className={cn("text-sm font-bold", colors.text)}>
+                        {code === 0 ? '✕' : code === 1 ? '−' : code === 2 ? '+' : '★'}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {code === 0 ? 'Má' : code === 1 ? 'Fraca' : code === 2 ? 'Boa' : 'Excelente'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Detailed per-action explanation */}
+              <div className="space-y-2">
+                {Object.entries(RATING_DEFINITIONS).map(([key, action]) => {
+                  const Icon = action.icon;
+                  return (
+                    <div key={key} className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                        <Icon className="h-3 w-3" />
+                        <span>{action.label}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {action.codes.map((codeInfo) => {
+                          const colors = CODE_COLORS[codeInfo.code as keyof typeof CODE_COLORS];
+                          return (
+                            <div 
+                              key={codeInfo.code}
+                              className={cn(
+                                "px-1.5 py-1 rounded text-center border",
+                                colors.bg,
+                                colors.border
+                              )}
+                              title={codeInfo.desc}
+                            >
+                              <div className={cn("text-[10px] font-medium leading-tight", colors.text)}>
+                                {codeInfo.label}
+                              </div>
+                              <div className="text-[9px] text-muted-foreground leading-tight truncate">
+                                {codeInfo.desc}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Quick Insights Section */}
             {hasInsights && (
