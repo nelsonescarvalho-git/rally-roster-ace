@@ -85,6 +85,7 @@ const CODE_COLORS = {
 
 export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [expandedAction, setExpandedAction] = useState<string | null>(null);
 
   const hasInsights = kpis && (
     kpis.longestRun ||
@@ -98,6 +99,10 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
     kpis.topZoneHome ||
     kpis.topZoneAway
   );
+
+  const toggleAction = (key: string) => {
+    setExpandedAction(prev => prev === key ? null : key);
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -166,39 +171,71 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
                 })}
               </div>
 
-              {/* Detailed per-action explanation */}
-              <div className="space-y-2">
+              {/* Detailed per-action explanation - collapsible */}
+              <div className="space-y-1">
                 {Object.entries(RATING_DEFINITIONS).map(([key, action]) => {
                   const Icon = action.icon;
+                  const isExpanded = expandedAction === key;
                   return (
-                    <div key={key} className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
-                        <Icon className="h-3 w-3" />
-                        <span>{action.label}</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-1">
-                        {action.codes.map((codeInfo) => {
-                          const colors = CODE_COLORS[codeInfo.code as keyof typeof CODE_COLORS];
-                          return (
-                            <div 
-                              key={codeInfo.code}
-                              className={cn(
-                                "px-1.5 py-1 rounded text-center border",
-                                colors.bg,
-                                colors.border
-                              )}
-                              title={codeInfo.desc}
-                            >
-                              <div className={cn("text-[10px] font-medium leading-tight", colors.text)}>
-                                {codeInfo.label}
-                              </div>
-                              <div className="text-[9px] text-muted-foreground leading-tight truncate">
-                                {codeInfo.desc}
-                              </div>
+                    <div key={key} className="border border-border/40 rounded-md overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleAction(key)}
+                        className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs font-medium text-foreground/80 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Icon className="h-3 w-3" />
+                          <span>{action.label}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {/* Preview of codes when collapsed */}
+                          {!isExpanded && (
+                            <div className="flex gap-0.5">
+                              {action.codes.map((codeInfo) => {
+                                const colors = CODE_COLORS[codeInfo.code as keyof typeof CODE_COLORS];
+                                return (
+                                  <span 
+                                    key={codeInfo.code}
+                                    className={cn("text-[10px] px-1 rounded", colors.bg, colors.text)}
+                                  >
+                                    {codeInfo.symbol}
+                                  </span>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
-                      </div>
+                          )}
+                          {isExpanded ? (
+                            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          )}
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="grid grid-cols-4 gap-1 px-2 pb-2">
+                          {action.codes.map((codeInfo) => {
+                            const colors = CODE_COLORS[codeInfo.code as keyof typeof CODE_COLORS];
+                            return (
+                              <div 
+                                key={codeInfo.code}
+                                className={cn(
+                                  "px-1.5 py-1 rounded text-center border",
+                                  colors.bg,
+                                  colors.border
+                                )}
+                                title={codeInfo.desc}
+                              >
+                                <div className={cn("text-[10px] font-medium leading-tight", colors.text)}>
+                                  {codeInfo.label}
+                                </div>
+                                <div className="text-[9px] text-muted-foreground leading-tight truncate">
+                                  {codeInfo.desc}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
