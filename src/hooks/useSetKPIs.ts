@@ -90,6 +90,17 @@ interface TopServer {
   percent: number;
 }
 
+interface TopScorer {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  kills: number;
+  aces: number;
+  blocks: number;
+  total: number;
+  percent: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
@@ -107,6 +118,8 @@ export interface SetKPIs {
   topAttackersAway: TopAttacker[];
   topServersHome: TopServer[];
   topServersAway: TopServer[];
+  topScorersHome: TopScorer[];
+  topScorersAway: TopScorer[];
   
   // Delta from previous set
   deltaFromPrevious?: {
@@ -747,6 +760,94 @@ export function useSetKPIs(
         percent: totalServesAway > 0 ? Math.round((data.count / totalServesAway) * 100) : 0,
       }));
     
+    // ========== TOP SCORERS (kills + aces + blocks) ==========
+    const scorerCountsHome: Record<string, { kills: number; aces: number; blocks: number; playerNo: number | null }> = {};
+    const scorerCountsAway: Record<string, { kills: number; aces: number; blocks: number; playerNo: number | null }> = {};
+    
+    for (const rally of setRallies) {
+      // Kills (attack code 3)
+      if (rally.a_player_id && rally.a_code === 3) {
+        const attackerSide = playerSideMap[rally.a_player_id];
+        const playerNo = rally.a_no;
+        if (attackerSide === 'CASA') {
+          if (!scorerCountsHome[rally.a_player_id]) {
+            scorerCountsHome[rally.a_player_id] = { kills: 0, aces: 0, blocks: 0, playerNo };
+          }
+          scorerCountsHome[rally.a_player_id].kills++;
+        } else if (attackerSide === 'FORA') {
+          if (!scorerCountsAway[rally.a_player_id]) {
+            scorerCountsAway[rally.a_player_id] = { kills: 0, aces: 0, blocks: 0, playerNo };
+          }
+          scorerCountsAway[rally.a_player_id].kills++;
+        }
+      }
+      
+      // Aces (serve code 3)
+      if (rally.s_player_id && rally.s_code === 3) {
+        const serverSide = playerSideMap[rally.s_player_id];
+        const playerNo = rally.s_no;
+        if (serverSide === 'CASA') {
+          if (!scorerCountsHome[rally.s_player_id]) {
+            scorerCountsHome[rally.s_player_id] = { kills: 0, aces: 0, blocks: 0, playerNo };
+          }
+          scorerCountsHome[rally.s_player_id].aces++;
+        } else if (serverSide === 'FORA') {
+          if (!scorerCountsAway[rally.s_player_id]) {
+            scorerCountsAway[rally.s_player_id] = { kills: 0, aces: 0, blocks: 0, playerNo };
+          }
+          scorerCountsAway[rally.s_player_id].aces++;
+        }
+      }
+      
+      // Blocks (block code 3) - only count b1_player_id as main blocker
+      if (rally.b1_player_id && rally.b_code === 3) {
+        const blockerSide = playerSideMap[rally.b1_player_id];
+        const playerNo = rally.b1_no;
+        if (blockerSide === 'CASA') {
+          if (!scorerCountsHome[rally.b1_player_id]) {
+            scorerCountsHome[rally.b1_player_id] = { kills: 0, aces: 0, blocks: 0, playerNo };
+          }
+          scorerCountsHome[rally.b1_player_id].blocks++;
+        } else if (blockerSide === 'FORA') {
+          if (!scorerCountsAway[rally.b1_player_id]) {
+            scorerCountsAway[rally.b1_player_id] = { kills: 0, aces: 0, blocks: 0, playerNo };
+          }
+          scorerCountsAway[rally.b1_player_id].blocks++;
+        }
+      }
+    }
+    
+    const totalPointsHome = Object.values(scorerCountsHome).reduce((a, b) => a + b.kills + b.aces + b.blocks, 0);
+    const totalPointsAway = Object.values(scorerCountsAway).reduce((a, b) => a + b.kills + b.aces + b.blocks, 0);
+    
+    const topScorersHome: TopScorer[] = Object.entries(scorerCountsHome)
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
+        kills: data.kills,
+        aces: data.aces,
+        blocks: data.blocks,
+        total: data.kills + data.aces + data.blocks,
+        percent: totalPointsHome > 0 ? Math.round(((data.kills + data.aces + data.blocks) / totalPointsHome) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 3);
+    
+    const topScorersAway: TopScorer[] = Object.entries(scorerCountsAway)
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
+        kills: data.kills,
+        aces: data.aces,
+        blocks: data.blocks,
+        total: data.kills + data.aces + data.blocks,
+        percent: totalPointsAway > 0 ? Math.round(((data.kills + data.aces + data.blocks) / totalPointsAway) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 3);
+    
     return {
       home,
       away,
@@ -764,6 +865,8 @@ export function useSetKPIs(
       topAttackersAway,
       topServersHome,
       topServersAway,
+      topScorersHome,
+      topScorersAway,
       deltaFromPrevious,
     };
   }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap, playerByTeamAndNumber]);
