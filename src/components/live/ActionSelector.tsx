@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Target, Swords, Square, ShieldCheck } from 'lucide-react';
+import { Target, Swords, Square, ShieldCheck, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RallyActionType, Side, RallyAction } from '@/types/volleyball';
 
@@ -12,6 +12,8 @@ interface ActionSelectorProps {
   homeName: string;
   awayName: string;
   onSelectAction: (type: RallyActionType, side: Side) => void;
+  /** Whether reception is incomplete and should be shown as an option */
+  showReceptionOption?: boolean;
 }
 
 const ACTION_OPTIONS = [
@@ -28,6 +30,7 @@ export function ActionSelector({
   homeName,
   awayName,
   onSelectAction,
+  showReceptionOption = false,
 }: ActionSelectorProps) {
   // Selected team state with intelligent inference
   const [selectedSide, setSelectedSide] = useState<Side>(recvSide);
@@ -88,6 +91,18 @@ export function ActionSelector({
             {awayName}
           </Button>
         </div>
+
+        {/* Reception Edit Button (shown when reception is incomplete) */}
+        {showReceptionOption && (
+          <Button
+            variant="outline"
+            className="w-full h-12 gap-2 border-success bg-success/10 hover:bg-success/20 text-success"
+            onClick={() => onSelectAction('reception', recvSide)}
+          >
+            <Shield className="h-5 w-5" />
+            <span>Definir Receção</span>
+          </Button>
+        )}
 
         {/* Action Buttons */}
         <div className="text-xs font-medium text-muted-foreground">
