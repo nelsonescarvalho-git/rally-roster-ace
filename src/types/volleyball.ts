@@ -23,6 +23,8 @@ export interface RallyAction {
   b1PlayerId?: string | null;
   b2PlayerId?: string | null;
   b3PlayerId?: string | null;
+  // Attack pass quality
+  attackPassQuality?: number | null;
 }
 
 // Persistent team (reusable across matches)
@@ -166,6 +168,7 @@ export interface Rally {
   a_player_id: string | null;
   a_no: number | null;
   a_code: number | null;
+  a_pass_quality: number | null;
   b1_player_id: string | null;
   b2_player_id: string | null;
   b3_player_id: string | null;

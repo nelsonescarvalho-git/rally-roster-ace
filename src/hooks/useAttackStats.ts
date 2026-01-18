@@ -139,7 +139,8 @@ export function useAttackStats(
     filteredRallies.forEach(rally => {
       const attackerId = rally.a_player_id!;
       const aCode = rally.a_code!;
-      const passCode = rally.pass_code ?? 2; // Default to 2 if not set
+      // Use a_pass_quality if available, fallback to pass_code, then default to 2
+      const passCode = rally.a_pass_quality ?? rally.pass_code ?? 2;
       
       if (!statsMap[attackerId]) return;
       

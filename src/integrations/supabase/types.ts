@@ -260,6 +260,7 @@ export type Database = {
         Row: {
           a_code: number | null
           a_no: number | null
+          a_pass_quality: number | null
           a_player_id: string | null
           b_code: number | null
           b1_no: number | null
@@ -298,6 +299,7 @@ export type Database = {
         Insert: {
           a_code?: number | null
           a_no?: number | null
+          a_pass_quality?: number | null
           a_player_id?: string | null
           b_code?: number | null
           b1_no?: number | null
@@ -336,6 +338,7 @@ export type Database = {
         Update: {
           a_code?: number | null
           a_no?: number | null
+          a_pass_quality?: number | null
           a_player_id?: string | null
           b_code?: number | null
           b1_no?: number | null
