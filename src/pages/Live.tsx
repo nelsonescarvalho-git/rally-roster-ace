@@ -1154,9 +1154,9 @@ export default function Live() {
         {(gameState.currentRally > 1 || registeredActions.length > 0) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" className="w-full gap-2">
-                <Undo2 className="h-4 w-4" />
-                {registeredActions.length > 0 ? 'Cancelar Rally' : 'Anular Último Ponto'}
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-destructive">
+                <Undo2 className="h-3.5 w-3.5" />
+                {registeredActions.length > 0 ? 'Cancelar' : 'Anular Último'}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
