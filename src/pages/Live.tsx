@@ -319,6 +319,27 @@ export default function Live() {
     setRegisteredActions(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Undo last action from timeline
+  const handleUndoAction = () => {
+    if (registeredActions.length === 0) return;
+    
+    const lastAction = registeredActions[registeredActions.length - 1];
+    
+    // Reset state based on what's being undone
+    if (lastAction.type === 'reception') {
+      setReceptionCompleted(false);
+      setReceptionData({ playerId: null, code: null });
+    } else if (lastAction.type === 'serve') {
+      setServeCompleted(false);
+      setReceptionCompleted(false);
+      setServeData({ playerId: serverPlayer?.id || null, code: null });
+      setReceptionData({ playerId: null, code: null });
+    }
+    
+    // Remove last action
+    setRegisteredActions(prev => prev.slice(0, -1));
+  };
+
   // Finish point
   const handleFinishPoint = async (winner: Side, reason: Reason) => {
     if (!gameState) return;
@@ -767,6 +788,7 @@ export default function Live() {
             players={getEffectivePlayers()}
             onRemoveAction={handleRemoveAction}
             onReorderActions={setRegisteredActions}
+            onUndo={handleUndoAction}
             homeName={match.home_name}
             awayName={match.away_name}
           />

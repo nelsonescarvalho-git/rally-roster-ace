@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { X, CircleDot, Shield, Target, Swords, Square, ShieldCheck, GripVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { X, CircleDot, Shield, Target, Swords, Square, ShieldCheck, GripVertical, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RallyAction, RallyActionType, Player } from '@/types/volleyball';
 import {
@@ -28,6 +29,7 @@ interface RallyTimelineProps {
   players: Player[];
   onRemoveAction: (index: number) => void;
   onReorderActions: (actions: RallyAction[]) => void;
+  onUndo: () => void;
   homeName: string;
   awayName: string;
 }
@@ -217,6 +219,7 @@ export function RallyTimeline({
   players,
   onRemoveAction,
   onReorderActions,
+  onUndo,
   homeName, 
   awayName 
 }: RallyTimelineProps) {
@@ -274,8 +277,20 @@ export function RallyTimeline({
         <div className="text-xs font-medium text-muted-foreground">
           Ações Registadas ({actions.length})
         </div>
-        <div className="text-[10px] text-muted-foreground">
-          Arraste para reordenar
+        <div className="flex items-center gap-2">
+          <div className="text-[10px] text-muted-foreground">
+            Arraste para reordenar
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={actions.length === 0}
+            onClick={onUndo}
+            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Undo2 className="h-3 w-3 mr-1" />
+            Undo
+          </Button>
         </div>
       </div>
       
