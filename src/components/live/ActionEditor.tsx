@@ -259,29 +259,44 @@ export function ActionEditor({
                 })}
               </SelectContent>
             </Select>
-            <div className="grid grid-cols-4 gap-2">
-              {CODES.map((code) => (
-                <ColoredRatingButton
-                  key={code}
-                  code={code}
-                  selected={selectedCode === code}
-                  onClick={() => handleCodeWithAutoConfirm(code)}
-                />
-              ))}
-            </div>
             
-            {/* Pass Quality Selection */}
-            <div className="text-xs text-muted-foreground">Qualidade do passe:</div>
-            <div className="grid grid-cols-4 gap-2">
-              {CODES.map((code) => (
-                <ColoredRatingButton
-                  key={`pass-${code}`}
-                  code={code}
-                  selected={attackPassQuality === code}
-                  onClick={() => onAttackPassQualityChange?.(attackPassQuality === code ? null : code)}
-                  size="sm"
-                />
-              ))}
+            {/* Two Column Layout: Pass Quality | Attack Rating */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Column 1: Pass Quality (Primary) */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Qualidade do Passe
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CODES.map((code) => (
+                    <ColoredRatingButton
+                      key={`pass-${code}`}
+                      code={code}
+                      selected={attackPassQuality === code}
+                      onClick={() => onAttackPassQualityChange?.(attackPassQuality === code ? null : code)}
+                      size="md"
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Column 2: Attack Rating */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Avaliação do Ataque
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CODES.map((code) => (
+                    <ColoredRatingButton
+                      key={code}
+                      code={code}
+                      selected={selectedCode === code}
+                      onClick={() => handleCodeWithAutoConfirm(code)}
+                      size="md"
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
             
             {/* Kill Type Selection when code = 3 */}
