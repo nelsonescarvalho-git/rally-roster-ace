@@ -563,8 +563,8 @@ export function useSetKPIs(
     const attackerCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
     const attackerCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
     
+    // Zone distribution uses consolidated rallies (one per point)
     for (const rally of setRallies) {
-      // Zone distribution - based on recv_side (receiving team does the distribution)
       if (rally.pass_destination && rally.setter_player_id) {
         if (rally.recv_side === 'CASA') {
           zoneCountsHome[rally.pass_destination] = (zoneCountsHome[rally.pass_destination] || 0) + 1;
@@ -572,24 +572,27 @@ export function useSetKPIs(
           zoneCountsAway[rally.pass_destination] = (zoneCountsAway[rally.pass_destination] || 0) + 1;
         }
       }
-      
-      // Attacker counts - use player ID to determine team correctly
-      if (rally.a_player_id && rally.a_no !== null) {
+    }
+    
+    // Attacker counts - use RAW rallies to count ALL attack attempts (all phases)
+    // This ensures we don't lose attacks from intermediate phases
+    for (const rally of rawSetRallies) {
+      if (rally.a_player_id) {
         // Determine attacker's team from the player's actual side (from match_players)
         const attackerSide = playerSideMap[rally.a_player_id];
+        const playerNo = rally.a_no;
         
         if (attackerSide === 'CASA') {
           if (!attackerCountsHome[rally.a_player_id]) {
-            attackerCountsHome[rally.a_player_id] = { count: 0, playerNo: rally.a_no };
+            attackerCountsHome[rally.a_player_id] = { count: 0, playerNo };
           }
           attackerCountsHome[rally.a_player_id].count++;
         } else if (attackerSide === 'FORA') {
           if (!attackerCountsAway[rally.a_player_id]) {
-            attackerCountsAway[rally.a_player_id] = { count: 0, playerNo: rally.a_no };
+            attackerCountsAway[rally.a_player_id] = { count: 0, playerNo };
           }
           attackerCountsAway[rally.a_player_id].count++;
         }
-        // If attackerSide is undefined, player not found in map - skip counting
       }
     }
     
