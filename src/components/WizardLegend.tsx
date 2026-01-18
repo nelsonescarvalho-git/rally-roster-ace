@@ -67,88 +67,185 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
             </div>
 
             {/* Rating Codes Legend */}
-            <div className="space-y-2 pt-2 border-t border-border/50">
+            <div className="space-y-3 pt-2 border-t border-border/50">
               <div className="text-xs font-medium text-muted-foreground">Códigos de Avaliação (0-3)</div>
-              
-              {/* Color Scale */}
-              <div className="flex gap-1">
-                <div className="flex-1 text-center py-1 rounded bg-destructive/20 border border-destructive/30">
-                  <span className="text-xs font-semibold text-destructive">0 ✕</span>
-                  <div className="text-[10px] text-destructive/80">Má</div>
+
+              {/* Serviço */}
+              <div className="p-3 rounded-lg border border-border/30">
+                <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <span className="text-base">🏐</span>
+                  <span className="text-xs">Serviço</span>
                 </div>
-                <div className="flex-1 text-center py-1 rounded bg-warning/20 border border-warning/30">
-                  <span className="text-xs font-semibold text-warning">1 −</span>
-                  <div className="text-[10px] text-warning/80">Fraca</div>
-                </div>
-                <div className="flex-1 text-center py-1 rounded bg-info/20 border border-info/30">
-                  <span className="text-xs font-semibold text-info">2 +</span>
-                  <div className="text-[10px] text-info/80">Boa</div>
-                </div>
-                <div className="flex-1 text-center py-1 rounded bg-success/20 border border-success/30">
-                  <span className="text-xs font-semibold text-success">3 ★</span>
-                  <div className="text-[10px] text-success/80">Excelente</div>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-destructive">0</span>
+                      <span className="text-muted-foreground"> — Erro directo</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-primary">2</span>
+                      <span className="text-muted-foreground"> — Dificulta recepção</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-warning">1</span>
+                      <span className="text-muted-foreground"> — Serviço facilitado</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-success">3</span>
+                      <span className="text-muted-foreground"> — Ás / Ponto directo</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Action-specific explanations */}
-              <div className="space-y-2 text-[11px]">
-                <div className="p-2 rounded bg-muted/50">
-                  <div className="font-semibold text-foreground mb-1">🏐 Serviço</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
-                    <span><strong className="text-destructive">0</strong> — Erro directo</span>
-                    <span><strong className="text-warning">1</strong> — Serviço facilitado</span>
-                    <span><strong className="text-info">2</strong> — Dificulta recepção</span>
-                    <span><strong className="text-success">3</strong> — Ás / Ponto directo</span>
+              {/* Recepção */}
+              <div className="p-3 rounded-lg border border-border/30">
+                <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <span className="text-base">🛡️</span>
+                  <span className="text-xs">Recepção</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-destructive">0</span>
+                      <span className="text-muted-foreground"> — Erro / Perdida</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-primary">2</span>
+                      <span className="text-muted-foreground"> — Boa, permite opções</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-warning">1</span>
+                      <span className="text-muted-foreground"> — Má, só dá bola alta</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-success">3</span>
+                      <span className="text-muted-foreground"> — Perfeita, todas opções</span>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-2 rounded bg-muted/50">
-                  <div className="font-semibold text-foreground mb-1">🛡️ Recepção</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
-                    <span><strong className="text-destructive">0</strong> — Erro / Perdida</span>
-                    <span><strong className="text-warning">1</strong> — Má, só dá bola alta</span>
-                    <span><strong className="text-info">2</strong> — Boa, permite opções</span>
-                    <span><strong className="text-success">3</strong> — Perfeita, todas as opções</span>
+              {/* Ataque */}
+              <div className="p-3 rounded-lg border border-border/30">
+                <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <span className="text-base">⚔️</span>
+                  <span className="text-xs">Ataque</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-destructive">0</span>
+                      <span className="text-muted-foreground"> — Erro / Bloqueado</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-primary">2</span>
+                      <span className="text-muted-foreground"> — Dificilmente defendido</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-warning">1</span>
+                      <span className="text-muted-foreground"> — Defendido / Reciclado</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-success">3</span>
+                      <span className="text-muted-foreground"> — Kill / Ponto directo</span>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-2 rounded bg-muted/50">
-                  <div className="font-semibold text-foreground mb-1">⚔️ Ataque</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
-                    <span><strong className="text-destructive">0</strong> — Erro / Bloqueado</span>
-                    <span><strong className="text-warning">1</strong> — Defendido / Reciclado</span>
-                    <span><strong className="text-info">2</strong> — Dificilmente defendido</span>
-                    <span><strong className="text-success">3</strong> — Kill / Ponto directo</span>
+              {/* Bloco */}
+              <div className="p-3 rounded-lg border border-border/30">
+                <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <span className="text-base">🧱</span>
+                  <span className="text-xs">Bloco</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-destructive">0</span>
+                      <span className="text-muted-foreground"> — Erro / Toque na rede</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-primary">2</span>
+                      <span className="text-muted-foreground"> — Toque / Suaviza ataque</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-warning">1</span>
+                      <span className="text-muted-foreground"> — Bola passa sem tocar</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-success">3</span>
+                      <span className="text-muted-foreground"> — Stuff / Ponto directo</span>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-2 rounded bg-muted/50">
-                  <div className="font-semibold text-foreground mb-1">🧱 Bloco</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
-                    <span><strong className="text-destructive">0</strong> — Erro / Toque na rede</span>
-                    <span><strong className="text-warning">1</strong> — Bola passa sem tocar</span>
-                    <span><strong className="text-info">2</strong> — Toque / Suaviza ataque</span>
-                    <span><strong className="text-success">3</strong> — Stuff / Ponto directo</span>
+              {/* Defesa */}
+              <div className="p-3 rounded-lg border border-border/30">
+                <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <span className="text-base">🤾</span>
+                  <span className="text-xs">Defesa</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-destructive">0</span>
+                      <span className="text-muted-foreground"> — Erro / Não toca</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-primary">2</span>
+                      <span className="text-muted-foreground"> — Boa, permite ataque</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-warning">1</span>
+                      <span className="text-muted-foreground"> — Toca mas não controla</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-success">3</span>
+                      <span className="text-muted-foreground"> — Perfeita para 1º tempo</span>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-2 rounded bg-muted/50">
-                  <div className="font-semibold text-foreground mb-1">🛡️ Defesa</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
-                    <span><strong className="text-destructive">0</strong> — Erro / Não toca</span>
-                    <span><strong className="text-warning">1</strong> — Toca mas não controla</span>
-                    <span><strong className="text-info">2</strong> — Boa, permite ataque</span>
-                    <span><strong className="text-success">3</strong> — Perfeita para 1º tempo</span>
-                  </div>
+              {/* Distribuição */}
+              <div className="p-3 rounded-lg border border-border/30">
+                <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <span className="text-base">🎯</span>
+                  <span className="text-xs">Distribuição</span>
                 </div>
-
-                <div className="p-2 rounded bg-muted/50">
-                  <div className="font-semibold text-foreground mb-1">🎯 Distribuição</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
-                    <span><strong className="text-destructive">0</strong> — Erro / Perdida</span>
-                    <span><strong className="text-warning">1</strong> — Má, força bola alta</span>
-                    <span><strong className="text-info">2</strong> — Boa, atacante confortável</span>
-                    <span><strong className="text-success">3</strong> — Perfeita, atacante livre</span>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-destructive">0</span>
+                      <span className="text-muted-foreground"> — Erro / Perdida</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-primary">2</span>
+                      <span className="text-muted-foreground"> — Boa, atacante confortável</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs">
+                      <span className="font-bold text-warning">1</span>
+                      <span className="text-muted-foreground"> — Má, força bola alta</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="font-bold text-success">3</span>
+                      <span className="text-muted-foreground"> — Perfeita, atacante livre</span>
+                    </div>
                   </div>
                 </div>
               </div>
