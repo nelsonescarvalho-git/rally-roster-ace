@@ -131,23 +131,18 @@ export default function Live() {
     setReceptionData({ playerId: null, code: null });
   }, [serverPlayer?.id]);
 
-  // Compute players for each side
-  const servePlayers = gameState ? getPlayersForSide(gameState.serveSide) : [];
-  const recvPlayers = gameState ? getPlayersForSide(gameState.recvSide) : [];
+  // Compute players currently on court for each side
+  const servePlayers = gameState 
+    ? getPlayersOnCourt(currentSet, gameState.serveSide, gameState.currentRally) 
+    : [];
+  const recvPlayers = gameState 
+    ? getPlayersOnCourt(currentSet, gameState.recvSide, gameState.currentRally) 
+    : [];
 
-  // Helper to get unique players
-  const uniquePlayers = (players: Player[]): Player[] => {
-    const seen = new Set<string>();
-    return players.filter(p => {
-      if (seen.has(p.id)) return false;
-      seen.add(p.id);
-      return true;
-    });
-  };
-
-  // Get players for a specific side
-  const getPlayersForActionSide = (side: Side): Player[] => {
-    return uniquePlayers(getPlayersForSide(side));
+  // Get players currently on court for a specific side
+  const getPlayersForActionSide = (side: Side) => {
+    if (!gameState) return [];
+    return getPlayersOnCourt(currentSet, side, gameState.currentRally);
   };
 
   // Get the effective reception code for setter destination filtering
@@ -855,7 +850,7 @@ export default function Live() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Nenhum</SelectItem>
-                    {uniquePlayers(recvPlayers).map((p) => (
+                    {recvPlayers.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         #{p.jersey_number} {p.name}
                       </SelectItem>
