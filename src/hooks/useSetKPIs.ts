@@ -77,6 +77,7 @@ interface ZoneDistribution {
 interface TopAttacker {
   playerId: string;
   playerNo: number | null;
+  playerName: string | null;
   count: number;
   percent: number;
 }
@@ -150,12 +151,22 @@ export function useSetKPIs(
   previousSetRallies?: Rally[],
   players?: MatchPlayer[]
 ): SetKPIs {
-  // Create a map of player ID to their side for accurate team identification
+  // Create maps of player ID to their side and metadata for accurate team identification
   const playerSideMap = useMemo(() => {
     const map: Record<string, Side> = {};
     if (players) {
       players.forEach(p => {
         map[p.id] = p.side as Side;
+      });
+    }
+    return map;
+  }, [players]);
+
+  const playerMetaMap = useMemo(() => {
+    const map: Record<string, { jerseyNumber: number; name: string }> = {};
+    if (players) {
+      players.forEach(p => {
+        map[p.id] = { jerseyNumber: p.jersey_number, name: p.name };
       });
     }
     return map;
@@ -635,6 +646,7 @@ export function useSetKPIs(
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
         count: data.count,
         percent: totalAttacksHome > 0 ? Math.round((data.count / totalAttacksHome) * 100) : 0,
       }));
@@ -645,6 +657,7 @@ export function useSetKPIs(
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
         count: data.count,
         percent: totalAttacksAway > 0 ? Math.round((data.count / totalAttacksAway) * 100) : 0,
       }));
@@ -666,5 +679,5 @@ export function useSetKPIs(
       topAttackersAway,
       deltaFromPrevious,
     };
-  }, [rallies, setNo, previousSetRallies, playerSideMap]);
+  }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap]);
 }
