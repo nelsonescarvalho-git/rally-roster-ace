@@ -282,17 +282,49 @@ export default function Live() {
     }
   };
 
-  // Handle reception completion (upsert: update if exists, add if not)
-  const handleReceptionComplete = () => {
+  // Handle reception code selection - auto-confirms like serve
+  const handleReceptionCodeSelect = (code: number) => {
+    // Toggle off if same code clicked
+    const newCode = receptionData.code === code ? null : code;
+    
+    // Update reception data state
+    setReceptionData(prev => ({ ...prev, code: newCode }));
+    
+    // Auto-complete when a code is selected
+    if (newCode !== null) {
+      const recAction: RallyAction = {
+        type: 'reception',
+        side: gameState!.recvSide,
+        phase: 1,
+        playerId: receptionData.playerId,
+        code: newCode,
+      };
+      
+      // Upsert: if reception already exists, replace it; otherwise add
+      setRegisteredActions(prev => {
+        const existingIndex = prev.findIndex(a => a.type === 'reception');
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = recAction;
+          return updated;
+        }
+        return [...prev, recAction];
+      });
+      setReceptionCompleted(true);
+    }
+  };
+
+  // Handle reception skip (continue without reception data)
+  const handleReceptionSkip = () => {
+    // Still register a reception action but with null values
     const recAction: RallyAction = {
       type: 'reception',
       side: gameState!.recvSide,
       phase: 1,
-      playerId: receptionData.playerId,
-      code: receptionData.code,
+      playerId: null,
+      code: null,
     };
     
-    // Upsert: if reception already exists, replace it; otherwise add
     setRegisteredActions(prev => {
       const existingIndex = prev.findIndex(a => a.type === 'reception');
       if (existingIndex >= 0) {
@@ -960,29 +992,28 @@ export default function Live() {
                     </SelectContent>
                   </Select>
                 )}
+                {/* Code selection - clicking auto-confirms */}
                 <div className="grid grid-cols-4 gap-2">
                   {[0, 1, 2, 3].map((code) => (
                     <Button
                       key={code}
                       variant={receptionData.code === code ? 'default' : 'outline'}
                       className={`h-12 ${receptionData.code === code ? (code === 0 ? 'bg-destructive' : code === 3 ? 'bg-success' : 'bg-primary') : ''}`}
-                      onClick={() => setReceptionData(prev => ({ ...prev, code: prev.code === code ? null : code }))}
+                      onClick={() => handleReceptionCodeSelect(code)}
                     >
                       {code === 0 ? '✕' : code === 1 ? '−' : code === 2 ? '+' : '★'}
                     </Button>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={handleReceptionComplete}>
-                    Saltar
-                  </Button>
-                  <Button 
-                    className="flex-1" 
-                    onClick={handleReceptionComplete}
-                  >
-                    {isTerminalReception ? 'Guardar Ponto (ACE)' : 'Continuar'}
-                  </Button>
-                </div>
+                
+                <p className="text-xs text-center text-muted-foreground">
+                  Clique num código para confirmar a receção
+                </p>
+                
+                {/* Skip button */}
+                <Button variant="outline" className="w-full" onClick={handleReceptionSkip}>
+                  Avançar sem receção
+                </Button>
               </CardContent>
             </Card>
           )}
