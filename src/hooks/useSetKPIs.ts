@@ -82,6 +82,14 @@ interface TopAttacker {
   percent: number;
 }
 
+interface TopServer {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  count: number;
+  percent: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
@@ -97,6 +105,8 @@ export interface SetKPIs {
   topZoneAway: ZoneDistribution | null;
   topAttackersHome: TopAttacker[];
   topAttackersAway: TopAttacker[];
+  topServersHome: TopServer[];
+  topServersAway: TopServer[];
   
   // Delta from previous set
   deltaFromPrevious?: {
@@ -607,7 +617,29 @@ export function useSetKPIs(
       }
     }
     
-    // Find top zone for each team
+    // Server counts - use RAW rallies to count ALL serve attempts (all phases, but typically phase 1)
+    const serverCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
+    const serverCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
+    
+    for (const rally of rawSetRallies) {
+      if (rally.s_player_id) {
+        const serverSide = playerSideMap[rally.s_player_id];
+        const playerNo = rally.s_no;
+        
+        if (serverSide === 'CASA') {
+          if (!serverCountsHome[rally.s_player_id]) {
+            serverCountsHome[rally.s_player_id] = { count: 0, playerNo };
+          }
+          serverCountsHome[rally.s_player_id].count++;
+        } else if (serverSide === 'FORA') {
+          if (!serverCountsAway[rally.s_player_id]) {
+            serverCountsAway[rally.s_player_id] = { count: 0, playerNo };
+          }
+          serverCountsAway[rally.s_player_id].count++;
+        }
+      }
+    }
+    
     const totalZonesHome = Object.values(zoneCountsHome).reduce((a, b) => a + b, 0);
     const totalZonesAway = Object.values(zoneCountsAway).reduce((a, b) => a + b, 0);
     
@@ -662,6 +694,32 @@ export function useSetKPIs(
         percent: totalAttacksAway > 0 ? Math.round((data.count / totalAttacksAway) * 100) : 0,
       }));
     
+    // Find top 3 servers for each team
+    const totalServesHome = Object.values(serverCountsHome).reduce((a, b) => a + b.count, 0);
+    const totalServesAway = Object.values(serverCountsAway).reduce((a, b) => a + b.count, 0);
+    
+    const topServersHome: TopServer[] = Object.entries(serverCountsHome)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 3)
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
+        count: data.count,
+        percent: totalServesHome > 0 ? Math.round((data.count / totalServesHome) * 100) : 0,
+      }));
+    
+    const topServersAway: TopServer[] = Object.entries(serverCountsAway)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 3)
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
+        count: data.count,
+        percent: totalServesAway > 0 ? Math.round((data.count / totalServesAway) * 100) : 0,
+      }));
+    
     return {
       home,
       away,
@@ -677,6 +735,8 @@ export function useSetKPIs(
       topZoneAway,
       topAttackersHome,
       topAttackersAway,
+      topServersHome,
+      topServersAway,
       deltaFromPrevious,
     };
   }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap]);
