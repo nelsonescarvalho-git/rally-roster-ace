@@ -1095,9 +1095,7 @@ export default function Live() {
               homeName={match.home_name}
               awayName={match.away_name}
               onSelectAction={handleSelectAction}
-              showReceptionOption={isReceptionIncomplete}
               onBack={() => setReceptionCompleted(false)}
-              backLabel="Voltar à Receção"
             />
           )}
 
