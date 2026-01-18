@@ -399,41 +399,7 @@ export function useSetKPIs(
         }
       }
       
-      // === ATTACK STATS ===
-      if (rally.a_player_id && rally.a_code !== null) {
-        // Determine attacker's side
-        const attSide = rally.a_player_id ? 
-          (serveSide === 'CASA' ? 'FORA' : 'CASA') : // First attack is usually by receiver
-          null;
-        
-        // We need to infer attacker side from context
-        // If the rally was won by KILL, the attacker's side is the winner
-        // If the rally was won by AE (attack error), the attacker's side is the loser
-        let attackerSide: Side | null = null;
-        if (reason === 'KILL') {
-          attackerSide = winner;
-        } else if (reason === 'AE') {
-          attackerSide = winner === 'CASA' ? 'FORA' : 'CASA';
-        } else if (reason === 'BLK') {
-          // Blocked - attacker is the other side
-          attackerSide = winner === 'CASA' ? 'FORA' : 'CASA';
-        } else {
-          // Default: assume receiver attacks in K1
-          attackerSide = recvSide;
-        }
-        
-        if (attackerSide === 'CASA') {
-          home.attTotal++;
-          if (rally.a_code === 3) home.attKills++;
-          if (rally.a_code === 0) home.attErrors++;
-          if (reason === 'BLK' && winner === 'FORA') home.attBlocked++;
-        } else {
-          away.attTotal++;
-          if (rally.a_code === 3) away.attKills++;
-          if (rally.a_code === 0) away.attErrors++;
-          if (reason === 'BLK' && winner === 'CASA') away.attBlocked++;
-        }
-      }
+      // === ATTACK STATS === (moved to separate loop below using rawSetRallies)
       
       // === UNFORCED ERRORS ===
       if (reason === 'SE') {
@@ -462,6 +428,26 @@ export function useSetKPIs(
         } else {
           home.unforcedOther++;
           home.pointsOffered++;
+        }
+      }
+    }
+    
+    // === ATTACK STATS (using rawSetRallies to include all phases) ===
+    for (const rally of rawSetRallies) {
+      if (rally.a_player_id && rally.a_code !== null) {
+        // Use playerSideMap to determine attacker's team directly
+        const attackerSide = playerSideMap[rally.a_player_id];
+        
+        if (attackerSide === 'CASA') {
+          home.attTotal++;
+          if (rally.a_code === 3) home.attKills++;
+          if (rally.a_code === 0) home.attErrors++;
+          if (rally.a_code === 1) home.attBlocked++;
+        } else if (attackerSide === 'FORA') {
+          away.attTotal++;
+          if (rally.a_code === 3) away.attKills++;
+          if (rally.a_code === 0) away.attErrors++;
+          if (rally.a_code === 1) away.attBlocked++;
         }
       }
     }
