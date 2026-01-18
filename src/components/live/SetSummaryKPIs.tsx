@@ -604,6 +604,76 @@ export function SetSummaryKPIs({
             </Card>
           )}
           
+          {/* Top Receivers */}
+          {(kpis.topReceiversHome.length > 0 || kpis.topReceiversAway.length > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="h-4 w-4 text-green-500" />
+                  <span className="text-xs font-medium">Eficiência de Receção</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-home font-medium text-xs mb-1">{homeName}</div>
+                    {kpis.topReceiversHome.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.topReceiversHome.map((receiver) => (
+                          <div key={receiver.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{receiver.playerNo}</span>
+                            {receiver.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{receiver.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{receiver.total} rec</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                receiver.positivePercent >= 60 && "border-green-500 text-green-600",
+                                receiver.positivePercent < 40 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {receiver.positivePercent}%+
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-away font-medium text-xs mb-1">{awayName}</div>
+                    {kpis.topReceiversAway.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.topReceiversAway.map((receiver) => (
+                          <div key={receiver.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{receiver.playerNo}</span>
+                            {receiver.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{receiver.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{receiver.total} rec</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                receiver.positivePercent >= 60 && "border-green-500 text-green-600",
+                                receiver.positivePercent < 40 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {receiver.positivePercent}%+
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           {(kpis.worstRotationHome || kpis.worstRotationAway) && (
             <Card className="bg-muted/30">
               <CardContent className="p-3">
@@ -646,7 +716,9 @@ export function SetSummaryKPIs({
            kpis.topAttackersHome.length === 0 &&
            kpis.topAttackersAway.length === 0 &&
            kpis.topScorersHome.length === 0 &&
-           kpis.topScorersAway.length === 0 && (
+           kpis.topScorersAway.length === 0 &&
+           kpis.topReceiversHome.length === 0 &&
+           kpis.topReceiversAway.length === 0 && (
             <div className="text-center text-sm text-muted-foreground py-4">
               Sem insights disponíveis para este set
             </div>

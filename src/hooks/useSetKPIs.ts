@@ -101,6 +101,15 @@ interface TopScorer {
   percent: number;
 }
 
+interface TopReceiver {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  total: number;
+  positive: number;
+  positivePercent: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
@@ -120,6 +129,8 @@ export interface SetKPIs {
   topServersAway: TopServer[];
   topScorersHome: TopScorer[];
   topScorersAway: TopScorer[];
+  topReceiversHome: TopReceiver[];
+  topReceiversAway: TopReceiver[];
   
   // Delta from previous set
   deltaFromPrevious?: {
@@ -848,6 +859,58 @@ export function useSetKPIs(
       .sort((a, b) => b.total - a.total)
       .slice(0, 3);
     
+    // ========== TOP RECEIVERS (reception efficiency) ==========
+    const receiverCountsHome: Record<string, { total: number; positive: number; playerNo: number | null }> = {};
+    const receiverCountsAway: Record<string, { total: number; positive: number; playerNo: number | null }> = {};
+    
+    for (const rally of setRallies) {
+      if (rally.r_player_id && rally.r_code !== null && rally.r_code !== undefined) {
+        const receiverSide = playerSideMap[rally.r_player_id];
+        const playerNo = rally.r_no;
+        const isPositive = rally.r_code >= 2; // Code 2 (positive) or 3 (perfect)
+        
+        if (receiverSide === 'CASA') {
+          if (!receiverCountsHome[rally.r_player_id]) {
+            receiverCountsHome[rally.r_player_id] = { total: 0, positive: 0, playerNo };
+          }
+          receiverCountsHome[rally.r_player_id].total++;
+          if (isPositive) receiverCountsHome[rally.r_player_id].positive++;
+        } else if (receiverSide === 'FORA') {
+          if (!receiverCountsAway[rally.r_player_id]) {
+            receiverCountsAway[rally.r_player_id] = { total: 0, positive: 0, playerNo };
+          }
+          receiverCountsAway[rally.r_player_id].total++;
+          if (isPositive) receiverCountsAway[rally.r_player_id].positive++;
+        }
+      }
+    }
+    
+    const topReceiversHome: TopReceiver[] = Object.entries(receiverCountsHome)
+      .filter(([_, data]) => data.total >= 1) // At least 1 reception
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
+        total: data.total,
+        positive: data.positive,
+        positivePercent: data.total > 0 ? Math.round((data.positive / data.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total) // Sort by total receptions
+      .slice(0, 3);
+    
+    const topReceiversAway: TopReceiver[] = Object.entries(receiverCountsAway)
+      .filter(([_, data]) => data.total >= 1) // At least 1 reception
+      .map(([playerId, data]) => ({
+        playerId,
+        playerNo: data.playerNo,
+        playerName: playerMetaMap[playerId]?.name || null,
+        total: data.total,
+        positive: data.positive,
+        positivePercent: data.total > 0 ? Math.round((data.positive / data.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total) // Sort by total receptions
+      .slice(0, 3);
+    
     return {
       home,
       away,
@@ -867,6 +930,8 @@ export function useSetKPIs(
       topServersAway,
       topScorersHome,
       topScorersAway,
+      topReceiversHome,
+      topReceiversAway,
       deltaFromPrevious,
     };
   }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap, playerByTeamAndNumber]);
