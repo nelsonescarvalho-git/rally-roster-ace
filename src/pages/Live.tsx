@@ -904,8 +904,8 @@ export default function Live() {
           </CardContent>
         </Card>
 
-        {/* Substitution Buttons */}
-        <div className="flex gap-2">
+        {/* Substitution Buttons & Cancel */}
+        <div className="flex gap-2 items-center">
           <Button
             variant="outline"
             size="sm"
@@ -913,7 +913,7 @@ export default function Live() {
             onClick={() => setSubModalSide('CASA')}
           >
             <Badge variant="secondary" className="bg-home/20 text-home">CASA</Badge>
-            Substituições ({getSubstitutionsUsed(currentSet, 'CASA')}/6)
+            Subs ({getSubstitutionsUsed(currentSet, 'CASA')}/6)
           </Button>
           <Button
             variant="outline"
@@ -922,8 +922,38 @@ export default function Live() {
             onClick={() => setSubModalSide('FORA')}
           >
             <Badge variant="secondary" className="bg-away/20 text-away">FORA</Badge>
-            Substituições ({getSubstitutionsUsed(currentSet, 'FORA')}/6)
+            Subs ({getSubstitutionsUsed(currentSet, 'FORA')}/6)
           </Button>
+          
+          {/* Cancel/Undo Button */}
+          {(gameState.currentRally > 1 || registeredActions.length > 0) && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-destructive px-2">
+                  <Undo2 className="h-3.5 w-3.5" />
+                  {registeredActions.length > 0 ? 'Cancelar' : 'Anular'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {registeredActions.length > 0 ? 'Cancelar rally em curso?' : 'Anular último ponto?'}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {registeredActions.length > 0 
+                      ? 'Esta ação vai apagar todas as ações deste rally e voltar ao início.'
+                      : 'Esta ação vai apagar o último ponto registado.'}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Não</AlertDialogCancel>
+                  <AlertDialogAction onClick={registeredActions.length > 0 ? resetWizard : handleUndo}>
+                    Sim, {registeredActions.length > 0 ? 'cancelar' : 'anular'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
 
         {/* Recent plays summary */}
@@ -1149,36 +1179,6 @@ export default function Live() {
             />
           )}
         </div>
-
-        {/* Undo Button */}
-        {(gameState.currentRally > 1 || registeredActions.length > 0) && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-destructive">
-                <Undo2 className="h-3.5 w-3.5" />
-                {registeredActions.length > 0 ? 'Cancelar' : 'Anular Último'}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {registeredActions.length > 0 ? 'Cancelar rally em curso?' : 'Anular último ponto?'}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {registeredActions.length > 0 
-                    ? 'Esta ação vai apagar todas as ações deste rally e voltar ao início.'
-                    : 'Esta ação vai apagar o último ponto registado.'}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Não</AlertDialogCancel>
-                <AlertDialogAction onClick={registeredActions.length > 0 ? resetWizard : handleUndo}>
-                  Sim, {registeredActions.length > 0 ? 'cancelar' : 'anular'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
 
         {/* Legend for new users */}
         <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
