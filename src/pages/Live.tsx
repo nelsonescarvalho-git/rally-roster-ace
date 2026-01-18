@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
 import { WizardLegend } from '@/components/WizardLegend';
@@ -137,17 +137,25 @@ export default function Live() {
     ? getPlayersOnCourt(currentSet, gameState.serveSide, gameState.currentRally) 
     : [];
   
-  // For reception, include players on court PLUS any Liberos on the bench
-  const recvPlayers = (() => {
+  // For reception, include players on court PLUS ALL Liberos from the team roster
+  const recvPlayers = useMemo(() => {
     if (!gameState) return [];
     const onCourt = getPlayersOnCourt(currentSet, gameState.recvSide, gameState.currentRally);
-    const onBench = getPlayersOnBench(currentSet, gameState.recvSide, gameState.currentRally);
-    // Add Liberos from bench to the list (they can enter freely for reception)
-    const benchLiberos = onBench.filter(p => 
+    // Get ALL players from the receiving side to find Liberos
+    const allTeamPlayers = getPlayersForSide(gameState.recvSide);
+    // Filter for Liberos from the full roster
+    const teamLiberos = allTeamPlayers.filter(p => 
       p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO'
     );
-    return [...onCourt, ...benchLiberos];
-  })();
+    // Combine on court + liberos, removing duplicates by id
+    const combined = [...onCourt];
+    teamLiberos.forEach(libero => {
+      if (!combined.some(p => p.id === libero.id)) {
+        combined.push(libero);
+      }
+    });
+    return combined;
+  }, [gameState, currentSet, getPlayersOnCourt, getPlayersForSide]);
 
   // Get players currently on court for a specific side
   const getPlayersForActionSide = (side: Side) => {
@@ -248,9 +256,8 @@ export default function Live() {
     }
   };
 
-  // Handle reception completion
+  // Handle reception completion (upsert: update if exists, add if not)
   const handleReceptionComplete = () => {
-    // Add reception action
     const recAction: RallyAction = {
       type: 'reception',
       side: gameState!.recvSide,
@@ -258,12 +265,37 @@ export default function Live() {
       playerId: receptionData.playerId,
       code: receptionData.code,
     };
-    setRegisteredActions(prev => [...prev, recAction]);
+    
+    // Upsert: if reception already exists, replace it; otherwise add
+    setRegisteredActions(prev => {
+      const existingIndex = prev.findIndex(a => a.type === 'reception');
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = recAction;
+        return updated;
+      }
+      return [...prev, recAction];
+    });
     setReceptionCompleted(true);
   };
 
-  // Handle action selection from ActionSelector
+  // Handle action selection from ActionSelector (including reception edit)
   const handleSelectAction = (type: RallyActionType, side: Side) => {
+    // Special handling for reception - if it exists, we'll edit it
+    if (type === 'reception') {
+      const existingReception = registeredActions.find(a => a.type === 'reception');
+      if (existingReception) {
+        // Pre-fill with existing data
+        setReceptionData({ 
+          playerId: existingReception.playerId || null, 
+          code: existingReception.code ?? null 
+        });
+      }
+      // Reset reception completed so the phase shows
+      setReceptionCompleted(false);
+      return;
+    }
+    
     setPendingAction({
       type,
       side,
@@ -278,6 +310,10 @@ export default function Live() {
       b3PlayerId: null,
     });
   };
+  
+  // Check if reception action exists but is incomplete (no player selected)
+  const receptionAction = registeredActions.find(a => a.type === 'reception');
+  const isReceptionIncomplete = receptionAction && !receptionAction.playerId;
 
   // Confirm pending action
   const handleConfirmAction = () => {
@@ -859,29 +895,40 @@ export default function Live() {
                 </span>
               </div>
               <CardContent className="p-4 space-y-3">
-                <Select
-                  value={receptionData.playerId || '__none__'}
-                  onValueChange={(val) => setReceptionData(prev => ({ ...prev, playerId: val === '__none__' ? null : val }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecionar recetor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Nenhum</SelectItem>
-                    {recvPlayers.map((p) => {
-                      const zone = getZoneLabel(p.id, gameState.recvSide);
-                      return (
-                        <SelectItem key={p.id} value={p.id}>
-                          <span className="inline-flex items-center gap-2">
-                            <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>
-                            <PositionBadge position={p.position} />
-                            #{p.jersey_number} {p.name}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                {recvPlayers.length === 0 ? (
+                  <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    <span className="text-sm text-destructive">
+                      Sem jogadores disponíveis — verifique o lineup/substituições
+                    </span>
+                  </div>
+                ) : (
+                  <Select
+                    value={receptionData.playerId || '__none__'}
+                    onValueChange={(val) => setReceptionData(prev => ({ ...prev, playerId: val === '__none__' ? null : val }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecionar recetor" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover z-50">
+                      <SelectItem value="__none__">Nenhum</SelectItem>
+                      {recvPlayers.map((p) => {
+                        const zone = getZoneLabel(p.id, gameState.recvSide);
+                        const isLibero = p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO';
+                        return (
+                          <SelectItem key={p.id} value={p.id}>
+                            <span className="inline-flex items-center gap-2">
+                              <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone || '-'}</span>
+                              <PositionBadge position={p.position} />
+                              #{p.jersey_number} {p.name}
+                              {isLibero && <span className="text-warning text-xs">(L)</span>}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="grid grid-cols-4 gap-2">
                   {[0, 1, 2, 3].map((code) => (
                     <Button
@@ -918,6 +965,7 @@ export default function Live() {
               homeName={match.home_name}
               awayName={match.away_name}
               onSelectAction={handleSelectAction}
+              showReceptionOption={isReceptionIncomplete}
             />
           )}
 
