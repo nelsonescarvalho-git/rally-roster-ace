@@ -74,10 +74,9 @@ export default function Live() {
   const [subModalSide, setSubModalSide] = useState<Side | null>(null);
   const [showSet5ServeModal, setShowSet5ServeModal] = useState(false);
   
-  // Modular wizard state
+  // Modular wizard state (phases removed - always use phase 1)
   const [registeredActions, setRegisteredActions] = useState<RallyAction[]>([]);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [currentPhase, setCurrentPhase] = useState(1);
   
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
@@ -117,7 +116,6 @@ export default function Live() {
   const resetWizard = useCallback(() => {
     setRegisteredActions([]);
     setPendingAction(null);
-    setCurrentPhase(1);
     setServeCompleted(false);
     setReceptionCompleted(false);
     setServeData({ playerId: serverPlayer?.id || null, code: null });
@@ -148,9 +146,9 @@ export default function Live() {
     // First check reception data
     if (receptionData.code !== null) return receptionData.code;
     
-    // Then check last defense action in current phase for quality
+    // Then check last defense action for quality
     const lastDefense = [...registeredActions]
-      .filter(a => a.phase === currentPhase && a.type === 'defense')
+      .filter(a => a.type === 'defense')
       .pop();
     if (lastDefense?.code !== null && lastDefense?.code !== undefined) {
       return lastDefense.code;
@@ -268,11 +266,6 @@ export default function Live() {
     });
   };
 
-  // Handle new phase
-  const handleNewPhase = () => {
-    setCurrentPhase(prev => prev + 1);
-  };
-
   // Confirm pending action
   const handleConfirmAction = () => {
     if (!pendingAction) return;
@@ -283,7 +276,7 @@ export default function Live() {
     const newAction: RallyAction = {
       type: pendingAction.type,
       side: pendingAction.side,
-      phase: currentPhase,
+      phase: 1, // Always use phase 1 (phases removed)
       playerId: pendingAction.playerId,
       playerNo: player?.jersey_number || null,
       code: pendingAction.code,
@@ -351,7 +344,7 @@ export default function Live() {
       match_id: matchId,
       set_no: currentSet,
       rally_no: gameState.currentRally,
-      phase: currentPhase,
+      phase: 1, // Always use phase 1 (phases removed)
       serve_side: gameState.serveSide,
       serve_rot: gameState.serveRot,
       recv_side: gameState.recvSide,
@@ -691,7 +684,6 @@ export default function Live() {
                 <div className="text-lg font-bold text-muted-foreground">—</div>
                 <div className="text-[10px] text-muted-foreground text-center leading-tight mt-1">
                   <div>R{gameState.currentRally}</div>
-                  {currentPhase > 1 && <div>F{currentPhase}</div>}
                 </div>
               </div>
               
@@ -890,13 +882,11 @@ export default function Live() {
           {isModularPhase && !pendingAction && (
             <ActionSelector
               actions={registeredActions}
-              currentPhase={currentPhase}
               serveSide={gameState.serveSide}
               recvSide={gameState.recvSide}
               homeName={match.home_name}
               awayName={match.away_name}
               onSelectAction={handleSelectAction}
-              onNewPhase={handleNewPhase}
             />
           )}
 
