@@ -391,6 +391,26 @@ export function useMatch(matchId: string | null) {
       .filter(Boolean) as (Player | MatchPlayer)[];
   }, [getActiveLineup, getEffectivePlayers]);
 
+  // Get current zone (Z1-Z6) for a player based on lineup and rotation
+  const getPlayerZone = useCallback((setNo: number, side: Side, playerId: string, rotation: number, currentRally: number): number | null => {
+    const lineup = getLineupForSet(setNo, side);
+    if (!lineup) return null;
+
+    // Get current active lineup with substitutions
+    const activeIds = getActiveLineup(setNo, side, currentRally);
+    
+    // Find player's position in the lineup (0-5)
+    const lineupIndex = activeIds.findIndex(id => id === playerId);
+    if (lineupIndex === -1) return null;
+
+    // Calculate the zone based on rotation
+    // rotation=1 means rot1 is at Z1 (serving)
+    // rotation=2 means rot2 is at Z1 (serving)
+    // Zone = ((lineupIndex - (rotation - 1) + 6) % 6) + 1
+    const zone = ((lineupIndex - (rotation - 1) + 6) % 6) + 1;
+    return zone;
+  }, [getLineupForSet, getActiveLineup]);
+
   // Get players on bench (not currently on court)
   const getPlayersOnBench = useCallback((setNo: number, side: Side, currentRally: number): (Player | MatchPlayer)[] => {
     const activeIds = getActiveLineup(setNo, side, currentRally);
@@ -472,6 +492,7 @@ export function useMatch(matchId: string | null) {
     getSubstitutionsUsed,
     getActiveLineup,
     getPlayersOnCourt,
+    getPlayerZone,
     getPlayersOnBench,
     makeSubstitution,
     undoSubstitution,

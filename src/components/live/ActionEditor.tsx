@@ -38,6 +38,8 @@ interface ActionEditorProps {
   selectedBlocker3?: string | null;
   // Context for setter (reception quality for destination filtering)
   receptionCode?: number | null;
+  // Zone getter for player zones
+  getZoneLabel?: (playerId: string, side: Side) => string;
   // Callbacks
   onPlayerChange: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
@@ -68,6 +70,7 @@ export function ActionEditor({
   selectedBlocker2,
   selectedBlocker3,
   receptionCode,
+  getZoneLabel,
   onPlayerChange,
   onCodeChange,
   onKillTypeChange,
@@ -104,11 +107,17 @@ export function ActionEditor({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum</SelectItem>
-                {players.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    #{p.jersey_number} {p.name}
-                  </SelectItem>
-                ))}
+                {players.map((p) => {
+                  const zone = getZoneLabel?.(p.id, side) || '';
+                  return (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="inline-flex items-center gap-2">
+                        {zone && <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>}
+                        #{p.jersey_number} {p.name}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <div className="grid grid-cols-4 gap-2">
@@ -136,11 +145,17 @@ export function ActionEditor({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum</SelectItem>
-                {players.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    #{p.jersey_number} {p.name}
-                  </SelectItem>
-                ))}
+                {players.map((p) => {
+                  const zone = getZoneLabel?.(p.id, side) || '';
+                  return (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="inline-flex items-center gap-2">
+                        {zone && <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>}
+                        #{p.jersey_number} {p.name}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             
@@ -185,11 +200,17 @@ export function ActionEditor({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum</SelectItem>
-                {players.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    #{p.jersey_number} {p.name}
-                  </SelectItem>
-                ))}
+                {players.map((p) => {
+                  const zone = getZoneLabel?.(p.id, side) || '';
+                  return (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="inline-flex items-center gap-2">
+                        {zone && <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>}
+                        #{p.jersey_number} {p.name}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <div className="grid grid-cols-4 gap-2">
@@ -247,11 +268,15 @@ export function ActionEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nenhum</SelectItem>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      #{p.jersey_number}
-                    </SelectItem>
-                  ))}
+                  {players.map((p) => {
+                    const zone = getZoneLabel?.(p.id, side) || '';
+                    return (
+                      <SelectItem key={p.id} value={p.id}>
+                        {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
+                        #{p.jersey_number}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <Select
@@ -263,11 +288,15 @@ export function ActionEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nenhum</SelectItem>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      #{p.jersey_number}
-                    </SelectItem>
-                  ))}
+                  {players.map((p) => {
+                    const zone = getZoneLabel?.(p.id, side) || '';
+                    return (
+                      <SelectItem key={p.id} value={p.id}>
+                        {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
+                        #{p.jersey_number}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <Select
@@ -279,11 +308,15 @@ export function ActionEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nenhum</SelectItem>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      #{p.jersey_number}
-                    </SelectItem>
-                  ))}
+                  {players.map((p) => {
+                    const zone = getZoneLabel?.(p.id, side) || '';
+                    return (
+                      <SelectItem key={p.id} value={p.id}>
+                        {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
+                        #{p.jersey_number}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

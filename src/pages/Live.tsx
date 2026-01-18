@@ -65,7 +65,7 @@ export default function Live() {
     match, rallies, lineups, loading, loadMatch, getGameState, getServerPlayer, 
     saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, 
     isSetComplete, getMatchStatus,
-    getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayersOnBench, makeSubstitution, undoSubstitution,
+    getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayerZone, getPlayersOnBench, makeSubstitution, undoSubstitution,
     setFifthSetServe, needsFifthSetServeChoice
   } = useMatch(matchId || null);
 
@@ -143,6 +143,14 @@ export default function Live() {
   const getPlayersForActionSide = (side: Side) => {
     if (!gameState) return [];
     return getPlayersOnCourt(currentSet, side, gameState.currentRally);
+  };
+
+  // Helper to get zone label for a player
+  const getZoneLabel = (playerId: string, side: Side): string => {
+    if (!gameState) return '';
+    const rotation = side === gameState.serveSide ? gameState.serveRot : gameState.recvRot;
+    const zone = getPlayerZone(currentSet, side, playerId, rotation, gameState.currentRally);
+    return zone ? `Z${zone}` : '';
   };
 
   // Get the effective reception code for setter destination filtering
@@ -850,11 +858,17 @@ export default function Live() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Nenhum</SelectItem>
-                    {recvPlayers.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        #{p.jersey_number} {p.name}
-                      </SelectItem>
-                    ))}
+                    {recvPlayers.map((p) => {
+                      const zone = getZoneLabel(p.id, gameState.recvSide);
+                      return (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>
+                            #{p.jersey_number} {p.name}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 <div className="grid grid-cols-4 gap-2">
@@ -914,6 +928,7 @@ export default function Live() {
               selectedBlocker2={pendingAction.b2PlayerId}
               selectedBlocker3={pendingAction.b3PlayerId}
               receptionCode={getEffectiveReceptionCode()}
+              getZoneLabel={getZoneLabel}
               onPlayerChange={(id) => setPendingAction(prev => prev ? { ...prev, playerId: id } : null)}
               onCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, code } : null)}
               onKillTypeChange={(type) => setPendingAction(prev => prev ? { ...prev, killType: type } : null)}
