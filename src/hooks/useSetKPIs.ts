@@ -864,23 +864,35 @@ export function useSetKPIs(
     const receiverCountsAway: Record<string, { total: number; positive: number; playerNo: number | null }> = {};
     
     for (const rally of setRallies) {
-      if (rally.r_player_id && rally.r_code !== null && rally.r_code !== undefined) {
-        const receiverSide = playerSideMap[rally.r_player_id];
+      if (rally.r_code !== null && rally.r_code !== undefined) {
+        // Try to get player id - use r_player_id if available, otherwise fallback to lookup by recv_side + r_no
+        let receiverId = rally.r_player_id;
+        let receiverSide: Side | undefined = receiverId ? playerSideMap[receiverId] : undefined;
+        
+        // Fallback: if r_player_id is null but recv_side and r_no exist, look up the player
+        if (!receiverId && rally.recv_side && rally.r_no) {
+          const lookupKey = `${rally.recv_side}_${rally.r_no}`;
+          receiverId = playerByTeamAndNumber[lookupKey] || null;
+          receiverSide = rally.recv_side as Side;
+        }
+        
+        if (!receiverId || !receiverSide) continue;
+        
         const playerNo = rally.r_no;
         const isPositive = rally.r_code >= 2; // Code 2 (positive) or 3 (perfect)
         
         if (receiverSide === 'CASA') {
-          if (!receiverCountsHome[rally.r_player_id]) {
-            receiverCountsHome[rally.r_player_id] = { total: 0, positive: 0, playerNo };
+          if (!receiverCountsHome[receiverId]) {
+            receiverCountsHome[receiverId] = { total: 0, positive: 0, playerNo };
           }
-          receiverCountsHome[rally.r_player_id].total++;
-          if (isPositive) receiverCountsHome[rally.r_player_id].positive++;
+          receiverCountsHome[receiverId].total++;
+          if (isPositive) receiverCountsHome[receiverId].positive++;
         } else if (receiverSide === 'FORA') {
-          if (!receiverCountsAway[rally.r_player_id]) {
-            receiverCountsAway[rally.r_player_id] = { total: 0, positive: 0, playerNo };
+          if (!receiverCountsAway[receiverId]) {
+            receiverCountsAway[receiverId] = { total: 0, positive: 0, playerNo };
           }
-          receiverCountsAway[rally.r_player_id].total++;
-          if (isPositive) receiverCountsAway[rally.r_player_id].positive++;
+          receiverCountsAway[receiverId].total++;
+          if (isPositive) receiverCountsAway[receiverId].positive++;
         }
       }
     }

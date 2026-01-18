@@ -308,8 +308,18 @@ export default function Live() {
     // Update reception data state
     setReceptionData(prev => ({ ...prev, code: newCode }));
     
-    // Auto-complete when a code is selected
+    // Auto-complete when a code is selected - but require player selection
     if (newCode !== null) {
+      // Require player to be selected before completing reception
+      if (!receptionData.playerId) {
+        toast({
+          title: 'Seleciona o recetor',
+          description: 'Escolhe o jogador que recebeu antes de definir o código',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
       const recAction: RallyAction = {
         type: 'reception',
         side: gameState!.recvSide,
