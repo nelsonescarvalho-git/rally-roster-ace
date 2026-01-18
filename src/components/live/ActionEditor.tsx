@@ -324,7 +324,10 @@ export function ActionEditor({
                 value={selectedBlocker1 || '__none__'}
                 onValueChange={(val) => onBlocker1Change?.(val === '__none__' ? null : val)}
               >
-                <SelectTrigger>
+                <SelectTrigger className={cn(
+                  "border-2",
+                  side === 'CASA' ? 'border-home/50' : 'border-away/50'
+                )}>
                   <SelectValue placeholder="Bloq 1" />
                 </SelectTrigger>
                 <SelectContent>
@@ -333,9 +336,15 @@ export function ActionEditor({
                     const zone = getZoneLabel?.(p.id, side) || '';
                     return (
                       <SelectItem key={p.id} value={p.id}>
-                        {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
-                        <PositionBadge position={p.position} className="mr-1" />
-                        #{p.jersey_number}
+                        <span className={cn(
+                          "inline-flex items-center gap-1",
+                          side === 'CASA' ? 'text-home' : 'text-away'
+                        )}>
+                          {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
+                          <PositionBadge position={p.position} className="mr-1" />
+                          #{p.jersey_number}
+                          {p.name && <span className="text-xs opacity-70 ml-1">({p.name})</span>}
+                        </span>
                       </SelectItem>
                     );
                   })}
@@ -345,7 +354,10 @@ export function ActionEditor({
                 value={selectedBlocker2 || '__none__'}
                 onValueChange={(val) => onBlocker2Change?.(val === '__none__' ? null : val)}
               >
-                <SelectTrigger>
+                <SelectTrigger className={cn(
+                  "border-2",
+                  side === 'CASA' ? 'border-home/50' : 'border-away/50'
+                )}>
                   <SelectValue placeholder="Bloq 2" />
                 </SelectTrigger>
                 <SelectContent>
@@ -354,9 +366,15 @@ export function ActionEditor({
                     const zone = getZoneLabel?.(p.id, side) || '';
                     return (
                       <SelectItem key={p.id} value={p.id}>
-                        {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
-                        <PositionBadge position={p.position} className="mr-1" />
-                        #{p.jersey_number}
+                        <span className={cn(
+                          "inline-flex items-center gap-1",
+                          side === 'CASA' ? 'text-home' : 'text-away'
+                        )}>
+                          {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
+                          <PositionBadge position={p.position} className="mr-1" />
+                          #{p.jersey_number}
+                          {p.name && <span className="text-xs opacity-70 ml-1">({p.name})</span>}
+                        </span>
                       </SelectItem>
                     );
                   })}
@@ -366,7 +384,10 @@ export function ActionEditor({
                 value={selectedBlocker3 || '__none__'}
                 onValueChange={(val) => onBlocker3Change?.(val === '__none__' ? null : val)}
               >
-                <SelectTrigger>
+                <SelectTrigger className={cn(
+                  "border-2",
+                  side === 'CASA' ? 'border-home/50' : 'border-away/50'
+                )}>
                   <SelectValue placeholder="Bloq 3" />
                 </SelectTrigger>
                 <SelectContent>
@@ -375,9 +396,15 @@ export function ActionEditor({
                     const zone = getZoneLabel?.(p.id, side) || '';
                     return (
                       <SelectItem key={p.id} value={p.id}>
-                        {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
-                        <PositionBadge position={p.position} className="mr-1" />
-                        #{p.jersey_number}
+                        <span className={cn(
+                          "inline-flex items-center gap-1",
+                          side === 'CASA' ? 'text-home' : 'text-away'
+                        )}>
+                          {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
+                          <PositionBadge position={p.position} className="mr-1" />
+                          #{p.jersey_number}
+                          {p.name && <span className="text-xs opacity-70 ml-1">({p.name})</span>}
+                        </span>
                       </SelectItem>
                     );
                   })}
