@@ -263,7 +263,7 @@ export default function Live() {
     return null;
   }, [gameState, serveData, receptionData, registeredActions, getEffectivePlayers]);
 
-  // Handle serve code selection - updates existing serve action and auto-completes
+  // Handle serve code selection - upsert serve action and auto-completes
   const handleServeCodeSelect = (code: number) => {
     // Toggle off if same code clicked
     const newCode = serveData.code === code ? null : code;
@@ -271,14 +271,31 @@ export default function Live() {
     // Update serve data state
     setServeData(prev => ({ ...prev, code: newCode }));
     
-    // Update the serve action in timeline
-    setRegisteredActions(prev => 
-      prev.map(a => a.type === 'serve' ? { ...a, code: newCode } : a)
-    );
-    
-    // Auto-complete serve when a code is selected
     if (newCode !== null) {
+      const serveAction: RallyAction = {
+        type: 'serve',
+        side: gameState!.serveSide,
+        phase: 1,
+        playerId: serveData.playerId,
+        playerNo: serverPlayer?.jersey_number || null,
+        code: newCode,
+      };
+      
+      // Upsert: if serve exists, update; otherwise, add at beginning
+      setRegisteredActions(prev => {
+        const existingIndex = prev.findIndex(a => a.type === 'serve');
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = serveAction;
+          return updated;
+        }
+        return [serveAction, ...prev];
+      });
+      
       setServeCompleted(true);
+    } else {
+      // If code deselected, remove the serve from timeline
+      setRegisteredActions(prev => prev.filter(a => a.type !== 'serve'));
     }
   };
 
