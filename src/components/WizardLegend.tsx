@@ -146,7 +146,7 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
                 <span>
                   {kpis.topAttackersHome[0] && (
                     <span className="text-home font-medium">
-                      #{kpis.topAttackersHome[0].playerNo} ({kpis.topAttackersHome[0].count}x)
+                      {kpis.topAttackersHome[0].playerName?.split(' ')[0] || ''} #{kpis.topAttackersHome[0].playerNo} ({kpis.topAttackersHome[0].count}x)
                     </span>
                   )}
                   {kpis.topAttackersHome[0] && kpis.topAttackersAway[0] && (
@@ -154,7 +154,7 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
                   )}
                   {kpis.topAttackersAway[0] && (
                     <span className="text-away font-medium">
-                      #{kpis.topAttackersAway[0].playerNo} ({kpis.topAttackersAway[0].count}x)
+                      {kpis.topAttackersAway[0].playerName?.split(' ')[0] || ''} #{kpis.topAttackersAway[0].playerNo} ({kpis.topAttackersAway[0].count}x)
                     </span>
                   )}
                 </span>
@@ -169,7 +169,7 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
                 <span>
                   {kpis.topServersHome[0] && (
                     <span className="text-home font-medium">
-                      #{kpis.topServersHome[0].playerNo} ({kpis.topServersHome[0].count}x)
+                      {kpis.topServersHome[0].playerName?.split(' ')[0] || ''} #{kpis.topServersHome[0].playerNo} ({kpis.topServersHome[0].count}x)
                     </span>
                   )}
                   {kpis.topServersHome[0] && kpis.topServersAway[0] && (
@@ -177,7 +177,7 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
                   )}
                   {kpis.topServersAway[0] && (
                     <span className="text-away font-medium">
-                      #{kpis.topServersAway[0].playerNo} ({kpis.topServersAway[0].count}x)
+                      {kpis.topServersAway[0].playerName?.split(' ')[0] || ''} #{kpis.topServersAway[0].playerNo} ({kpis.topServersAway[0].count}x)
                     </span>
                   )}
                 </span>
