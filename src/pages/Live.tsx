@@ -105,7 +105,7 @@ export default function Live() {
   };
 
   const gameState = getGameState(currentSet);
-  const serverPlayer = gameState ? getServerPlayer(currentSet, gameState.serveSide, gameState.serveRot) : null;
+  const serverPlayer = gameState ? getServerPlayer(currentSet, gameState.serveSide, gameState.serveRot, gameState.currentRally) : null;
 
   // Auto-add serve action when rally starts
   useEffect(() => {

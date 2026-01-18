@@ -60,14 +60,6 @@ export function useMatch(matchId: string | null) {
     return rallies.filter(r => r.set_no === setNo);
   }, [rallies]);
 
-  const getServerPlayer = useCallback((setNo: number, side: Side, rotation: number): (Player | MatchPlayer) | null => {
-    const lineup = getLineupForSet(setNo, side);
-    if (!lineup) return null;
-    const rotKey = `rot${rotation}` as keyof Lineup;
-    const playerId = lineup[rotKey] as string | null;
-    const effectivePlayers = getEffectivePlayers();
-    return effectivePlayers.find(p => p.id === playerId) || null;
-  }, [getLineupForSet, getEffectivePlayers]);
 
   const calculateScore = useCallback((setNo: number): { home: number; away: number } => {
     const setRallies = getRalliesForSet(setNo);
@@ -381,6 +373,21 @@ export function useMatch(matchId: string | null) {
 
     return activePlayerIds;
   }, [getLineupForSet, substitutions]);
+
+  // Get the player serving based on active lineup (considers substitutions)
+  const getServerPlayer = useCallback((setNo: number, side: Side, rotation: number, currentRally: number): (Player | MatchPlayer) | null => {
+    // Use active lineup that considers substitutions
+    const activeIds = getActiveLineup(setNo, side, currentRally);
+    if (activeIds.length === 0) return null;
+    
+    // The player at index (rotation - 1) is at Z1 (serving position)
+    const serverIndex = rotation - 1;
+    const playerId = activeIds[serverIndex];
+    if (!playerId) return null;
+    
+    const effectivePlayers = getEffectivePlayers();
+    return effectivePlayers.find(p => p.id === playerId) || null;
+  }, [getActiveLineup, getEffectivePlayers]);
 
   // Get players currently on court
   const getPlayersOnCourt = useCallback((setNo: number, side: Side, currentRally: number): (Player | MatchPlayer)[] => {
