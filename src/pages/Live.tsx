@@ -136,9 +136,18 @@ export default function Live() {
   const servePlayers = gameState 
     ? getPlayersOnCourt(currentSet, gameState.serveSide, gameState.currentRally) 
     : [];
-  const recvPlayers = gameState 
-    ? getPlayersOnCourt(currentSet, gameState.recvSide, gameState.currentRally) 
-    : [];
+  
+  // For reception, include players on court PLUS any Liberos on the bench
+  const recvPlayers = useMemo(() => {
+    if (!gameState) return [];
+    const onCourt = getPlayersOnCourt(currentSet, gameState.recvSide, gameState.currentRally);
+    const onBench = getPlayersOnBench(currentSet, gameState.recvSide, gameState.currentRally);
+    // Add Liberos from bench to the list (they can enter freely for reception)
+    const benchLiberos = onBench.filter(p => 
+      p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO'
+    );
+    return [...onCourt, ...benchLiberos];
+  }, [gameState, currentSet, getPlayersOnCourt, getPlayersOnBench]);
 
   // Get players currently on court for a specific side
   const getPlayersForActionSide = (side: Side) => {
