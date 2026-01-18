@@ -39,6 +39,10 @@ interface TeamKPIs {
   attErrorPercent: number;
   attBlocked: number;
   attBlockedPercent: number;
+  attBlockedPoint: number; // Block resulted in point for opponent
+  attBlockedPointPercent: number;
+  attBlockedTouch: number; // Block touch but rally continued
+  attBlockedTouchPercent: number;
   attEfficiency: number; // (kills - errors - blocked) / total
   
   // Unforced errors
@@ -171,6 +175,10 @@ function createEmptyTeamKPIs(): TeamKPIs {
     attErrorPercent: 0,
     attBlocked: 0,
     attBlockedPercent: 0,
+    attBlockedPoint: 0,
+    attBlockedPointPercent: 0,
+    attBlockedTouch: 0,
+    attBlockedTouchPercent: 0,
     attEfficiency: 0,
     unforcedServe: 0,
     unforcedAttack: 0,
@@ -442,12 +450,29 @@ export function useSetKPIs(
           home.attTotal++;
           if (rally.a_code === 3) home.attKills++;
           if (rally.a_code === 0) home.attErrors++;
-          if (rally.a_code === 1) home.attBlocked++;
+          if (rally.a_code === 1) {
+            home.attBlocked++;
+            // Distinguish: block point vs block touch
+            // Block point = blocked AND opponent wins point AND reason is BLK
+            if (rally.point_won_by === 'FORA' && rally.reason === 'BLK') {
+              home.attBlockedPoint++;
+            } else {
+              home.attBlockedTouch++;
+            }
+          }
         } else if (attackerSide === 'FORA') {
           away.attTotal++;
           if (rally.a_code === 3) away.attKills++;
           if (rally.a_code === 0) away.attErrors++;
-          if (rally.a_code === 1) away.attBlocked++;
+          if (rally.a_code === 1) {
+            away.attBlocked++;
+            // Distinguish: block point vs block touch
+            if (rally.point_won_by === 'CASA' && rally.reason === 'BLK') {
+              away.attBlockedPoint++;
+            } else {
+              away.attBlockedTouch++;
+            }
+          }
         }
       }
     }
@@ -528,6 +553,10 @@ export function useSetKPIs(
     away.attErrorPercent = calcPercent(away.attErrors, away.attTotal);
     home.attBlockedPercent = calcPercent(home.attBlocked, home.attTotal);
     away.attBlockedPercent = calcPercent(away.attBlocked, away.attTotal);
+    home.attBlockedPointPercent = calcPercent(home.attBlockedPoint, home.attTotal);
+    away.attBlockedPointPercent = calcPercent(away.attBlockedPoint, away.attTotal);
+    home.attBlockedTouchPercent = calcPercent(home.attBlockedTouch, home.attTotal);
+    away.attBlockedTouchPercent = calcPercent(away.attBlockedTouch, away.attTotal);
     home.attEfficiency = home.attTotal > 0 ? 
       Math.round(((home.attKills - home.attErrors - home.attBlocked) / home.attTotal) * 100) / 100 : 0;
     away.attEfficiency = away.attTotal > 0 ? 

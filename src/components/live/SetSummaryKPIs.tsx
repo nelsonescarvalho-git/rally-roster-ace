@@ -308,7 +308,19 @@ export function SetSummaryKPIs({
                 lowerIsBetter
               />
               <StatRow 
-                label="Bloqueado%" 
+                label="Bloq. Ponto%" 
+                homeValue={kpis.home.attBlockedPointPercent} 
+                awayValue={kpis.away.attBlockedPointPercent}
+                lowerIsBetter
+              />
+              <StatRow 
+                label="Bloq. Toque%" 
+                homeValue={kpis.home.attBlockedTouchPercent} 
+                awayValue={kpis.away.attBlockedTouchPercent}
+                lowerIsBetter
+              />
+              <StatRow 
+                label="Bloqueado% (Total)" 
                 homeValue={kpis.home.attBlockedPercent} 
                 awayValue={kpis.away.attBlockedPercent}
                 lowerIsBetter
