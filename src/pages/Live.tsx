@@ -16,6 +16,7 @@ import { RallyTimeline } from '@/components/live/RallyTimeline';
 import { ActionSelector } from '@/components/live/ActionSelector';
 import { ActionEditor } from '@/components/live/ActionEditor';
 import { PointFinisher } from '@/components/live/PointFinisher';
+import { PositionBadge } from '@/components/live/PositionBadge';
 import { 
   Side, 
   Reason, 
@@ -860,12 +861,11 @@ export default function Live() {
                     <SelectItem value="__none__">Nenhum</SelectItem>
                     {recvPlayers.map((p) => {
                       const zone = getZoneLabel(p.id, gameState.recvSide);
-                      const isLibero = p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO';
                       return (
                         <SelectItem key={p.id} value={p.id}>
                           <span className="inline-flex items-center gap-2">
                             <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>
-                            {isLibero && <span className="text-xs font-bold bg-amber-500 text-amber-950 px-1.5 py-0.5 rounded">L</span>}
+                            <PositionBadge position={p.position} />
                             #{p.jersey_number} {p.name}
                           </span>
                         </SelectItem>
