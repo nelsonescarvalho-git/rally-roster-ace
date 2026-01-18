@@ -66,31 +66,6 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
               </div>
             </div>
 
-            {/* Code Scale */}
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">Escala de Códigos (0-3)</div>
-              <div className="grid grid-cols-4 gap-1">
-                <div className="flex flex-col items-center p-1.5 rounded-md bg-destructive/10 border border-destructive/20">
-                  <span className="text-sm font-bold text-destructive">0</span>
-                  <span className="text-[10px] text-destructive/80 text-center leading-tight">Erro/Falha</span>
-                </div>
-                <div className="flex flex-col items-center p-1.5 rounded-md bg-orange-500/10 border border-orange-500/20">
-                  <span className="text-sm font-bold text-orange-600 dark:text-orange-400">1</span>
-                  <span className="text-[10px] text-orange-600/80 dark:text-orange-400/80 text-center leading-tight">Neutro</span>
-                </div>
-                <div className="flex flex-col items-center p-1.5 rounded-md bg-blue-500/10 border border-blue-500/20">
-                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">2</span>
-                  <span className="text-[10px] text-blue-600/80 dark:text-blue-400/80 text-center leading-tight">Bom</span>
-                </div>
-                <div className="flex flex-col items-center p-1.5 rounded-md bg-green-500/10 border border-green-500/20">
-                  <span className="text-sm font-bold text-green-600 dark:text-green-400">3</span>
-                  <span className="text-[10px] text-green-600/80 dark:text-green-400/80 text-center leading-tight">Excelente</span>
-                </div>
-              </div>
-              <div className="text-[10px] text-muted-foreground text-center">
-                0 = ponto adversário • 3 = ponto próprio ou vantagem máxima
-              </div>
-            </div>
 
             {/* Quick Insights Section */}
             {hasInsights && (

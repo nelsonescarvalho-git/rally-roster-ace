@@ -66,20 +66,38 @@ export function ColoredRatingButton({
     }
   };
 
+  const getDescriptiveLabel = () => {
+    switch (code) {
+      case 0:
+        return 'Má';
+      case 1:
+        return 'Fraca';
+      case 2:
+        return 'Boa';
+      case 3:
+        return 'Excelente';
+      default:
+        return '';
+    }
+  };
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'flex items-center justify-center gap-1 rounded-lg border-2 font-bold transition-all duration-200 active:scale-95',
+        'flex flex-col items-center justify-center rounded-lg border-2 font-bold transition-all duration-200 active:scale-95',
         sizeClasses[size],
         getColorClasses(),
         disabled && 'opacity-50 cursor-not-allowed'
       )}
     >
-      <span className="text-xs opacity-75">{code}</span>
-      <span>{getLabel()}</span>
+      <div className="flex items-center gap-1">
+        <span className="text-xs opacity-75">{code}</span>
+        <span>{getLabel()}</span>
+      </div>
+      <span className="text-[10px] opacity-80 leading-tight">{getDescriptiveLabel()}</span>
     </button>
   );
 }
