@@ -18,6 +18,7 @@ import { RallyTimeline } from '@/components/live/RallyTimeline';
 import { ActionSelector } from '@/components/live/ActionSelector';
 import { ActionEditor } from '@/components/live/ActionEditor';
 import { PointFinisher } from '@/components/live/PointFinisher';
+import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
 import { PositionBadge } from '@/components/live/PositionBadge';
 import { 
   Side, 
@@ -971,20 +972,14 @@ export default function Live() {
                 {/* Code selection - clicking auto-confirms */}
                 <div className="grid grid-cols-4 gap-2">
                   {[0, 1, 2, 3].map((code) => (
-                    <Button
+                    <ColoredRatingButton
                       key={code}
-                      variant={serveData.code === code ? 'default' : 'outline'}
-                      className={`h-12 ${serveData.code === code ? (code === 0 ? 'bg-destructive' : code === 3 ? 'bg-success' : 'bg-primary') : ''}`}
+                      code={code}
+                      selected={serveData.code === code}
                       onClick={() => handleServeCodeSelect(code)}
-                    >
-                      {code === 0 ? '✕' : code === 1 ? '−' : code === 2 ? '+' : '★'}
-                    </Button>
+                    />
                   ))}
                 </div>
-                
-                <p className="text-xs text-center text-muted-foreground">
-                  Clique num código para confirmar o serviço
-                </p>
                 
                 {/* Navigation footer - no back button for serve (first step) */}
                 <div className="flex gap-2 pt-3 border-t mt-3">
@@ -1057,20 +1052,14 @@ export default function Live() {
                 {/* Code selection - clicking auto-confirms */}
                 <div className="grid grid-cols-4 gap-2">
                   {[0, 1, 2, 3].map((code) => (
-                    <Button
+                    <ColoredRatingButton
                       key={code}
-                      variant={receptionData.code === code ? 'default' : 'outline'}
-                      className={`h-12 ${receptionData.code === code ? (code === 0 ? 'bg-destructive' : code === 3 ? 'bg-success' : 'bg-primary') : ''}`}
+                      code={code}
+                      selected={receptionData.code === code}
                       onClick={() => handleReceptionCodeSelect(code)}
-                    >
-                      {code === 0 ? '✕' : code === 1 ? '−' : code === 2 ? '+' : '★'}
-                    </Button>
+                    />
                   ))}
                 </div>
-                
-                <p className="text-xs text-center text-muted-foreground">
-                  Clique num código para confirmar a receção
-                </p>
                 
                 {/* Navigation footer - consistent with all phases */}
                 <div className="flex gap-2 pt-3 border-t mt-3">
