@@ -450,7 +450,10 @@ export function SetSummaryKPIs({
                         {kpis.topAttackersHome.map((attacker, idx) => (
                           <div key={attacker.playerId} className="flex items-center gap-1 text-xs">
                             <span className="text-muted-foreground">#{attacker.playerNo}</span>
-                            <span>{attacker.count} ataques</span>
+                            {attacker.playerName && (
+                              <span className="font-medium truncate max-w-[60px]">{attacker.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{attacker.count} atq</span>
                             <Badge variant="outline" className="text-[10px] px-1">
                               {attacker.percent}%
                             </Badge>
@@ -468,7 +471,10 @@ export function SetSummaryKPIs({
                         {kpis.topAttackersAway.map((attacker, idx) => (
                           <div key={attacker.playerId} className="flex items-center gap-1 text-xs">
                             <span className="text-muted-foreground">#{attacker.playerNo}</span>
-                            <span>{attacker.count} ataques</span>
+                            {attacker.playerName && (
+                              <span className="font-medium truncate max-w-[60px]">{attacker.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{attacker.count} atq</span>
                             <Badge variant="outline" className="text-[10px] px-1">
                               {attacker.percent}%
                             </Badge>
