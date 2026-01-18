@@ -106,12 +106,21 @@ export default function Live() {
   const gameState = getGameState(currentSet);
   const serverPlayer = gameState ? getServerPlayer(currentSet, gameState.serveSide, gameState.serveRot) : null;
 
-  // Pre-fill server when wizard starts
+  // Auto-add serve action when rally starts
   useEffect(() => {
-    if (serverPlayer && !serveData.playerId && !serveCompleted) {
-      setServeData(prev => ({ ...prev, playerId: serverPlayer.id }));
+    if (serverPlayer && gameState && registeredActions.length === 0 && !serveCompleted) {
+      const serveAction: RallyAction = {
+        type: 'serve',
+        side: gameState.serveSide,
+        phase: 1,
+        playerId: serverPlayer.id,
+        playerNo: serverPlayer.jersey_number,
+        code: null, // Code not yet defined
+      };
+      setRegisteredActions([serveAction]);
+      setServeData({ playerId: serverPlayer.id, code: null });
     }
-  }, [serverPlayer, serveData.playerId, serveCompleted]);
+  }, [serverPlayer?.id, gameState?.serveSide, gameState?.currentRally]);
 
   const resetWizard = useCallback(() => {
     setRegisteredActions([]);
@@ -207,31 +216,22 @@ export default function Live() {
     return null;
   }, [gameState, serveData, receptionData, registeredActions, getEffectivePlayers]);
 
-  // Handle serve completion
-  const handleServeComplete = () => {
-    if (serveData.code === null) {
-      toast({ title: 'Selecione o código do serviço', variant: 'destructive' });
-      return;
-    }
-    if (!serveData.playerId) {
-      toast({ title: 'Selecione o servidor', variant: 'destructive' });
-      return;
-    }
+  // Handle serve code selection - updates existing serve action and auto-completes
+  const handleServeCodeSelect = (code: number) => {
+    // Toggle off if same code clicked
+    const newCode = serveData.code === code ? null : code;
     
-    // Add serve action
-    const serveAction: RallyAction = {
-      type: 'serve',
-      side: gameState!.serveSide,
-      phase: 1,
-      playerId: serveData.playerId,
-      code: serveData.code,
-    };
-    setRegisteredActions([serveAction]);
-    setServeCompleted(true);
+    // Update serve data state
+    setServeData(prev => ({ ...prev, code: newCode }));
     
-    // If ACE or SE, don't need reception
-    if (serveData.code === 3 || serveData.code === 0) {
-      // Auto outcome will handle saving
+    // Update the serve action in timeline
+    setRegisteredActions(prev => 
+      prev.map(a => a.type === 'serve' ? { ...a, code: newCode } : a)
+    );
+    
+    // Auto-complete serve when a code is selected
+    if (newCode !== null) {
+      setServeCompleted(true);
     }
   };
 
@@ -781,18 +781,16 @@ export default function Live() {
           currentSet={currentSet}
         />
 
-        {/* Rally Timeline */}
-        {registeredActions.length > 0 && (
-          <RallyTimeline
-            actions={registeredActions}
-            players={getEffectivePlayers()}
-            onRemoveAction={handleRemoveAction}
-            onReorderActions={setRegisteredActions}
-            onUndo={handleUndoAction}
-            homeName={match.home_name}
-            awayName={match.away_name}
-          />
-        )}
+        {/* Rally Timeline - always show when there are actions */}
+        <RallyTimeline
+          actions={registeredActions}
+          players={getEffectivePlayers()}
+          onRemoveAction={handleRemoveAction}
+          onReorderActions={setRegisteredActions}
+          onUndo={handleUndoAction}
+          homeName={match.home_name}
+          awayName={match.away_name}
+        />
 
         {/* Wizard Content */}
         <div className="space-y-3">
@@ -807,41 +805,31 @@ export default function Live() {
                 </span>
               </div>
               <CardContent className="p-4 space-y-3">
-                <Select
-                  value={serveData.playerId || '__none__'}
-                  onValueChange={(val) => setServeData(prev => ({ ...prev, playerId: val === '__none__' ? null : val }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecionar servidor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Nenhum</SelectItem>
-                    {uniquePlayers(servePlayers).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        #{p.jersey_number} {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Server info - read only, auto-selected */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-md">
+                  <span className="text-sm text-muted-foreground">Servidor:</span>
+                  <span className="font-medium">
+                    {serverPlayer ? `#${serverPlayer.jersey_number} ${serverPlayer.name}` : 'A carregar...'}
+                  </span>
+                </div>
+                
+                {/* Code selection - clicking auto-confirms */}
                 <div className="grid grid-cols-4 gap-2">
                   {[0, 1, 2, 3].map((code) => (
                     <Button
                       key={code}
                       variant={serveData.code === code ? 'default' : 'outline'}
                       className={`h-12 ${serveData.code === code ? (code === 0 ? 'bg-destructive' : code === 3 ? 'bg-success' : 'bg-primary') : ''}`}
-                      onClick={() => setServeData(prev => ({ ...prev, code: prev.code === code ? null : code }))}
+                      onClick={() => handleServeCodeSelect(code)}
                     >
                       {code === 0 ? '✕' : code === 1 ? '−' : code === 2 ? '+' : '★'}
                     </Button>
                   ))}
                 </div>
-                <Button 
-                  className="w-full" 
-                  onClick={handleServeComplete}
-                  disabled={serveData.code === null}
-                >
-                  {isTerminalServe ? 'Guardar Ponto' : 'Continuar para Receção'}
-                </Button>
+                
+                <p className="text-xs text-center text-muted-foreground">
+                  Clique num código para confirmar o serviço
+                </p>
               </CardContent>
             </Card>
           )}
