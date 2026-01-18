@@ -96,10 +96,15 @@ interface TeamDefenseStats {
   blockoutPct: number;
 }
 
-export function useGlobalStats() {
+export interface GlobalStatsFilters {
+  matchId?: string | null; // null = all matches
+  side?: 'CASA' | 'FORA' | null; // null = both sides
+}
+
+export function useGlobalStats(filters?: GlobalStatsFilters) {
   const [rallies, setRallies] = useState<Rally[]>([]);
   const [players, setPlayers] = useState<MatchPlayer[]>([]);
-  const [matches, setMatches] = useState<{ id: string; home_name: string; away_name: string }[]>([]);
+  const [matches, setMatches] = useState<{ id: string; home_name: string; away_name: string; title: string; match_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -109,7 +114,7 @@ export function useGlobalStats() {
       const [ralliesRes, playersRes, matchesRes] = await Promise.all([
         supabase.from('rallies').select('*'),
         supabase.from('match_players').select('*'),
-        supabase.from('matches').select('id, home_name, away_name'),
+        supabase.from('matches').select('id, home_name, away_name, title, match_date').order('match_date', { ascending: false }),
       ]);
 
       if (ralliesRes.data) {
@@ -128,6 +133,41 @@ export function useGlobalStats() {
     loadData();
   }, []);
 
+  // Apply filters to rallies and players
+  const filteredRallies = useMemo(() => {
+    let result = rallies;
+    
+    // Filter by match
+    if (filters?.matchId) {
+      result = result.filter(r => r.match_id === filters.matchId);
+    }
+    
+    return result;
+  }, [rallies, filters?.matchId]);
+
+  const filteredPlayers = useMemo(() => {
+    let result = players;
+    
+    // Filter by match
+    if (filters?.matchId) {
+      result = result.filter(p => p.match_id === filters.matchId);
+    }
+    
+    // Filter by side
+    if (filters?.side) {
+      result = result.filter(p => p.side === filters.side);
+    }
+    
+    return result;
+  }, [players, filters?.matchId, filters?.side]);
+
+  const filteredMatches = useMemo(() => {
+    if (filters?.matchId) {
+      return matches.filter(m => m.id === filters.matchId);
+    }
+    return matches;
+  }, [matches, filters?.matchId]);
+
   const playerStats = useMemo(() => {
     // Group players by team_player_id to aggregate across matches
     const playerMap: Record<string, {
@@ -135,8 +175,8 @@ export function useGlobalStats() {
       matchIds: Set<string>;
     }> = {};
 
-    // Get final phases only
-    const finalPhases = rallies.reduce((acc, rally) => {
+    // Get final phases only (use filtered rallies)
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -144,10 +184,10 @@ export function useGlobalStats() {
       return acc;
     }, {} as Record<string, Rally>);
 
-    // Initialize stats for each player
-    players.forEach(player => {
+    // Initialize stats for each player (use filtered players)
+    filteredPlayers.forEach(player => {
       const key = player.team_player_id || player.id;
-      const match = matches.find(m => m.id === player.match_id);
+      const match = filteredMatches.find(m => m.id === player.match_id);
       const teamName = player.side === 'CASA' 
         ? match?.home_name || 'Casa' 
         : match?.away_name || 'Fora';
@@ -190,14 +230,22 @@ export function useGlobalStats() {
       playerMap[key].matchIds.add(player.match_id);
     });
 
-    // Create a mapping from match_player id to aggregation key
+    // Create a mapping from match_player id to aggregation key (use filtered players)
     const playerIdToKey: Record<string, string> = {};
-    players.forEach(p => {
+    filteredPlayers.forEach(p => {
       playerIdToKey[p.id] = p.team_player_id || p.id;
     });
 
-    // Process rallies
-    Object.values(finalPhases).forEach(rally => {
+    // Process rallies (filter by side if needed)
+    const ralliesForStats = filters?.side 
+      ? Object.values(finalPhases).filter(rally => {
+          // For side filter, only count actions from players on that side
+          const playerIdsOnSide = new Set(filteredPlayers.map(p => p.id));
+          return true; // We filter in individual actions below
+        })
+      : Object.values(finalPhases);
+
+    ralliesForStats.forEach(rally => {
       // Serve
       if (rally.s_player_id && rally.s_code !== null) {
         const key = playerIdToKey[rally.s_player_id];
@@ -281,10 +329,10 @@ export function useGlobalStats() {
     });
 
     return Object.values(playerMap).map(p => p.stats);
-  }, [rallies, players, matches]);
+  }, [filteredRallies, filteredPlayers, filteredMatches, filters?.side]);
 
   const summary = useMemo((): GlobalSummary => {
-    const finalPhases = rallies.reduce((acc, rally) => {
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -294,7 +342,7 @@ export function useGlobalStats() {
 
     const completedRallies = Object.values(finalPhases).filter(r => r.point_won_by);
     const totalPoints = completedRallies.length;
-    const totalMatches = matches.length;
+    const totalMatches = filteredMatches.length;
 
     // Count aces and blocks
     let aces = 0;
@@ -316,7 +364,7 @@ export function useGlobalStats() {
     let attacksWithBadDist = { attempts: 0, kills: 0, errors: 0 };
 
     // Process all rallies for pass quality (not just final phases)
-    rallies.forEach(rally => {
+    filteredRallies.forEach(rally => {
       if (rally.pass_code !== null && rally.setter_player_id) {
         passCodeSum += rally.pass_code;
         passCodeCount++;
@@ -398,7 +446,7 @@ export function useGlobalStats() {
         ? (attacksWithBadDist.kills - attacksWithBadDist.errors) / attacksWithBadDist.attempts
         : 0,
     };
-  }, [rallies, matches, playerStats]);
+  }, [filteredRallies, filteredMatches, playerStats]);
 
   // Setter pass quality stats
   const setterStats = useMemo((): SetterStats[] => {
@@ -411,10 +459,10 @@ export function useGlobalStats() {
     const playerIdToKey: Record<string, string> = {};
     const playerIdToInfo: Record<string, { name: string; jerseyNumber: number; teamName: string; side: Side }> = {};
     
-    players.forEach(p => {
+    filteredPlayers.forEach(p => {
       const key = p.team_player_id || p.id;
       playerIdToKey[p.id] = key;
-      const match = matches.find(m => m.id === p.match_id);
+      const match = filteredMatches.find(m => m.id === p.match_id);
       const teamName = p.side === 'CASA' 
         ? match?.home_name || 'Casa' 
         : match?.away_name || 'Fora';
@@ -427,7 +475,7 @@ export function useGlobalStats() {
     });
 
     // Process all rallies with pass_code
-    rallies.forEach(rally => {
+    filteredRallies.forEach(rally => {
       if (rally.setter_player_id && rally.pass_code !== null) {
         const key = playerIdToKey[rally.setter_player_id];
         const info = playerIdToInfo[rally.setter_player_id];
@@ -469,7 +517,7 @@ export function useGlobalStats() {
       .map(s => s.stats)
       .filter(s => s.totalPasses >= 3)
       .sort((a, b) => b.passAvg - a.passAvg);
-  }, [rallies, players, matches]);
+  }, [filteredRallies, filteredPlayers, filteredMatches]);
 
   // Rankings
   const topAttackers = useMemo(() => {
@@ -518,10 +566,10 @@ export function useGlobalStats() {
     const playerIdToKey: Record<string, string> = {};
     const playerIdToInfo: Record<string, { name: string; jerseyNumber: number; teamName: string; side: Side }> = {};
 
-    players.forEach(p => {
+    filteredPlayers.forEach(p => {
       const key = p.team_player_id || p.id;
       playerIdToKey[p.id] = key;
-      const match = matches.find(m => m.id === p.match_id);
+      const match = filteredMatches.find(m => m.id === p.match_id);
       const teamName = p.side === 'CASA'
         ? match?.home_name || 'Casa'
         : match?.away_name || 'Fora';
@@ -534,7 +582,7 @@ export function useGlobalStats() {
     });
 
     // Get final phases
-    const finalPhases = rallies.reduce((acc, rally) => {
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -610,7 +658,7 @@ export function useGlobalStats() {
       .map(s => s.stats)
       .filter(s => s.totalDistributions >= 5)
       .sort((a, b) => b.usedWithinAvailable - a.usedWithinAvailable);
-  }, [rallies, players, matches]);
+  }, [filteredRallies, filteredPlayers, filteredMatches]);
 
   // Global reception breakdown for charts
   const globalReceptionBreakdown = useMemo((): GlobalReceptionBreakdown[] => {
@@ -621,7 +669,7 @@ export function useGlobalStats() {
       0: { emoji: '✗', label: 'Má' },
     };
 
-    const finalPhases = rallies.reduce((acc, rally) => {
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -672,7 +720,7 @@ export function useGlobalStats() {
         topDestinations: topDests || '-',
       };
     });
-  }, [rallies]);
+  }, [filteredRallies]);
 
   // Team defense stats - kills suffered by each team (defensive perspective)
   const teamDefenseStats = useMemo((): TeamDefenseStats[] => {
@@ -680,7 +728,7 @@ export function useGlobalStats() {
     const teamStatsMap: Record<string, TeamDefenseStats> = {};
 
     // Get final phases only
-    const finalPhases = rallies.reduce((acc, rally) => {
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -689,7 +737,7 @@ export function useGlobalStats() {
     }, {} as Record<string, Rally>);
 
     // Initialize team stats based on matches
-    matches.forEach(match => {
+    filteredMatches.forEach(match => {
       const homeKey = `${match.id}-CASA`;
       const awayKey = `${match.id}-FORA`;
       
@@ -720,7 +768,7 @@ export function useGlobalStats() {
     // Process rallies to count kills suffered
     Object.values(finalPhases).forEach(rally => {
       if (rally.reason === 'KILL' && rally.point_won_by) {
-        const match = matches.find(m => m.id === rally.match_id);
+        const match = filteredMatches.find(m => m.id === rally.match_id);
         if (!match) return;
 
         // The team that lost the point is the one who suffered the kill
@@ -747,11 +795,11 @@ export function useGlobalStats() {
     });
 
     return Object.values(teamStatsMap).filter(t => t.killsSuffered > 0);
-  }, [rallies, matches]);
+  }, [filteredRallies, filteredMatches]);
 
   // Attack breakdown by distribution quality
   const attackByDistributionBreakdown = useMemo((): AttackByDistributionBreakdown[] => {
-    const finalPhases = rallies.reduce((acc, rally) => {
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -792,11 +840,11 @@ export function useGlobalStats() {
         efficiency: data.attempts > 0 ? (data.kills - data.errors) / data.attempts : 0,
       };
     });
-  }, [rallies]);
+  }, [filteredRallies]);
 
   // Adaptable attackers - those who maintain good efficiency with bad distribution
   const adaptableAttackers = useMemo((): AdaptableAttacker[] => {
-    const finalPhases = rallies.reduce((acc, rally) => {
+    const finalPhases = filteredRallies.reduce((acc, rally) => {
       const key = `${rally.match_id}-${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
         acc[key] = rally;
@@ -808,10 +856,10 @@ export function useGlobalStats() {
     const playerIdToKey: Record<string, string> = {};
     const playerIdToInfo: Record<string, { name: string; jerseyNumber: number; teamName: string }> = {};
 
-    players.forEach(p => {
+    filteredPlayers.forEach(p => {
       const key = p.team_player_id || p.id;
       playerIdToKey[p.id] = key;
-      const match = matches.find(m => m.id === p.match_id);
+      const match = filteredMatches.find(m => m.id === p.match_id);
       const teamName = p.side === 'CASA'
         ? match?.home_name || 'Casa'
         : match?.away_name || 'Fora';
@@ -886,10 +934,11 @@ export function useGlobalStats() {
       })
       .sort((a, b) => b.adaptabilityScore - a.adaptabilityScore)
       .slice(0, 10);
-  }, [rallies, players, matches]);
+  }, [filteredRallies, filteredPlayers, filteredMatches]);
 
   return {
     loading,
+    matches, // Return all matches for filter dropdown
     summary,
     playerStats,
     setterStats,
