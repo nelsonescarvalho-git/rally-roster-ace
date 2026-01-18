@@ -982,15 +982,15 @@ export default function Live() {
                 </div>
                 
                 {/* Navigation footer - no back button for serve (first step) */}
-                <div className="flex gap-2 pt-3 border-t mt-3">
-                  <div className="flex-1" />
+                <div className="flex justify-end pt-3 border-t mt-3">
                   <Button 
-                    variant="outline" 
-                    className="flex-1 gap-2" 
+                    variant="ghost" 
+                    size="sm"
+                    className="gap-1 text-muted-foreground hover:text-foreground" 
                     onClick={() => setServeCompleted(true)}
                   >
-                    Avançar sem código
-                    <ChevronRight className="h-4 w-4" />
+                    Avançar
+                    <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
               </CardContent>
@@ -1062,22 +1062,24 @@ export default function Live() {
                 </div>
                 
                 {/* Navigation footer - consistent with all phases */}
-                <div className="flex gap-2 pt-3 border-t mt-3">
+                <div className="flex justify-between pt-3 border-t mt-3">
                   <Button 
-                    variant="outline" 
-                    className="flex-1 gap-2" 
+                    variant="ghost" 
+                    size="sm"
+                    className="gap-1 text-muted-foreground hover:text-foreground" 
                     onClick={() => setServeCompleted(false)}
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    Voltar ao Serviço
+                    <ChevronLeft className="h-3 w-3" />
+                    Voltar
                   </Button>
                   <Button 
-                    variant="outline" 
-                    className="flex-1 gap-2" 
+                    variant="ghost" 
+                    size="sm"
+                    className="gap-1 text-muted-foreground hover:text-foreground" 
                     onClick={handleReceptionSkip}
                   >
-                    Avançar sem receção
-                    <ChevronRight className="h-4 w-4" />
+                    Avançar
+                    <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
               </CardContent>
