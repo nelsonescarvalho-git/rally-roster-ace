@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
+import { useSetKPIs } from '@/hooks/useSetKPIs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -157,6 +158,13 @@ export default function Live() {
     });
     return combined;
   }, [gameState, currentSet, getPlayersOnCourt, getPlayersForSide]);
+
+  // Calculate KPIs for current set (for WizardLegend insights)
+  const previousSetRalliesForKPI = useMemo(() => 
+    currentSet > 1 ? rallies.filter(r => r.set_no === currentSet - 1) : undefined,
+    [rallies, currentSet]
+  );
+  const currentSetKPIs = useSetKPIs(rallies, currentSet, previousSetRalliesForKPI, matchPlayers);
 
   // Get players currently on court for a specific side
   const getPlayersForActionSide = (side: Side) => {
@@ -753,7 +761,7 @@ export default function Live() {
                 
                 {/* Legenda - também mostrada no ecrã de set terminado */}
                 <div className="w-full max-w-lg mt-6">
-                  <WizardLegend homeName={match.home_name} awayName={match.away_name} />
+                  <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
                 </div>
               </div>
             </div>
@@ -1178,7 +1186,7 @@ export default function Live() {
         )}
 
         {/* Legend for new users */}
-        <WizardLegend homeName={match.home_name} awayName={match.away_name} />
+        <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
       </div>
 
       {/* Substitution Modal */}
