@@ -622,7 +622,7 @@ export function useSetKPIs(
     
     // Zone distribution uses consolidated rallies (one per point)
     for (const rally of setRallies) {
-      if (rally.pass_destination && rally.setter_player_id) {
+      if (rally.pass_destination) {
         if (rally.recv_side === 'CASA') {
           zoneCountsHome[rally.pass_destination] = (zoneCountsHome[rally.pass_destination] || 0) + 1;
         } else {
