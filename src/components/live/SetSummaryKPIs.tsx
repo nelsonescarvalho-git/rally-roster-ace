@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Rally, Side } from '@/types/volleyball';
+import { Rally, Side, MatchPlayer } from '@/types/volleyball';
 import { useSetKPIs, SetKPIs } from '@/hooks/useSetKPIs';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +26,7 @@ interface SetSummaryKPIsProps {
   homeScore: number;
   awayScore: number;
   previousSetRallies?: Rally[];
+  players?: MatchPlayer[];
 }
 
 function StatRow({ 
@@ -117,9 +118,10 @@ export function SetSummaryKPIs({
   homeScore,
   awayScore,
   previousSetRallies,
+  players,
 }: SetSummaryKPIsProps) {
   const [activeTab, setActiveTab] = useState('geral');
-  const kpis = useSetKPIs(rallies, setNo, previousSetRallies);
+  const kpis = useSetKPIs(rallies, setNo, previousSetRallies, players);
   
   return (
     <div className="w-full max-w-lg mx-auto mt-4">

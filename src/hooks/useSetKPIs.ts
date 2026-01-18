@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Rally, Side } from '@/types/volleyball';
+import { Rally, Side, MatchPlayer } from '@/types/volleyball';
 
 interface TeamKPIs {
   // Sideout & Break
@@ -147,8 +147,19 @@ function createEmptyTeamKPIs(): TeamKPIs {
 export function useSetKPIs(
   rallies: Rally[],
   setNo: number,
-  previousSetRallies?: Rally[]
+  previousSetRallies?: Rally[],
+  players?: MatchPlayer[]
 ): SetKPIs {
+  // Create a map of player ID to their side for accurate team identification
+  const playerSideMap = useMemo(() => {
+    const map: Record<string, Side> = {};
+    if (players) {
+      players.forEach(p => {
+        map[p.id] = p.side as Side;
+      });
+    }
+    return map;
+  }, [players]);
   return useMemo(() => {
     const rawSetRallies = rallies.filter(r => r.set_no === setNo);
     
@@ -562,23 +573,23 @@ export function useSetKPIs(
         }
       }
       
-      // Attacker counts - based on who attacked
+      // Attacker counts - use player ID to determine team correctly
       if (rally.a_player_id && rally.a_no !== null) {
-        // Determine attacker's team from recv_side (first attack is usually by receiver in K1)
-        // But we need to check if the attack was by serving or receiving team
-        const attackerSide = rally.recv_side; // Simplified: first attack is by receiver
+        // Determine attacker's team from the player's actual side (from match_players)
+        const attackerSide = playerSideMap[rally.a_player_id];
         
         if (attackerSide === 'CASA') {
           if (!attackerCountsHome[rally.a_player_id]) {
             attackerCountsHome[rally.a_player_id] = { count: 0, playerNo: rally.a_no };
           }
           attackerCountsHome[rally.a_player_id].count++;
-        } else {
+        } else if (attackerSide === 'FORA') {
           if (!attackerCountsAway[rally.a_player_id]) {
             attackerCountsAway[rally.a_player_id] = { count: 0, playerNo: rally.a_no };
           }
           attackerCountsAway[rally.a_player_id].count++;
         }
+        // If attackerSide is undefined, player not found in map - skip counting
       }
     }
     
@@ -652,5 +663,5 @@ export function useSetKPIs(
       topAttackersAway,
       deltaFromPrevious,
     };
-  }, [rallies, setNo, previousSetRallies]);
+  }, [rallies, setNo, previousSetRallies, playerSideMap]);
 }

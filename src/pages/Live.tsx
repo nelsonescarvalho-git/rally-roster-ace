@@ -64,7 +64,7 @@ export default function Live() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { 
-    match, rallies, lineups, loading, loadMatch, getGameState, getServerPlayer, 
+    match, rallies, lineups, matchPlayers, loading, loadMatch, getGameState, getServerPlayer, 
     saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, 
     isSetComplete, getMatchStatus,
     getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayerZone, getPlayersOnBench, makeSubstitution, undoSubstitution,
@@ -708,6 +708,7 @@ export default function Live() {
                   homeScore={setStatus.homeScore}
                   awayScore={setStatus.awayScore}
                   previousSetRallies={previousSetRallies}
+                  players={matchPlayers}
                 />
                 
                 {matchStatus.matchComplete ? (
