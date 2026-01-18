@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
 import { WizardLegend } from '@/components/WizardLegend';
@@ -925,8 +926,14 @@ export default function Live() {
         <div className="space-y-3">
           {/* SERVE PHASE */}
           {isServePhase && (
-            <Card className="border-l-4 border-l-primary overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2 bg-primary text-white">
+            <Card className={cn(
+              "border-l-4 overflow-hidden",
+              gameState.serveSide === 'CASA' ? 'border-l-home' : 'border-l-away'
+            )}>
+              <div className={cn(
+                "flex items-center gap-2 px-4 py-2 text-white",
+                gameState.serveSide === 'CASA' ? 'bg-home' : 'bg-away'
+              )}>
                 <span className="font-semibold">Serviço</span>
                 <div className="flex-1" />
                 <span className="text-xs opacity-80">
@@ -978,8 +985,14 @@ export default function Live() {
 
           {/* RECEPTION PHASE */}
           {isReceptionPhase && (
-            <Card className="border-l-4 border-l-success overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2 bg-success text-white">
+            <Card className={cn(
+              "border-l-4 overflow-hidden",
+              gameState.recvSide === 'CASA' ? 'border-l-home' : 'border-l-away'
+            )}>
+              <div className={cn(
+                "flex items-center gap-2 px-4 py-2 text-white",
+                gameState.recvSide === 'CASA' ? 'bg-home' : 'bg-away'
+              )}>
                 <span className="font-semibold">Receção</span>
                 <span className="text-xs opacity-80">(opcional)</span>
                 <div className="flex-1" />

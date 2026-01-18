@@ -17,45 +17,19 @@ interface WizardSectionCardProps {
 const actionConfig: Record<ActionType, { 
   icon: React.ElementType; 
   label: string; 
-  headerBg: string;
-  borderColor: string;
 }> = {
-  serve: { 
-    icon: CircleDot, 
-    label: 'Serviço',
-    headerBg: 'bg-primary',
-    borderColor: 'border-l-primary',
-  },
-  reception: { 
-    icon: Shield, 
-    label: 'Receção',
-    headerBg: 'bg-success',
-    borderColor: 'border-l-success',
-  },
-  setter: { 
-    icon: Target, 
-    label: 'Distribuição',
-    headerBg: 'bg-[hsl(280,68%,50%)]',
-    borderColor: 'border-l-[hsl(280,68%,50%)]',
-  },
-  attack: { 
-    icon: Swords, 
-    label: 'Ataque',
-    headerBg: 'bg-destructive',
-    borderColor: 'border-l-destructive',
-  },
-  block: { 
-    icon: Square, 
-    label: 'Bloco',
-    headerBg: 'bg-warning',
-    borderColor: 'border-l-warning',
-  },
-  defense: { 
-    icon: ShieldCheck, 
-    label: 'Defesa',
-    headerBg: 'bg-accent',
-    borderColor: 'border-l-accent',
-  },
+  serve: { icon: CircleDot, label: 'Serviço' },
+  reception: { icon: Shield, label: 'Receção' },
+  setter: { icon: Target, label: 'Distribuição' },
+  attack: { icon: Swords, label: 'Ataque' },
+  block: { icon: Square, label: 'Bloco' },
+  defense: { icon: ShieldCheck, label: 'Defesa' },
+};
+
+// Team-based colors instead of action-based
+const teamColors: Record<TeamSide, { headerBg: string; borderColor: string }> = {
+  home: { headerBg: 'bg-home', borderColor: 'border-l-home' },
+  away: { headerBg: 'bg-away', borderColor: 'border-l-away' },
 };
 
 export function WizardSectionCard({ 
@@ -66,18 +40,18 @@ export function WizardSectionCard({
   children 
 }: WizardSectionCardProps) {
   const config = actionConfig[actionType];
+  const colors = teamColors[teamSide];
   const Icon = config.icon;
 
   return (
     <Card className={cn(
       'overflow-hidden border-l-4 shadow-sm',
-      config.borderColor
+      colors.borderColor
     )}>
-      {/* Colored Header */}
+      {/* Colored Header - color based on team */}
       <div className={cn(
-        'flex items-center gap-2 px-4 py-2',
-        config.headerBg,
-        'text-white'
+        'flex items-center gap-2 px-4 py-2 text-white',
+        colors.headerBg
       )}>
         <Icon className="h-5 w-5" />
         <span className="font-semibold">{config.label}</span>
@@ -86,10 +60,7 @@ export function WizardSectionCard({
         )}
         <div className="flex-1" />
         {teamName && (
-          <span className={cn(
-            'px-2 py-0.5 rounded-full text-xs font-medium',
-            teamSide === 'home' ? 'bg-home/30' : 'bg-away/30'
-          )}>
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/20">
             {teamName}
           </span>
         )}
