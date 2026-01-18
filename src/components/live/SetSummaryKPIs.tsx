@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Trophy,
   MapPin,
-  Users
+  Users,
+  Radio
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -490,7 +491,62 @@ export function SetSummaryKPIs({
             </Card>
           )}
           
-          {/* Worst rotations */}
+          {/* Top Servers */}
+          {(kpis.topServersHome.length > 0 || kpis.topServersAway.length > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Radio className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs font-medium">Mais Solicitados (Serviço)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-home font-medium text-xs mb-1">{homeName}</div>
+                    {kpis.topServersHome.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.topServersHome.map((server) => (
+                          <div key={server.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{server.playerNo}</span>
+                            {server.playerName && (
+                              <span className="font-medium truncate max-w-[60px]">{server.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{server.count} svc</span>
+                            <Badge variant="outline" className="text-[10px] px-1">
+                              {server.percent}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-away font-medium text-xs mb-1">{awayName}</div>
+                    {kpis.topServersAway.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.topServersAway.map((server) => (
+                          <div key={server.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{server.playerNo}</span>
+                            {server.playerName && (
+                              <span className="font-medium truncate max-w-[60px]">{server.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{server.count} svc</span>
+                            <Badge variant="outline" className="text-[10px] px-1">
+                              {server.percent}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           {(kpis.worstRotationHome || kpis.worstRotationAway) && (
             <Card className="bg-muted/30">
               <CardContent className="p-3">
