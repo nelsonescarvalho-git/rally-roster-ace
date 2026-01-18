@@ -204,31 +204,44 @@ export function ActionEditor({
               </SelectContent>
             </Select>
             
-            <div className="text-xs text-muted-foreground">Qualidade do passe:</div>
-            <div className="grid grid-cols-4 gap-2">
-              {CODES.map((code) => (
-                <ColoredRatingButton
-                  key={code}
-                  code={code}
-                  selected={selectedPassCode === code}
-                  onClick={() => onPassCodeChange?.(selectedPassCode === code ? null : code)}
-                  size="sm"
-                />
-              ))}
-            </div>
-            
-            <div className="text-xs text-muted-foreground">Destino:</div>
-            <div className="grid grid-cols-4 gap-2">
-              {availablePositions.map((dest) => (
-                <Button
-                  key={dest}
-                  variant={selectedDestination === dest ? 'default' : 'outline'}
-                  className="h-10 text-xs"
-                  onClick={() => handleDestinationWithAutoConfirm(dest)}
-                >
-                  {dest}
-                </Button>
-              ))}
+            {/* Two Column Layout: Pass Quality | Destination */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Column 1: Pass Quality */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Qualidade do Passe
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CODES.map((code) => (
+                    <ColoredRatingButton
+                      key={code}
+                      code={code}
+                      selected={selectedPassCode === code}
+                      onClick={() => onPassCodeChange?.(selectedPassCode === code ? null : code)}
+                      size="md"
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Column 2: Destination */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Destino
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {availablePositions.map((dest) => (
+                    <Button
+                      key={dest}
+                      variant={selectedDestination === dest ? 'default' : 'outline'}
+                      className="h-10 text-xs"
+                      onClick={() => handleDestinationWithAutoConfirm(dest)}
+                    >
+                      {dest}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         );
