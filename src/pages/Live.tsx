@@ -497,9 +497,9 @@ export default function Live() {
       recv_rot: gameState.recvRot,
       point_won_by: winner,
       reason: reason,
-      // Serve
-      s_player_id: serveAction?.playerId || serveData.playerId,
-      s_no: getPlayerNo(serveAction?.playerId || serveData.playerId),
+      // Serve - use serverPlayer.id as ultimate fallback to ensure s_player_id is always set
+      s_player_id: serveAction?.playerId || serveData.playerId || serverPlayer?.id || null,
+      s_no: getPlayerNo(serveAction?.playerId || serveData.playerId || serverPlayer?.id),
       s_code: serveAction?.code ?? serveData.code,
       // Reception
       r_player_id: recAction?.playerId || receptionData.playerId,

@@ -181,6 +181,18 @@ export function useSetKPIs(
     }
     return map;
   }, [players]);
+
+  // Map to find player by side + jersey number for fallback lookup (when s_player_id is NULL)
+  const playerByTeamAndNumber = useMemo(() => {
+    const map: Record<string, string> = {}; // key: "SIDE_NUMBER" -> player id
+    if (players) {
+      players.forEach(p => {
+        map[`${p.side}_${p.jersey_number}`] = p.id;
+      });
+    }
+    return map;
+  }, [players]);
+
   return useMemo(() => {
     const rawSetRallies = rallies.filter(r => r.set_no === setNo);
     
@@ -618,24 +630,39 @@ export function useSetKPIs(
     }
     
     // Server counts - use RAW rallies to count ALL serve attempts (all phases, but typically phase 1)
+    // FALLBACK: When s_player_id is NULL, infer server from serve_side + s_no
     const serverCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
     const serverCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
     
     for (const rally of rawSetRallies) {
-      if (rally.s_player_id) {
-        const serverSide = playerSideMap[rally.s_player_id];
-        const playerNo = rally.s_no;
-        
+      let serverId = rally.s_player_id;
+      let serverSide: Side | undefined;
+      let playerNo = rally.s_no;
+      
+      if (serverId) {
+        // We have s_player_id, use playerSideMap
+        serverSide = playerSideMap[serverId];
+      } else if (rally.serve_side && rally.s_no) {
+        // FALLBACK: s_player_id is NULL, but we have serve_side and s_no
+        // Infer the player from serve_side + jersey number
+        serverSide = rally.serve_side as Side;
+        const inferredPlayerId = playerByTeamAndNumber[`${serverSide}_${rally.s_no}`];
+        if (inferredPlayerId) {
+          serverId = inferredPlayerId;
+        }
+      }
+      
+      if (serverId && serverSide) {
         if (serverSide === 'CASA') {
-          if (!serverCountsHome[rally.s_player_id]) {
-            serverCountsHome[rally.s_player_id] = { count: 0, playerNo };
+          if (!serverCountsHome[serverId]) {
+            serverCountsHome[serverId] = { count: 0, playerNo };
           }
-          serverCountsHome[rally.s_player_id].count++;
+          serverCountsHome[serverId].count++;
         } else if (serverSide === 'FORA') {
-          if (!serverCountsAway[rally.s_player_id]) {
-            serverCountsAway[rally.s_player_id] = { count: 0, playerNo };
+          if (!serverCountsAway[serverId]) {
+            serverCountsAway[serverId] = { count: 0, playerNo };
           }
-          serverCountsAway[rally.s_player_id].count++;
+          serverCountsAway[serverId].count++;
         }
       }
     }
@@ -739,5 +766,5 @@ export function useSetKPIs(
       topServersAway,
       deltaFromPrevious,
     };
-  }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap]);
+  }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap, playerByTeamAndNumber]);
 }
