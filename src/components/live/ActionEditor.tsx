@@ -108,12 +108,19 @@ export function ActionEditor({
     
     // Auto-confirm for Block and Defense (no additional input needed)
     if (actionType === 'block' || actionType === 'defense') {
-      setTimeout(() => onConfirm(), 50);
+      // Use requestAnimationFrame to ensure state update is processed before confirming
+      requestAnimationFrame(() => {
+        setTimeout(() => onConfirm(), 0);
+      });
+      return;
     }
     
     // Auto-confirm for Attack only if code ≠ 3 (code 3 needs Kill Type)
     if (actionType === 'attack' && code !== 3) {
-      setTimeout(() => onConfirm(), 50);
+      // Use requestAnimationFrame to ensure state update is processed before confirming
+      requestAnimationFrame(() => {
+        setTimeout(() => onConfirm(), 0);
+      });
     }
   }, [actionType, selectedCode, onCodeChange, onConfirm]);
 
