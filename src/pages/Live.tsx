@@ -163,6 +163,32 @@ export default function Live() {
     return getPlayersOnCourt(currentSet, side, gameState.currentRally);
   };
 
+  // Get players for an action type - includes liberos for reception, defense, setter, attack (NOT serve/block)
+  const getPlayersForAction = (actionType: RallyActionType, side: Side): Player[] => {
+    if (!gameState) return [];
+    const onCourt = getPlayersOnCourt(currentSet, side, gameState.currentRally);
+    
+    // Serve and Block: only players on court (libero cannot serve or block)
+    if (actionType === 'serve' || actionType === 'block') {
+      return onCourt;
+    }
+    
+    // Reception, Defense, Setter, Attack: include all liberos from the team
+    const allTeamPlayers = getPlayersForSide(side);
+    const teamLiberos = allTeamPlayers.filter(p => 
+      p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO'
+    );
+    
+    // Combine on court + liberos, removing duplicates by id
+    const combined = [...onCourt];
+    teamLiberos.forEach(libero => {
+      if (!combined.some(p => p.id === libero.id)) {
+        combined.push(libero);
+      }
+    });
+    return combined;
+  };
+
   // Helper to get zone label for a player
   const getZoneLabel = (playerId: string, side: Side): string => {
     if (!gameState) return '';
@@ -979,7 +1005,7 @@ export default function Live() {
             <ActionEditor
               actionType={pendingAction.type}
               side={pendingAction.side}
-              players={getPlayersForActionSide(pendingAction.side)}
+              players={getPlayersForAction(pendingAction.type, pendingAction.side)}
               homeName={match.home_name}
               awayName={match.away_name}
               selectedPlayer={pendingAction.playerId}
