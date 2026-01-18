@@ -663,6 +663,11 @@ export default function Live() {
                     </Button>
                   </div>
                 )}
+                
+                {/* Legenda - também mostrada no ecrã de set terminado */}
+                <div className="w-full max-w-lg mt-6">
+                  <WizardLegend homeName={match.home_name} awayName={match.away_name} />
+                </div>
               </div>
             </div>
           );
