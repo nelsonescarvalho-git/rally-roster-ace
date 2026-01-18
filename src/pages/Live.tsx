@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
 import { WizardLegend } from '@/components/WizardLegend';
@@ -942,6 +942,8 @@ export default function Live() {
                 <p className="text-xs text-center text-muted-foreground">
                   Clique num código para confirmar o serviço
                 </p>
+                
+                {/* Info: serve is first step, no back button */}
               </CardContent>
             </Card>
           )}
@@ -1010,25 +1012,47 @@ export default function Live() {
                   Clique num código para confirmar a receção
                 </p>
                 
-                {/* Skip button */}
-                <Button variant="outline" className="w-full" onClick={handleReceptionSkip}>
-                  Avançar sem receção
-                </Button>
+                {/* Navigation buttons */}
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 gap-2" 
+                    onClick={() => setServeCompleted(false)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Voltar ao Serviço
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={handleReceptionSkip}>
+                    Avançar sem receção
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
 
           {/* MODULAR PHASE - Action Selector */}
           {isModularPhase && !pendingAction && (
-            <ActionSelector
-              actions={registeredActions}
-              serveSide={gameState.serveSide}
-              recvSide={gameState.recvSide}
-              homeName={match.home_name}
-              awayName={match.away_name}
-              onSelectAction={handleSelectAction}
-              showReceptionOption={isReceptionIncomplete}
-            />
+            <div className="space-y-3">
+              {/* Back to reception button */}
+              <Button 
+                variant="outline" 
+                className="w-full gap-2" 
+                onClick={() => setReceptionCompleted(false)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Voltar à Receção
+              </Button>
+              
+              <ActionSelector
+                actions={registeredActions}
+                serveSide={gameState.serveSide}
+                recvSide={gameState.recvSide}
+                homeName={match.home_name}
+                awayName={match.away_name}
+                onSelectAction={handleSelectAction}
+                showReceptionOption={isReceptionIncomplete}
+              />
+            </div>
           )}
 
           {/* MODULAR PHASE - Action Editor */}
