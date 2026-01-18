@@ -391,13 +391,14 @@ export function ActionEditor({
       {renderContent()}
       
       {/* Navigation footer - only back button, actions auto-confirm */}
-      <div className="flex gap-2 pt-3 border-t mt-3">
+      <div className="flex justify-start pt-3 border-t mt-3">
         <Button 
-          variant="outline" 
-          className="flex-1 gap-2" 
+          variant="ghost" 
+          size="sm"
+          className="gap-1 text-muted-foreground hover:text-foreground" 
           onClick={onCancel}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3 w-3" />
           Voltar
         </Button>
       </div>
