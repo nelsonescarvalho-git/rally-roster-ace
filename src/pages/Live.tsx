@@ -82,6 +82,7 @@ export default function Live() {
   // Modular wizard state (phases removed - always use phase 1)
   const [registeredActions, setRegisteredActions] = useState<RallyAction[]>([]);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [editingActionIndex, setEditingActionIndex] = useState<number | null>(null);
   
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
@@ -130,6 +131,7 @@ export default function Live() {
   const resetWizard = useCallback(() => {
     setRegisteredActions([]);
     setPendingAction(null);
+    setEditingActionIndex(null);
     setServeCompleted(false);
     setReceptionCompleted(false);
     setServeData({ playerId: serverPlayer?.id || null, code: null });
@@ -436,6 +438,18 @@ export default function Live() {
       attackPassQuality: pendingAction.attackPassQuality,
     };
     
+    // If editing an existing action, update it in place
+    if (editingActionIndex !== null) {
+      setRegisteredActions(prev => {
+        const updated = [...prev];
+        updated[editingActionIndex] = newAction;
+        return updated;
+      });
+      setEditingActionIndex(null);
+      setPendingAction(null);
+      return;
+    }
+    
     setRegisteredActions(prev => [...prev, newAction]);
     setPendingAction(null);
   };
@@ -443,6 +457,135 @@ export default function Live() {
   // Cancel pending action
   const handleCancelAction = () => {
     setPendingAction(null);
+    setEditingActionIndex(null);
+  };
+
+  // Edit action from timeline
+  const handleEditAction = (index: number) => {
+    const action = registeredActions[index];
+    
+    // Convert RallyAction to PendingAction for editing
+    setPendingAction({
+      type: action.type,
+      side: action.side,
+      playerId: action.playerId || null,
+      code: action.code ?? null,
+      killType: action.killType || null,
+      setterId: action.setterId || null,
+      passDestination: action.passDestination || null,
+      passCode: action.passCode ?? null,
+      b1PlayerId: action.b1PlayerId || null,
+      b2PlayerId: action.b2PlayerId || null,
+      b3PlayerId: action.b3PlayerId || null,
+      attackPassQuality: action.attackPassQuality ?? null,
+    });
+    setEditingActionIndex(index);
+  };
+
+  // Navigate to previous action
+  const handleNavigateToPrevAction = () => {
+    if (editingActionIndex === null || editingActionIndex <= 0) return;
+    
+    // Save current action first
+    if (pendingAction) {
+      const effectivePlayers = getEffectivePlayers();
+      const player = effectivePlayers.find(p => p.id === pendingAction.playerId);
+      
+      const updatedAction: RallyAction = {
+        type: pendingAction.type,
+        side: pendingAction.side,
+        phase: 1,
+        playerId: pendingAction.playerId,
+        playerNo: player?.jersey_number || null,
+        code: pendingAction.code,
+        killType: pendingAction.killType,
+        setterId: pendingAction.setterId,
+        passDestination: pendingAction.passDestination,
+        passCode: pendingAction.passCode,
+        b1PlayerId: pendingAction.b1PlayerId,
+        b2PlayerId: pendingAction.b2PlayerId,
+        b3PlayerId: pendingAction.b3PlayerId,
+        attackPassQuality: pendingAction.attackPassQuality,
+      };
+      
+      setRegisteredActions(prev => {
+        const updated = [...prev];
+        updated[editingActionIndex] = updatedAction;
+        return updated;
+      });
+    }
+    
+    // Navigate to previous
+    const prevIndex = editingActionIndex - 1;
+    const prevAction = registeredActions[prevIndex];
+    setEditingActionIndex(prevIndex);
+    setPendingAction({
+      type: prevAction.type,
+      side: prevAction.side,
+      playerId: prevAction.playerId || null,
+      code: prevAction.code ?? null,
+      killType: prevAction.killType || null,
+      setterId: prevAction.setterId || null,
+      passDestination: prevAction.passDestination || null,
+      passCode: prevAction.passCode ?? null,
+      b1PlayerId: prevAction.b1PlayerId || null,
+      b2PlayerId: prevAction.b2PlayerId || null,
+      b3PlayerId: prevAction.b3PlayerId || null,
+      attackPassQuality: prevAction.attackPassQuality ?? null,
+    });
+  };
+
+  // Navigate to next action
+  const handleNavigateToNextAction = () => {
+    if (editingActionIndex === null || editingActionIndex >= registeredActions.length - 1) return;
+    
+    // Save current action first
+    if (pendingAction) {
+      const effectivePlayers = getEffectivePlayers();
+      const player = effectivePlayers.find(p => p.id === pendingAction.playerId);
+      
+      const updatedAction: RallyAction = {
+        type: pendingAction.type,
+        side: pendingAction.side,
+        phase: 1,
+        playerId: pendingAction.playerId,
+        playerNo: player?.jersey_number || null,
+        code: pendingAction.code,
+        killType: pendingAction.killType,
+        setterId: pendingAction.setterId,
+        passDestination: pendingAction.passDestination,
+        passCode: pendingAction.passCode,
+        b1PlayerId: pendingAction.b1PlayerId,
+        b2PlayerId: pendingAction.b2PlayerId,
+        b3PlayerId: pendingAction.b3PlayerId,
+        attackPassQuality: pendingAction.attackPassQuality,
+      };
+      
+      setRegisteredActions(prev => {
+        const updated = [...prev];
+        updated[editingActionIndex] = updatedAction;
+        return updated;
+      });
+    }
+    
+    // Navigate to next
+    const nextIndex = editingActionIndex + 1;
+    const nextAction = registeredActions[nextIndex];
+    setEditingActionIndex(nextIndex);
+    setPendingAction({
+      type: nextAction.type,
+      side: nextAction.side,
+      playerId: nextAction.playerId || null,
+      code: nextAction.code ?? null,
+      killType: nextAction.killType || null,
+      setterId: nextAction.setterId || null,
+      passDestination: nextAction.passDestination || null,
+      passCode: nextAction.passCode ?? null,
+      b1PlayerId: nextAction.b1PlayerId || null,
+      b2PlayerId: nextAction.b2PlayerId || null,
+      b3PlayerId: nextAction.b3PlayerId || null,
+      attackPassQuality: nextAction.attackPassQuality ?? null,
+    });
   };
 
   // Remove action from timeline
@@ -972,6 +1115,8 @@ export default function Live() {
           onRemoveAction={handleRemoveAction}
           onReorderActions={setRegisteredActions}
           onUndo={handleUndoAction}
+          onEditAction={handleEditAction}
+          editingIndex={editingActionIndex}
           homeName={match.home_name}
           awayName={match.away_name}
         />
@@ -1133,8 +1278,8 @@ export default function Live() {
             />
           )}
 
-          {/* MODULAR PHASE - Action Editor */}
-          {isModularPhase && pendingAction && (
+          {/* MODULAR PHASE - Action Editor (also shows when editing existing action) */}
+          {((isModularPhase && pendingAction) || (editingActionIndex !== null && pendingAction)) && (
             <ActionEditor
               actionType={pendingAction.type}
               side={pendingAction.side}
@@ -1165,6 +1310,11 @@ export default function Live() {
               onAttackPassQualityChange={(quality) => setPendingAction(prev => prev ? { ...prev, attackPassQuality: quality } : null)}
               onConfirm={handleConfirmAction}
               onCancel={handleCancelAction}
+              currentActionIndex={editingActionIndex ?? undefined}
+              totalActions={registeredActions.length}
+              onNavigatePrev={handleNavigateToPrevAction}
+              onNavigateNext={handleNavigateToNextAction}
+              isEditingExisting={editingActionIndex !== null}
             />
           )}
 

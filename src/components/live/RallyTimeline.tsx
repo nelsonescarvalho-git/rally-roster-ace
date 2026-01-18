@@ -30,6 +30,8 @@ interface RallyTimelineProps {
   onRemoveAction: (index: number) => void;
   onReorderActions: (actions: RallyAction[]) => void;
   onUndo: () => void;
+  onEditAction?: (index: number) => void;
+  editingIndex?: number | null;
   homeName: string;
   awayName: string;
 }
@@ -125,10 +127,12 @@ interface SortableActionProps {
   id: string;
   players: Player[];
   onRemove: (index: number) => void;
+  onEdit?: (index: number) => void;
   isDragging: boolean;
+  isEditing?: boolean;
 }
 
-function SortableAction({ action, index, id, players, onRemove, isDragging }: SortableActionProps) {
+function SortableAction({ action, index, id, players, onRemove, onEdit, isDragging, isEditing }: SortableActionProps) {
   const {
     attributes,
     listeners,
@@ -168,6 +172,14 @@ function SortableAction({ action, index, id, players, onRemove, isDragging }: So
     return CODE_EMOJI[code] || code.toString();
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Only trigger edit if not dragging and there's an edit handler
+    if (!isDragging && onEdit) {
+      e.stopPropagation();
+      onEdit(index);
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -181,10 +193,13 @@ function SortableAction({ action, index, id, players, onRemove, isDragging }: So
     >
       <Badge
         variant="outline"
+        onClick={handleClick}
         className={cn(
           'cursor-grab active:cursor-grabbing group relative pr-5 select-none transition-all duration-200',
           isHome ? 'border-home/50 bg-home/10' : 'border-away/50 bg-away/10',
-          isDragging && !isThisDragging && 'hover:scale-105'
+          isDragging && !isThisDragging && 'hover:scale-105',
+          isEditing && 'ring-2 ring-primary ring-offset-1',
+          onEdit && !isDragging && 'cursor-pointer hover:ring-2 hover:ring-primary/50'
         )}
       >
         <GripVertical className="h-3 w-3 mr-0.5 opacity-40 group-hover:opacity-70 transition-opacity" />
@@ -220,6 +235,8 @@ export function RallyTimeline({
   onRemoveAction,
   onReorderActions,
   onUndo,
+  onEditAction,
+  editingIndex,
   homeName, 
   awayName 
 }: RallyTimelineProps) {
@@ -311,7 +328,9 @@ export function RallyTimeline({
                 index={index}
                 players={players}
                 onRemove={onRemoveAction}
+                onEdit={onEditAction}
                 isDragging={!!activeId}
+                isEditing={editingIndex === index}
               />
             ))}
           </div>
