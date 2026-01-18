@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Target, Swords, Square, ShieldCheck, Shield, ChevronLeft } from 'lucide-react';
@@ -38,32 +38,38 @@ export function ActionSelector({
   onBack,
   backLabel = 'Voltar',
 }: ActionSelectorProps) {
-  // Selected team state with intelligent inference
-  const [selectedSide, setSelectedSide] = useState<Side>(recvSide);
-
-  // Smart inference: update selected side based on last action
-  useEffect(() => {
+  // Calculate inferred side based on last action (using useMemo for immediate sync)
+  const inferredSide = useMemo(() => {
     const lastAction = actions[actions.length - 1];
     
     if (!lastAction) {
       // After reception, receiver attacks
-      setSelectedSide(recvSide);
-      return;
+      return recvSide;
     }
     
     // After attack → opponent side (block/defense)
     if (lastAction.type === 'attack') {
-      setSelectedSide(lastAction.side === 'CASA' ? 'FORA' : 'CASA');
+      return lastAction.side === 'CASA' ? 'FORA' : 'CASA';
     }
     // After block/defense → same side (counter-attack)
-    else if (lastAction.type === 'defense' || lastAction.type === 'block') {
-      setSelectedSide(lastAction.side);
+    if (lastAction.type === 'defense' || lastAction.type === 'block') {
+      return lastAction.side;
     }
     // After setter → same side continues (attack)
-    else if (lastAction.type === 'setter') {
-      setSelectedSide(lastAction.side);
+    if (lastAction.type === 'setter') {
+      return lastAction.side;
     }
+    
+    return recvSide;
   }, [actions, recvSide]);
+
+  // Selected team state - syncs with inferred side but allows manual override
+  const [selectedSide, setSelectedSide] = useState<Side>(inferredSide);
+
+  // Sync selectedSide when inferredSide changes
+  useEffect(() => {
+    setSelectedSide(inferredSide);
+  }, [inferredSide]);
 
   const selectedTeamName = selectedSide === 'CASA' ? homeName : awayName;
 
