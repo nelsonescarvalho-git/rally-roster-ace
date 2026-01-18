@@ -111,10 +111,10 @@ export type PassDestination = 'P2' | 'P3' | 'P4' | 'OP' | 'PIPE' | 'BACK' | 'OUT
 
 // Available attack positions based on reception quality
 export const POSITIONS_BY_RECEPTION: Record<number, PassDestination[]> = {
-  3: ['P2', 'P3', 'P4', 'OP', 'PIPE'],  // 5 opções - receção excelente
-  2: ['P2', 'P4', 'OP', 'PIPE'],         // 4 opções - receção boa
-  1: ['P2', 'P4', 'OP'],                 // 3 opções - receção fraca
-  0: ['BACK', 'OUTROS'],                 // 2 opções - receção má
+  3: ['P2', 'P3', 'P4', 'OP', 'PIPE', 'OUTROS'],  // 6 opções - receção excelente
+  2: ['P2', 'P4', 'OP', 'PIPE', 'OUTROS'],         // 5 opções - receção boa
+  1: ['P2', 'P4', 'OP', 'OUTROS'],                 // 4 opções - receção fraca
+  0: ['BACK', 'OUTROS'],                           // 2 opções - receção má
 };
 
 export const RECEPTION_LABELS: Record<number, { emoji: string; label: string }> = {
