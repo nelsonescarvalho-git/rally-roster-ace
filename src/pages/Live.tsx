@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
 import { WizardLegend } from '@/components/WizardLegend';
@@ -960,7 +960,18 @@ export default function Live() {
                   Clique num código para confirmar o serviço
                 </p>
                 
-                {/* Info: serve is first step, no back button */}
+                {/* Navigation footer - no back button for serve (first step) */}
+                <div className="flex gap-2 pt-3 border-t mt-3">
+                  <div className="flex-1" />
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 gap-2" 
+                    onClick={() => setServeCompleted(true)}
+                  >
+                    Avançar sem código
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1029,8 +1040,8 @@ export default function Live() {
                   Clique num código para confirmar a receção
                 </p>
                 
-                {/* Navigation buttons */}
-                <div className="flex gap-2">
+                {/* Navigation footer - consistent with all phases */}
+                <div className="flex gap-2 pt-3 border-t mt-3">
                   <Button 
                     variant="outline" 
                     className="flex-1 gap-2" 
@@ -1039,8 +1050,13 @@ export default function Live() {
                     <ChevronLeft className="h-4 w-4" />
                     Voltar ao Serviço
                   </Button>
-                  <Button variant="outline" className="flex-1" onClick={handleReceptionSkip}>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 gap-2" 
+                    onClick={handleReceptionSkip}
+                  >
                     Avançar sem receção
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -1049,27 +1065,17 @@ export default function Live() {
 
           {/* MODULAR PHASE - Action Selector */}
           {isModularPhase && !pendingAction && (
-            <div className="space-y-3">
-              {/* Back to reception button */}
-              <Button 
-                variant="outline" 
-                className="w-full gap-2" 
-                onClick={() => setReceptionCompleted(false)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Voltar à Receção
-              </Button>
-              
-              <ActionSelector
-                actions={registeredActions}
-                serveSide={gameState.serveSide}
-                recvSide={gameState.recvSide}
-                homeName={match.home_name}
-                awayName={match.away_name}
-                onSelectAction={handleSelectAction}
-                showReceptionOption={isReceptionIncomplete}
-              />
-            </div>
+            <ActionSelector
+              actions={registeredActions}
+              serveSide={gameState.serveSide}
+              recvSide={gameState.recvSide}
+              homeName={match.home_name}
+              awayName={match.away_name}
+              onSelectAction={handleSelectAction}
+              showReceptionOption={isReceptionIncomplete}
+              onBack={() => setReceptionCompleted(false)}
+              backLabel="Voltar à Receção"
+            />
           )}
 
           {/* MODULAR PHASE - Action Editor */}
