@@ -766,6 +766,7 @@ export default function Live() {
             actions={registeredActions}
             players={getEffectivePlayers()}
             onRemoveAction={handleRemoveAction}
+            onReorderActions={setRegisteredActions}
             homeName={match.home_name}
             awayName={match.away_name}
           />
