@@ -315,9 +315,9 @@ export function SetSummaryKPIs({
               />
               <StatRow 
                 label="Eficiência" 
-                homeValue={kpis.home.attEfficiency} 
-                awayValue={kpis.away.attEfficiency}
-                format="efficiency"
+                homeValue={Math.round(kpis.home.attEfficiency * 100)} 
+                awayValue={Math.round(kpis.away.attEfficiency * 100)}
+                format="percent"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-2 pt-2 border-t">
                 <span>Total: {kpis.home.attTotal}</span>
