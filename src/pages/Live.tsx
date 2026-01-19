@@ -16,10 +16,13 @@ import { RecentPlays } from '@/components/RecentPlays';
 import { SubstitutionModal } from '@/components/SubstitutionModal';
 import { RallyTimeline } from '@/components/live/RallyTimeline';
 import { ActionSelector } from '@/components/live/ActionSelector';
+import { CompactActionSelector } from '@/components/live/CompactActionSelector';
+import { ComboSetterAttack } from '@/components/live/ComboSetterAttack';
 import { ActionEditor } from '@/components/live/ActionEditor';
 import { PointFinisher } from '@/components/live/PointFinisher';
 import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
 import { PositionBadge } from '@/components/live/PositionBadge';
+import { PlayerGrid } from '@/components/live/PlayerGrid';
 import { 
   Side, 
   Reason, 
@@ -84,6 +87,9 @@ export default function Live() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [editingActionIndex, setEditingActionIndex] = useState<number | null>(null);
   
+  // Combo D+A mode state
+  const [comboMode, setComboMode] = useState<{ active: boolean; side: Side | null }>({ active: false, side: null });
+  
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
   const [receptionCompleted, setReceptionCompleted] = useState(false);
@@ -132,6 +138,7 @@ export default function Live() {
     setRegisteredActions([]);
     setPendingAction(null);
     setEditingActionIndex(null);
+    setComboMode({ active: false, side: null });
     setServeCompleted(false);
     setReceptionCompleted(false);
     setServeData({ playerId: serverPlayer?.id || null, code: null });
@@ -408,6 +415,22 @@ export default function Live() {
       b3PlayerId: null,
       attackPassQuality: null,
     });
+  };
+
+  // Handle combo D+A selection
+  const handleSelectCombo = (side: Side) => {
+    setComboMode({ active: true, side });
+  };
+
+  // Handle combo D+A completion
+  const handleComboComplete = (setterAction: RallyAction, attackAction: RallyAction) => {
+    setRegisteredActions(prev => [...prev, setterAction, attackAction]);
+    setComboMode({ active: false, side: null });
+  };
+
+  // Cancel combo mode
+  const handleComboCancel = () => {
+    setComboMode({ active: false, side: null });
   };
   
   // Check if reception action exists but is incomplete (no player selected)
@@ -1202,31 +1225,16 @@ export default function Live() {
                     </span>
                   </div>
                 ) : (
-                  <Select
-                    value={receptionData.playerId || '__none__'}
-                    onValueChange={(val) => setReceptionData(prev => ({ ...prev, playerId: val === '__none__' ? null : val }))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecionar recetor" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover z-50">
-                      <SelectItem value="__none__">Nenhum</SelectItem>
-                      {recvPlayers.map((p) => {
-                        const zone = getZoneLabel(p.id, gameState.recvSide);
-                        const isLibero = p.position?.toUpperCase() === 'L' || p.position?.toUpperCase() === 'LIBERO';
-                        return (
-                          <SelectItem key={p.id} value={p.id}>
-                            <span className="inline-flex items-center gap-2">
-                              <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone || '-'}</span>
-                              <PositionBadge position={p.position} />
-                              #{p.jersey_number} {p.name}
-                              {isLibero && <span className="text-warning text-xs">(L)</span>}
-                            </span>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <PlayerGrid
+                    players={recvPlayers}
+                    selectedPlayer={receptionData.playerId}
+                    onSelect={(id) => setReceptionData(prev => ({ ...prev, playerId: id }))}
+                    onDeselect={() => setReceptionData(prev => ({ ...prev, playerId: null }))}
+                    side={gameState.recvSide}
+                    getZoneLabel={(id) => getZoneLabel(id, gameState.recvSide)}
+                    columns={6}
+                    size="sm"
+                  />
                 )}
                 {/* Code selection - clicking auto-confirms */}
                 <div className="grid grid-cols-4 gap-2">
@@ -1265,16 +1273,31 @@ export default function Live() {
             </Card>
           )}
 
-          {/* MODULAR PHASE - Action Selector */}
-          {isModularPhase && !pendingAction && (
-            <ActionSelector
+          {/* MODULAR PHASE - Compact Action Selector */}
+          {isModularPhase && !pendingAction && !comboMode.active && (
+            <CompactActionSelector
               actions={registeredActions}
               serveSide={gameState.serveSide}
               recvSide={gameState.recvSide}
               homeName={match.home_name}
               awayName={match.away_name}
               onSelectAction={handleSelectAction}
-              onBack={() => setReceptionCompleted(false)}
+              onSelectCombo={handleSelectCombo}
+              showReceptionOption={isReceptionIncomplete}
+            />
+          )}
+
+          {/* COMBO D+A Mode */}
+          {isModularPhase && comboMode.active && comboMode.side && (
+            <ComboSetterAttack
+              players={getPlayersForAction('attack', comboMode.side)}
+              side={comboMode.side}
+              homeName={match.home_name}
+              awayName={match.away_name}
+              getZoneLabel={getZoneLabel}
+              receptionCode={getEffectiveReceptionCode()}
+              onComplete={handleComboComplete}
+              onCancel={handleComboCancel}
             />
           )}
 
@@ -1319,7 +1342,7 @@ export default function Live() {
           )}
 
           {/* Point Finisher - Show when we have an outcome or in modular phase */}
-          {(autoOutcome || (isModularPhase && !pendingAction && registeredActions.length > 0)) && (
+          {(autoOutcome || (isModularPhase && !pendingAction && !comboMode.active && registeredActions.length > 0)) && (
             <PointFinisher
               actions={registeredActions}
               homeName={match.home_name}

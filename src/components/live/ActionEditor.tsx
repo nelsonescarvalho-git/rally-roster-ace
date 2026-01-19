@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ColoredRatingButton } from './ColoredRatingButton';
 import { WizardSectionCard } from './WizardSectionCard';
 import { PositionBadge } from './PositionBadge';
+import { PlayerGrid } from './PlayerGrid';
 import { ChevronLeft, ChevronRight, Check, AlertCircle } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
@@ -159,29 +160,17 @@ export function ActionEditor({
       case 'defense':
         return (
           <div className="space-y-3">
-            <Select
-              value={selectedPlayer || '__none__'}
-              onValueChange={(val) => onPlayerChange(val === '__none__' ? null : val)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecionar jogador" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Nenhum</SelectItem>
-                {players.map((p) => {
-                  const zone = getZoneLabel?.(p.id, side) || '';
-                  return (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="inline-flex items-center gap-2">
-                        {zone && <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>}
-                        <PositionBadge position={p.position} />
-                        #{p.jersey_number} {p.name}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            {/* Player Grid instead of dropdown */}
+            <PlayerGrid
+              players={players}
+              selectedPlayer={selectedPlayer}
+              onSelect={(id) => onPlayerChange(id)}
+              onDeselect={() => onPlayerChange(null)}
+              side={side}
+              getZoneLabel={getZoneLabel}
+              columns={6}
+              size="sm"
+            />
             <div className="grid grid-cols-4 gap-2">
               {CODES.map((code) => (
                 <ColoredRatingButton
@@ -198,29 +187,17 @@ export function ActionEditor({
       case 'setter':
         return (
           <div className="space-y-3">
-            <Select
-              value={selectedSetter || '__none__'}
-              onValueChange={(val) => onSetterChange?.(val === '__none__' ? null : val)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecionar distribuidor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Nenhum</SelectItem>
-                {players.map((p) => {
-                  const zone = getZoneLabel?.(p.id, side) || '';
-                  return (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="inline-flex items-center gap-2">
-                        {zone && <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>}
-                        <PositionBadge position={p.position} />
-                        #{p.jersey_number} {p.name}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            {/* Setter Grid instead of dropdown */}
+            <PlayerGrid
+              players={players}
+              selectedPlayer={selectedSetter}
+              onSelect={(id) => onSetterChange?.(id)}
+              onDeselect={() => onSetterChange?.(null)}
+              side={side}
+              getZoneLabel={getZoneLabel}
+              columns={6}
+              size="sm"
+            />
             
             {/* Two Column Layout: Pass Quality | Destination */}
             <div className="grid grid-cols-2 gap-4">
@@ -267,29 +244,17 @@ export function ActionEditor({
       case 'attack':
         return (
           <div className="space-y-3">
-            <Select
-              value={selectedPlayer || '__none__'}
-              onValueChange={(val) => onPlayerChange(val === '__none__' ? null : val)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecionar atacante" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Nenhum</SelectItem>
-                {players.map((p) => {
-                  const zone = getZoneLabel?.(p.id, side) || '';
-                  return (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="inline-flex items-center gap-2">
-                        {zone && <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded">{zone}</span>}
-                        <PositionBadge position={p.position} />
-                        #{p.jersey_number} {p.name}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            {/* Attacker Grid instead of dropdown */}
+            <PlayerGrid
+              players={players}
+              selectedPlayer={selectedPlayer}
+              onSelect={(id) => onPlayerChange(id)}
+              onDeselect={() => onPlayerChange(null)}
+              side={side}
+              getZoneLabel={getZoneLabel}
+              columns={6}
+              size="sm"
+            />
             
             {/* Two Column Layout: Pass Quality | Attack Rating */}
             <div className="grid grid-cols-2 gap-4">
@@ -365,97 +330,50 @@ export function ActionEditor({
       case 'block':
         return (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <Select
-                value={selectedBlocker1 || '__none__'}
-                onValueChange={(val) => onBlocker1Change?.(val === '__none__' ? null : val)}
-              >
-                <SelectTrigger className={cn(
-                  "border-2",
-                  side === 'CASA' ? 'border-home/50' : 'border-away/50'
-                )}>
-                  <SelectValue placeholder="Bloq 1" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nenhum</SelectItem>
-                  {players.map((p) => {
-                    const zone = getZoneLabel?.(p.id, side) || '';
-                    return (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className={cn(
-                          "inline-flex items-center gap-1",
-                          side === 'CASA' ? 'text-home' : 'text-away'
-                        )}>
-                          {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
-                          <PositionBadge position={p.position} className="mr-1" />
-                          #{p.jersey_number}
-                          {p.name && <span className="text-xs opacity-70 ml-1">({p.name})</span>}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <Select
-                value={selectedBlocker2 || '__none__'}
-                onValueChange={(val) => onBlocker2Change?.(val === '__none__' ? null : val)}
-              >
-                <SelectTrigger className={cn(
-                  "border-2",
-                  side === 'CASA' ? 'border-home/50' : 'border-away/50'
-                )}>
-                  <SelectValue placeholder="Bloq 2" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nenhum</SelectItem>
-                  {players.map((p) => {
-                    const zone = getZoneLabel?.(p.id, side) || '';
-                    return (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className={cn(
-                          "inline-flex items-center gap-1",
-                          side === 'CASA' ? 'text-home' : 'text-away'
-                        )}>
-                          {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
-                          <PositionBadge position={p.position} className="mr-1" />
-                          #{p.jersey_number}
-                          {p.name && <span className="text-xs opacity-70 ml-1">({p.name})</span>}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <Select
-                value={selectedBlocker3 || '__none__'}
-                onValueChange={(val) => onBlocker3Change?.(val === '__none__' ? null : val)}
-              >
-                <SelectTrigger className={cn(
-                  "border-2",
-                  side === 'CASA' ? 'border-home/50' : 'border-away/50'
-                )}>
-                  <SelectValue placeholder="Bloq 3" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nenhum</SelectItem>
-                  {players.map((p) => {
-                    const zone = getZoneLabel?.(p.id, side) || '';
-                    return (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className={cn(
-                          "inline-flex items-center gap-1",
-                          side === 'CASA' ? 'text-home' : 'text-away'
-                        )}>
-                          {zone && <span className="text-xs font-medium bg-muted px-1 rounded mr-1">{zone}</span>}
-                          <PositionBadge position={p.position} className="mr-1" />
-                          #{p.jersey_number}
-                          {p.name && <span className="text-xs opacity-70 ml-1">({p.name})</span>}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+            {/* Block - 3 compact player grids for blockers */}
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Bloqueadores (até 3)</div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground text-center">Bloq 1</div>
+                  <PlayerGrid
+                    players={players}
+                    selectedPlayer={selectedBlocker1}
+                    onSelect={(id) => onBlocker1Change?.(id)}
+                    onDeselect={() => onBlocker1Change?.(null)}
+                    side={side}
+                    getZoneLabel={getZoneLabel}
+                    columns={3}
+                    size="sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground text-center">Bloq 2</div>
+                  <PlayerGrid
+                    players={players}
+                    selectedPlayer={selectedBlocker2}
+                    onSelect={(id) => onBlocker2Change?.(id)}
+                    onDeselect={() => onBlocker2Change?.(null)}
+                    side={side}
+                    getZoneLabel={getZoneLabel}
+                    columns={3}
+                    size="sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground text-center">Bloq 3</div>
+                  <PlayerGrid
+                    players={players}
+                    selectedPlayer={selectedBlocker3}
+                    onSelect={(id) => onBlocker3Change?.(id)}
+                    onDeselect={() => onBlocker3Change?.(null)}
+                    side={side}
+                    getZoneLabel={getZoneLabel}
+                    columns={3}
+                    size="sm"
+                  />
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-4 gap-2">
               {CODES.map((code) => (
