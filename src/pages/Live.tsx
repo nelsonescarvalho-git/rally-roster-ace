@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
@@ -23,6 +23,7 @@ import { PointFinisher } from '@/components/live/PointFinisher';
 import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
 import { PositionBadge } from '@/components/live/PositionBadge';
 import { PlayerGrid } from '@/components/live/PlayerGrid';
+import { QuickAttackBar } from '@/components/live/QuickAttackBar';
 import { 
   Side, 
   Reason, 
@@ -90,11 +91,40 @@ export default function Live() {
   // Combo D+A mode state
   const [comboMode, setComboMode] = useState<{ active: boolean; side: Side | null }>({ active: false, side: null });
   
+  // UI Mode: compact (new fast UI) vs classic (old dropdown UI)
+  const [useCompactUI, setUseCompactUI] = useState(true);
+  
+  // Last attacker for ultra-rapid mode
+  const [lastAttacker, setLastAttacker] = useState<{
+    playerId: string;
+    playerNumber: number;
+    playerName: string;
+    side: Side;
+  } | null>(null);
+  
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
   const [receptionCompleted, setReceptionCompleted] = useState(false);
   const [serveData, setServeData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
   const [receptionData, setReceptionData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
+  
+  // Load UI preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('live-compact-ui');
+    if (saved !== null) setUseCompactUI(saved === 'true');
+  }, []);
+
+  // Save UI preference when it changes
+  useEffect(() => {
+    localStorage.setItem('live-compact-ui', String(useCompactUI));
+  }, [useCompactUI]);
+  
+  // Cancel combo mode if switching to classic UI
+  useEffect(() => {
+    if (!useCompactUI && comboMode.active) {
+      setComboMode({ active: false, side: null });
+    }
+  }, [useCompactUI, comboMode.active]);
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -143,7 +173,13 @@ export default function Live() {
     setReceptionCompleted(false);
     setServeData({ playerId: serverPlayer?.id || null, code: null });
     setReceptionData({ playerId: null, code: null });
+    // Don't reset lastAttacker - keep it for quick attacks across rallies
   }, [serverPlayer?.id]);
+  
+  // Reset lastAttacker when set changes
+  useEffect(() => {
+    setLastAttacker(null);
+  }, [currentSet]);
 
   // Compute players currently on court for each side
   const servePlayers = gameState 
@@ -461,6 +497,16 @@ export default function Live() {
       attackPassQuality: pendingAction.attackPassQuality,
     };
     
+    // Save last attacker for ultra-rapid mode
+    if (pendingAction.type === 'attack' && pendingAction.playerId && player) {
+      setLastAttacker({
+        playerId: pendingAction.playerId,
+        playerNumber: player.jersey_number,
+        playerName: player.name,
+        side: pendingAction.side,
+      });
+    }
+    
     // If editing an existing action, update it in place
     if (editingActionIndex !== null) {
       setRegisteredActions(prev => {
@@ -475,6 +521,40 @@ export default function Live() {
     
     setRegisteredActions(prev => [...prev, newAction]);
     setPendingAction(null);
+  };
+
+  // Quick attack using last attacker (ultra-rapid mode)
+  const handleQuickAttack = (code: number) => {
+    if (!lastAttacker || !gameState) return;
+    
+    const effectivePlayers = getEffectivePlayers();
+    const player = effectivePlayers.find(p => p.id === lastAttacker.playerId);
+    if (!player) return;
+
+    const attackAction: RallyAction = {
+      type: 'attack',
+      side: lastAttacker.side,
+      phase: 1,
+      playerId: lastAttacker.playerId,
+      playerNo: player.jersey_number,
+      code: code,
+      killType: code === 3 ? 'FLOOR' : null, // Default to FLOOR for kill
+    };
+
+    setRegisteredActions(prev => [...prev, attackAction]);
+    
+    // Feedback visual using the app's toast hook
+    const codeLabel = code === 3 ? '★' : code === 2 ? '+' : code === 1 ? '−' : '✕';
+    toast({
+      title: `Ataque #${player.jersey_number}: ${codeLabel}`,
+      duration: 1500,
+    });
+  };
+
+  // Change player for quick attack (revert to normal attack selection)
+  const handleChangeQuickPlayer = () => {
+    if (!lastAttacker) return;
+    handleSelectAction('attack', lastAttacker.side);
   };
 
   // Cancel pending action
@@ -973,6 +1053,21 @@ export default function Live() {
             );
           })}
         </div>
+        
+        {/* UI Mode Toggle */}
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">
+            <Zap className={cn("h-4 w-4 transition-colors", useCompactUI ? "text-warning" : "text-muted-foreground")} />
+            <Switch
+              checked={useCompactUI}
+              onCheckedChange={setUseCompactUI}
+              className="h-5 w-9"
+            />
+            <span className="text-xs text-muted-foreground min-w-[52px]">
+              {useCompactUI ? 'Rápida' : 'Clássica'}
+            </span>
+          </div>
+        </div>
 
         {/* Match Sets Score */}
         {(() => {
@@ -1273,22 +1368,44 @@ export default function Live() {
             </Card>
           )}
 
-          {/* MODULAR PHASE - Compact Action Selector */}
-          {isModularPhase && !pendingAction && !comboMode.active && (
-            <CompactActionSelector
-              actions={registeredActions}
-              serveSide={gameState.serveSide}
-              recvSide={gameState.recvSide}
-              homeName={match.home_name}
-              awayName={match.away_name}
-              onSelectAction={handleSelectAction}
-              onSelectCombo={handleSelectCombo}
-              showReceptionOption={isReceptionIncomplete}
+          {/* QUICK ATTACK BAR - Ultra-Rapid Mode (only in compact UI) */}
+          {isModularPhase && !pendingAction && !comboMode.active && useCompactUI && lastAttacker && (
+            <QuickAttackBar
+              lastAttacker={lastAttacker}
+              onQuickAttack={handleQuickAttack}
+              onChangePlayer={handleChangeQuickPlayer}
+              teamColor={lastAttacker.side === 'CASA' ? 'home' : 'away'}
             />
           )}
 
-          {/* COMBO D+A Mode */}
-          {isModularPhase && comboMode.active && comboMode.side && (
+          {/* MODULAR PHASE - Action Selector (Compact or Classic based on useCompactUI) */}
+          {isModularPhase && !pendingAction && !comboMode.active && (
+            useCompactUI ? (
+              <CompactActionSelector
+                actions={registeredActions}
+                serveSide={gameState.serveSide}
+                recvSide={gameState.recvSide}
+                homeName={match.home_name}
+                awayName={match.away_name}
+                onSelectAction={handleSelectAction}
+                onSelectCombo={handleSelectCombo}
+                showReceptionOption={isReceptionIncomplete}
+              />
+            ) : (
+              <ActionSelector
+                actions={registeredActions}
+                serveSide={gameState.serveSide}
+                recvSide={gameState.recvSide}
+                homeName={match.home_name}
+                awayName={match.away_name}
+                onSelectAction={handleSelectAction}
+                showReceptionOption={isReceptionIncomplete}
+              />
+            )
+          )}
+
+          {/* COMBO D+A Mode (only in compact UI) */}
+          {isModularPhase && comboMode.active && comboMode.side && useCompactUI && (
             <ComboSetterAttack
               players={getPlayersForAction('attack', comboMode.side)}
               side={comboMode.side}
