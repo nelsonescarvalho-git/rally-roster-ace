@@ -40,6 +40,8 @@ interface ActionEditorProps {
   selectedBlocker1?: string | null;
   selectedBlocker2?: string | null;
   selectedBlocker3?: string | null;
+  // Block result when a_code=1
+  selectedBlockCode?: number | null;
   // Context for setter (reception quality for destination filtering)
   receptionCode?: number | null;
   // Attack pass quality (distribution quality for attack)
@@ -58,6 +60,7 @@ interface ActionEditorProps {
   onBlocker1Change?: (id: string | null) => void;
   onBlocker2Change?: (id: string | null) => void;
   onBlocker3Change?: (id: string | null) => void;
+  onBlockCodeChange?: (code: number | null) => void;
   onAttackPassQualityChange?: (quality: number | null) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -96,6 +99,7 @@ export function ActionEditor({
   selectedBlocker1,
   selectedBlocker2,
   selectedBlocker3,
+  selectedBlockCode,
   receptionCode,
   attackPassQuality,
   getZoneLabel,
@@ -109,6 +113,7 @@ export function ActionEditor({
   onBlocker1Change,
   onBlocker2Change,
   onBlocker3Change,
+  onBlockCodeChange,
   onAttackPassQualityChange,
   onConfirm,
   onCancel,
@@ -130,14 +135,16 @@ export function ActionEditor({
     ? POSITIONS_BY_RECEPTION[receptionCode] || DESTINATIONS
     : DESTINATIONS;
 
-  // Calculate total steps based on action type
+  // Calculate total steps based on action type and selected code
   const totalSteps = useMemo(() => {
     switch (actionType) {
       case 'serve': return 1;
       case 'reception': return 1;
       case 'defense': return 1;
       case 'setter': return 2; // Setter + Quality → Destination
-      case 'attack': return 2; // Pass Quality → Attack Rating
+      case 'attack': 
+        // Step 3 for a_code=1 (block result) or a_code=3 (kill type)
+        return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
       case 'block': return 2; // Blockers → Quality
       default: return 1;
     }
@@ -199,8 +206,14 @@ export function ActionEditor({
       return;
     }
     
-    // Auto-confirm for Attack only if code ≠ 3 (code 3 needs Kill Type)
-    if (actionType === 'attack' && code !== 3) {
+    // Attack: code 1 or 3 needs Step 3, code 0 or 2 auto-confirms
+    if (actionType === 'attack') {
+      if (code === 1 || code === 3) {
+        // Go to Step 3 for block result (code 1) or kill type (code 3)
+        setCurrentStep(3);
+        return;
+      }
+      // code 0 (error) or 2 (defended) - auto-confirm
       const player = players.find(p => p.id === selectedPlayer);
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -210,6 +223,23 @@ export function ActionEditor({
       });
     }
   }, [actionType, selectedCode, selectedPlayer, players, onCodeChange, onConfirm, showConfirmToast]);
+
+  // Handler for block result when a_code=1
+  const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
+    onBlockCodeChange?.(bCode);
+    const player = players.find(p => p.id === selectedPlayer);
+    const bCodeLabels = ['Falta', 'Ofensivo', 'Defensivo', 'Ponto'];
+    
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        toast.success(
+          `#${player?.jersey_number || '?'} · Ataque → Bloco ${bCodeLabels[bCode]}`,
+          { duration: 2500 }
+        );
+        onConfirm();
+      }, 0);
+    });
+  }, [onBlockCodeChange, onConfirm, selectedPlayer, players]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
@@ -413,52 +443,109 @@ export function ActionEditor({
                   />
                 </div>
               </>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground text-center">
-                    Avaliação do Ataque
-                  </div>
-                  <QualityPad
-                    selectedCode={selectedCode ?? null}
-                    onSelect={handleCodeWithAutoConfirm}
-                    labels={{ 3: 'Kill' }}
-                  />
+            ) : currentStep === 2 ? (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Avaliação do Ataque
                 </div>
-                
-                {/* Kill Type Selection when code = 3 */}
+                <QualityPad
+                  selectedCode={selectedCode ?? null}
+                  onSelect={handleCodeWithAutoConfirm}
+                  labels={{ 1: 'Bloco', 3: 'Kill' }}
+                />
+              </div>
+            ) : (
+              // Step 3: Kill Type (code=3) or Block Result (code=1)
+              <div className="space-y-4">
                 {selectedCode === 3 && (
-                  <div className={cn(
-                    'flex items-center justify-between p-3 border-2 rounded-xl',
-                    selectedKillType === null 
-                      ? 'bg-success/10 border-success animate-pulse' 
-                      : 'bg-success/5 border-success/30'
-                  )}>
-                    <span className="text-sm font-medium">
+                  <div className="space-y-3">
+                    <div className="text-xs font-medium text-muted-foreground text-center">
                       Tipo de Kill <span className="text-destructive">*</span>
-                    </span>
-                    <div className="flex gap-2">
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <Button
                         variant={selectedKillType === 'FLOOR' ? 'default' : 'outline'}
-                        size="sm"
                         className={cn(
-                          'min-w-[80px]',
+                          'h-16 flex flex-col gap-1',
                           selectedKillType === 'FLOOR' && 'bg-success hover:bg-success/90'
                         )}
                         onClick={() => handleKillTypeWithAutoConfirm('FLOOR')}
                       >
-                        🏐 Chão
+                        <span className="text-2xl">🏐</span>
+                        <span className="text-sm">Chão</span>
                       </Button>
                       <Button
                         variant={selectedKillType === 'BLOCKOUT' ? 'default' : 'outline'}
-                        size="sm"
                         className={cn(
-                          'min-w-[80px]',
+                          'h-16 flex flex-col gap-1',
                           selectedKillType === 'BLOCKOUT' && 'bg-success hover:bg-success/90'
                         )}
                         onClick={() => handleKillTypeWithAutoConfirm('BLOCKOUT')}
                       >
-                        🚫 Block-out
+                        <span className="text-2xl">🚫</span>
+                        <span className="text-sm">Block-out</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedCode === 1 && (
+                  <div className="space-y-3">
+                    <div className="text-xs font-medium text-muted-foreground text-center">
+                      Resultado do Bloco <span className="text-destructive">*</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant={selectedBlockCode === 0 ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1',
+                          'bg-success/10 border-success/30 hover:bg-success/20',
+                          selectedBlockCode === 0 && 'bg-success hover:bg-success/90 text-success-foreground'
+                        )}
+                        onClick={() => handleBlockCodeWithAutoConfirm(0)}
+                      >
+                        <span className="text-xl">🎯</span>
+                        <span className="text-xs font-medium">Falta Bloco</span>
+                        <span className="text-[10px] text-muted-foreground">Ponto atacante</span>
+                      </Button>
+                      <Button
+                        variant={selectedBlockCode === 1 ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1',
+                          'bg-primary/10 border-primary/30 hover:bg-primary/20',
+                          selectedBlockCode === 1 && 'bg-primary hover:bg-primary/90'
+                        )}
+                        onClick={() => handleBlockCodeWithAutoConfirm(1)}
+                      >
+                        <span className="text-xl">⚔️</span>
+                        <span className="text-xs font-medium">Bloco Ofensivo</span>
+                        <span className="text-[10px] text-muted-foreground">Bola campo adversário</span>
+                      </Button>
+                      <Button
+                        variant={selectedBlockCode === 2 ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1',
+                          'bg-warning/10 border-warning/30 hover:bg-warning/20',
+                          selectedBlockCode === 2 && 'bg-warning hover:bg-warning/90'
+                        )}
+                        onClick={() => handleBlockCodeWithAutoConfirm(2)}
+                      >
+                        <span className="text-xl">🛡️</span>
+                        <span className="text-xs font-medium">Bloco Defensivo</span>
+                        <span className="text-[10px] text-muted-foreground">Bola no nosso campo</span>
+                      </Button>
+                      <Button
+                        variant={selectedBlockCode === 3 ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1',
+                          'bg-destructive/10 border-destructive/30 hover:bg-destructive/20',
+                          selectedBlockCode === 3 && 'bg-destructive hover:bg-destructive/90'
+                        )}
+                        onClick={() => handleBlockCodeWithAutoConfirm(3)}
+                      >
+                        <span className="text-xl">🧱</span>
+                        <span className="text-xs font-medium">Bloco Ponto</span>
+                        <span className="text-[10px] text-muted-foreground">Stuff block</span>
                       </Button>
                     </div>
                   </div>
