@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import Dashboard from "./pages/Dashboard";
 import Games from "./pages/Games";
 import Teams from "./pages/Teams";
@@ -18,27 +19,29 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/jogos" element={<Games />} />
-          <Route path="/equipas" element={<Teams />} />
-          <Route path="/equipas/:teamId" element={<TeamDetail />} />
-          <Route path="/kpis" element={<KPIs />} />
-          <Route path="/definicoes" element={<Settings />} />
-          <Route path="/setup/:matchId" element={<Setup />} />
-          <Route path="/live/:matchId" element={<Live />} />
-          <Route path="/stats/:matchId" element={<Stats />} />
-          <Route path="/history/:matchId" element={<RallyHistory />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="volleystats-theme">
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/jogos" element={<Games />} />
+            <Route path="/equipas" element={<Teams />} />
+            <Route path="/equipas/:teamId" element={<TeamDetail />} />
+            <Route path="/kpis" element={<KPIs />} />
+            <Route path="/definicoes" element={<Settings />} />
+            <Route path="/setup/:matchId" element={<Setup />} />
+            <Route path="/live/:matchId" element={<Live />} />
+            <Route path="/stats/:matchId" element={<Stats />} />
+            <Route path="/history/:matchId" element={<RallyHistory />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
