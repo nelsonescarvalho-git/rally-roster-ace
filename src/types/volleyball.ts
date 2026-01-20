@@ -25,6 +25,8 @@ export interface RallyAction {
   b3PlayerId?: string | null;
   // Attack pass quality
   attackPassQuality?: number | null;
+  // Block result when a_code=1 (touched block)
+  blockCode?: number | null;
 }
 
 // Persistent team (reusable across matches)

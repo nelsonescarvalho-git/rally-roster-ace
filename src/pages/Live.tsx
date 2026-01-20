@@ -67,6 +67,8 @@ interface PendingAction {
   b2PlayerId: string | null;
   b3PlayerId: string | null;
   attackPassQuality: number | null;
+  // Block result when a_code=1
+  blockCode: number | null;
 }
 
 export default function Live() {
@@ -354,6 +356,19 @@ export default function Live() {
           const oppSide: Side = action.side === 'CASA' ? 'FORA' : 'CASA';
           return { winner: oppSide, reason: 'AE' };
         }
+        // a_code=1 (touched block) - check blockCode for outcome
+        if (action.code === 1 && action.blockCode !== null && action.blockCode !== undefined) {
+          const blockSide: Side = action.side === 'CASA' ? 'FORA' : 'CASA';
+          if (action.blockCode === 3) {
+            // Stuff block - point for blocker
+            return { winner: blockSide, reason: 'BLK' };
+          }
+          if (action.blockCode === 0) {
+            // Block fault - point for attacker
+            return { winner: action.side, reason: 'OP' };
+          }
+          // blockCode 1 or 2 - rally continues (no outcome yet)
+        }
       }
       if (action.type === 'block') {
         if (action.code === 3) {
@@ -509,6 +524,7 @@ export default function Live() {
       b2PlayerId: null,
       b3PlayerId: null,
       attackPassQuality: null,
+      blockCode: null,
     });
   };
 
@@ -538,6 +554,63 @@ export default function Live() {
     
     const effectivePlayers = getEffectivePlayers();
     const player = effectivePlayers.find(p => p.id === pendingAction.playerId);
+    
+    // Special handling for attack with a_code=1 (touched block) - create both attack and block actions
+    if (pendingAction.type === 'attack' && pendingAction.code === 1 && pendingAction.blockCode !== null) {
+      const blockSide: Side = pendingAction.side === 'CASA' ? 'FORA' : 'CASA';
+      
+      const attackAction: RallyAction = {
+        type: 'attack',
+        side: pendingAction.side,
+        phase: 1,
+        playerId: pendingAction.playerId,
+        playerNo: player?.jersey_number || null,
+        code: 1, // Touched block
+        attackPassQuality: pendingAction.attackPassQuality,
+        blockCode: pendingAction.blockCode,
+      };
+      
+      const blockAction: RallyAction = {
+        type: 'block',
+        side: blockSide,
+        phase: 1,
+        playerId: null, // Blocker not identified in quick flow
+        code: pendingAction.blockCode,
+      };
+      
+      // Save last attacker for ultra-rapid mode
+      if (pendingAction.playerId && player) {
+        setLastAttacker({
+          playerId: pendingAction.playerId,
+          playerNumber: player.jersey_number,
+          playerName: player.name,
+          side: pendingAction.side,
+        });
+      }
+      
+      if (editingActionIndex !== null) {
+        // When editing, replace attack and update/add block
+        setRegisteredActions(prev => {
+          const updated = [...prev];
+          updated[editingActionIndex] = attackAction;
+          // Find existing block or add new one
+          const blockIdx = prev.findIndex(a => a.type === 'block');
+          if (blockIdx >= 0) {
+            updated[blockIdx] = blockAction;
+          } else {
+            updated.push(blockAction);
+          }
+          return updated;
+        });
+        setEditingActionIndex(null);
+        setPendingAction(null);
+        return;
+      }
+      
+      setRegisteredActions(prev => [...prev, attackAction, blockAction]);
+      setPendingAction(null);
+      return;
+    }
     
     const newAction: RallyAction = {
       type: pendingAction.type,
@@ -640,6 +713,7 @@ export default function Live() {
       b2PlayerId: action.b2PlayerId || null,
       b3PlayerId: action.b3PlayerId || null,
       attackPassQuality: action.attackPassQuality ?? null,
+      blockCode: action.blockCode ?? null,
     });
     setEditingActionIndex(index);
   };
@@ -694,6 +768,7 @@ export default function Live() {
       b2PlayerId: prevAction.b2PlayerId || null,
       b3PlayerId: prevAction.b3PlayerId || null,
       attackPassQuality: prevAction.attackPassQuality ?? null,
+      blockCode: prevAction.blockCode ?? null,
     });
   };
 
@@ -747,6 +822,7 @@ export default function Live() {
       b2PlayerId: nextAction.b2PlayerId || null,
       b3PlayerId: nextAction.b3PlayerId || null,
       attackPassQuality: nextAction.attackPassQuality ?? null,
+      blockCode: nextAction.blockCode ?? null,
     });
   };
 
@@ -1501,6 +1577,7 @@ export default function Live() {
               selectedBlocker1={pendingAction.b1PlayerId}
               selectedBlocker2={pendingAction.b2PlayerId}
               selectedBlocker3={pendingAction.b3PlayerId}
+              selectedBlockCode={pendingAction.blockCode}
               receptionCode={getEffectiveReceptionCode()}
               attackPassQuality={pendingAction.attackPassQuality}
               getZoneLabel={getZoneLabel}
@@ -1513,6 +1590,7 @@ export default function Live() {
               onBlocker1Change={(id) => setPendingAction(prev => prev ? { ...prev, b1PlayerId: id } : null)}
               onBlocker2Change={(id) => setPendingAction(prev => prev ? { ...prev, b2PlayerId: id } : null)}
               onBlocker3Change={(id) => setPendingAction(prev => prev ? { ...prev, b3PlayerId: id } : null)}
+              onBlockCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, blockCode: code } : null)}
               onAttackPassQualityChange={(quality) => setPendingAction(prev => prev ? { ...prev, attackPassQuality: quality } : null)}
               onConfirm={handleConfirmAction}
               onCancel={handleCancelAction}
