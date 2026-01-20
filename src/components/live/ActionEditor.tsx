@@ -515,7 +515,7 @@ export function ActionEditor({
                       >
                         <span className="text-lg">🎯</span>
                         <span className="text-xs font-medium">Falta</span>
-                        <span className="text-[10px] text-muted-foreground leading-tight">Ponto Adversário</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight">Ponto Atacante</span>
                       </Button>
                       <Button
                         variant={selectedBlockCode === 1 ? 'default' : 'outline'}
