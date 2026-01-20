@@ -149,9 +149,12 @@ export function ActionEditor({
     }
     
     onDestinationChange?.(dest);
-    // Auto-confirm on destination selection for setter/distribution
-    setTimeout(() => onConfirm(), 50);
-  }, [selectedDestination, onDestinationChange, onConfirm]);
+    
+    // Só auto-confirma se o setter estiver selecionado
+    if (selectedSetter) {
+      setTimeout(() => onConfirm(), 50);
+    }
+  }, [selectedDestination, selectedSetter, onDestinationChange, onConfirm]);
 
   const renderContent = () => {
     switch (actionType) {

@@ -64,7 +64,16 @@ function RallyGroup({
 }: RallyGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const sortedPhases = [...phases].sort((a, b) => a.phase - b.phase);
-  const hasIssue = phases.some(p => p.reason === 'KILL' && !p.a_player_id);
+  // Expanded issue detection
+  const hasIssue = phases.some(p => 
+    // Ataque sem atacante (quando há kill ou código de ataque)
+    (p.reason === 'KILL' && !p.a_player_id) ||
+    (p.a_code !== null && !p.a_player_id) ||
+    // Passe sem distribuidor (quando há destino)
+    (p.pass_destination && !p.setter_player_id) ||
+    // Receção sem recetor (quando há código)
+    (p.r_code !== null && !p.r_player_id)
+  );
   
   const getPlayer = (id: string | null) => players.find(p => p.id === id);
   
@@ -234,6 +243,21 @@ function RallyGroup({
                   {phase.reason === 'KILL' && !phase.a_player_id && (
                     <Badge variant="destructive" className="text-[10px]">
                       Atacante em falta
+                    </Badge>
+                  )}
+                  {phase.a_code !== null && !phase.a_player_id && phase.reason !== 'KILL' && (
+                    <Badge variant="destructive" className="text-[10px]">
+                      Atacante em falta
+                    </Badge>
+                  )}
+                  {phase.pass_destination && !phase.setter_player_id && (
+                    <Badge variant="outline" className="text-[10px] border-warning text-warning">
+                      Distribuidor em falta
+                    </Badge>
+                  )}
+                  {phase.r_code !== null && !phase.r_player_id && (
+                    <Badge variant="outline" className="text-[10px] border-muted-foreground">
+                      Recetor em falta
                     </Badge>
                   )}
                 </div>
@@ -489,7 +513,12 @@ export default function RallyHistory() {
     const rallyNo = phases[0].rally_no;
     
     if (showOnlyIssues) {
-      const hasIssue = phases.some(p => p.reason === 'KILL' && !p.a_player_id);
+      const hasIssue = phases.some(p => 
+        (p.reason === 'KILL' && !p.a_player_id) ||
+        (p.a_code !== null && !p.a_player_id) ||
+        (p.pass_destination && !p.setter_player_id) ||
+        (p.r_code !== null && !p.r_player_id)
+      );
       if (!hasIssue) return;
     }
     
@@ -505,7 +534,12 @@ export default function RallyHistory() {
   });
 
   const issueCount = Array.from(rallyGroups.values()).filter(phases => 
-    phases.some(p => p.reason === 'KILL' && !p.a_player_id)
+    phases.some(p => 
+      (p.reason === 'KILL' && !p.a_player_id) ||
+      (p.a_code !== null && !p.a_player_id) ||
+      (p.pass_destination && !p.setter_player_id) ||
+      (p.r_code !== null && !p.r_player_id)
+    )
   ).length;
 
   return (
