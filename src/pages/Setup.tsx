@@ -180,6 +180,16 @@ export default function Setup() {
       return;
     }
     await importTeamPlayers(selectedTeamId, activeSide, selectedPlayers);
+    setSelectedPlayerIds(new Set());
+  };
+
+  const handleImportAllPlayers = async () => {
+    if (!selectedTeamId || teamPlayers.length === 0) {
+      toast({ title: 'Aviso', description: 'Não há jogadores no plantel', variant: 'destructive' });
+      return;
+    }
+    await importTeamPlayers(selectedTeamId, activeSide, teamPlayers);
+    setSelectedPlayerIds(new Set());
   };
 
   const handleRemoveMatchPlayer = async (playerId: string) => {
@@ -348,20 +358,32 @@ export default function Setup() {
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm">Plantel da Equipa</CardTitle>
-                      <Button
-                        size="sm"
-                        onClick={handleImportSelectedPlayers}
-                        disabled={selectedPlayerIds.size === 0}
-                        className="gap-1"
-                      >
-                        <Download className="h-4 w-4" />
-                        Importar ({selectedPlayerIds.size})
-                      </Button>
-                    </div>
-                  </CardHeader>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Plantel da Equipa</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleImportAllPlayers}
+                      disabled={teamPlayers.length === 0}
+                      className="gap-1"
+                    >
+                      <Download className="h-4 w-4" />
+                      Todos
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleImportSelectedPlayers}
+                      disabled={selectedPlayerIds.size === 0}
+                      className="gap-1"
+                    >
+                      <Download className="h-4 w-4" />
+                      Importar ({selectedPlayerIds.size})
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
                   <CardContent>
                     {teamPlayers.length === 0 ? (
                       <p className="text-center text-sm text-muted-foreground py-4">
