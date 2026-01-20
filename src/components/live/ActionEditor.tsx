@@ -1,30 +1,32 @@
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ColoredRatingButton } from './ColoredRatingButton';
-import { WizardSectionCard } from './WizardSectionCard';
-import { PositionBadge } from './PositionBadge';
-import { PlayerGrid } from './PlayerGrid';
-import { ChevronLeft, ChevronRight, Check, AlertCircle } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { ActionPad } from './ActionPad';
+import { QualityPad } from './QualityPad';
+import { PlayerStrip } from './PlayerStrip';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { toast } from 'sonner';
 import {
   RallyActionType, 
   Side, 
-  Player, 
   PassDestination, 
   KillType,
   POSITIONS_BY_RECEPTION,
-  RallyAction
+  MatchPlayer,
+  Player
 } from '@/types/volleyball';
 
+// Accept both Player and MatchPlayer types
+type PlayerLike = (Player | MatchPlayer) & { id: string; jersey_number: number; position?: string | null };
+
 const CODES = [0, 1, 2, 3];
-const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK', 'OUTROS'];
+const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK'];
 
 interface ActionEditorProps {
   actionType: RallyActionType;
   side: Side;
-  players: Player[];
+  players: PlayerLike[];
   homeName: string;
   awayName: string;
   // Current values
@@ -44,6 +46,8 @@ interface ActionEditorProps {
   attackPassQuality?: number | null;
   // Zone getter for player zones
   getZoneLabel?: (playerId: string, side: Side) => string;
+  // Last used player for quick re-selection
+  lastUsedPlayerId?: string;
   // Callbacks
   onPlayerChange: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
@@ -57,6 +61,7 @@ interface ActionEditorProps {
   onAttackPassQualityChange?: (quality: number | null) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  onUndo?: () => void;
   // Navigation between actions
   currentActionIndex?: number;
   totalActions?: number;
@@ -64,6 +69,17 @@ interface ActionEditorProps {
   onNavigateNext?: () => void;
   isEditingExisting?: boolean;
 }
+
+// Helper to get quality label
+const getQualityLabel = (code: number) => {
+  switch (code) {
+    case 0: return 'Erro';
+    case 1: return 'Fraca';
+    case 2: return 'Boa';
+    case 3: return 'Excelente';
+    default: return '';
+  }
+};
 
 export function ActionEditor({
   actionType,
@@ -83,6 +99,7 @@ export function ActionEditor({
   receptionCode,
   attackPassQuality,
   getZoneLabel,
+  lastUsedPlayerId,
   onPlayerChange,
   onCodeChange,
   onKillTypeChange,
@@ -95,6 +112,7 @@ export function ActionEditor({
   onAttackPassQualityChange,
   onConfirm,
   onCancel,
+  onUndo,
   currentActionIndex,
   totalActions,
   onNavigatePrev,
@@ -104,12 +122,51 @@ export function ActionEditor({
   const teamName = side === 'CASA' ? homeName : awayName;
   const teamSide = side === 'CASA' ? 'home' : 'away';
 
+  // Step tracking for multi-step actions
+  const [currentStep, setCurrentStep] = useState(1);
+
   // Get available positions based on reception quality
   const availablePositions = receptionCode !== null && receptionCode !== undefined
     ? POSITIONS_BY_RECEPTION[receptionCode] || DESTINATIONS
     : DESTINATIONS;
 
-  // Auto-confirm handlers
+  // Calculate total steps based on action type
+  const totalSteps = useMemo(() => {
+    switch (actionType) {
+      case 'serve': return 1;
+      case 'reception': return 1;
+      case 'defense': return 1;
+      case 'setter': return 2; // Setter + Quality → Destination
+      case 'attack': return 2; // Pass Quality → Attack Rating
+      case 'block': return 2; // Blockers → Quality
+      default: return 1;
+    }
+  }, [actionType]);
+
+  // Show confirmation toast
+  const showConfirmToast = useCallback((playerNumber: number | undefined, quality: number) => {
+    const actionLabels: Record<RallyActionType, string> = {
+      serve: 'Serviço',
+      reception: 'Receção',
+      defense: 'Defesa',
+      setter: 'Distribuição',
+      attack: 'Ataque',
+      block: 'Bloco',
+    };
+    
+    toast.success(
+      `#${playerNumber || '?'} · ${actionLabels[actionType]} · ${getQualityLabel(quality)}`,
+      {
+        duration: 2500,
+        action: onUndo ? {
+          label: 'Desfazer',
+          onClick: onUndo,
+        } : undefined,
+      }
+    );
+  }, [actionType, onUndo]);
+
+  // Auto-confirm handlers with toast
   const handleCodeWithAutoConfirm = useCallback((code: number) => {
     if (selectedCode === code) {
       onCodeChange(null);
@@ -120,27 +177,72 @@ export function ActionEditor({
     
     // Auto-confirm for Block and Defense (no additional input needed)
     if (actionType === 'block' || actionType === 'defense') {
-      // Use requestAnimationFrame to ensure state update is processed before confirming
+      const player = players.find(p => p.id === selectedPlayer);
       requestAnimationFrame(() => {
-        setTimeout(() => onConfirm(), 0);
+        setTimeout(() => {
+          showConfirmToast(player?.jersey_number, code);
+          onConfirm();
+        }, 0);
+      });
+      return;
+    }
+    
+    // Auto-confirm for Serve/Reception
+    if (actionType === 'serve' || actionType === 'reception') {
+      const player = players.find(p => p.id === selectedPlayer);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          showConfirmToast(player?.jersey_number, code);
+          onConfirm();
+        }, 0);
       });
       return;
     }
     
     // Auto-confirm for Attack only if code ≠ 3 (code 3 needs Kill Type)
     if (actionType === 'attack' && code !== 3) {
-      // Use requestAnimationFrame to ensure state update is processed before confirming
+      const player = players.find(p => p.id === selectedPlayer);
       requestAnimationFrame(() => {
-        setTimeout(() => onConfirm(), 0);
+        setTimeout(() => {
+          showConfirmToast(player?.jersey_number, code);
+          onConfirm();
+        }, 0);
       });
     }
-  }, [actionType, selectedCode, onCodeChange, onConfirm]);
+  }, [actionType, selectedCode, selectedPlayer, players, onCodeChange, onConfirm, showConfirmToast]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
-    // Always auto-confirm after selecting Kill Type
-    setTimeout(() => onConfirm(), 50);
-  }, [onKillTypeChange, onConfirm]);
+    const player = players.find(p => p.id === selectedPlayer);
+    setTimeout(() => {
+      showConfirmToast(player?.jersey_number, 3);
+      onConfirm();
+    }, 50);
+  }, [onKillTypeChange, onConfirm, selectedPlayer, players, showConfirmToast]);
+
+  // Long press state for OUTROS
+  const [outrosPressed, setOutrosPressed] = useState(false);
+  const [outrosPressTimer, setOutrosPressTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const handleOutrosStart = useCallback(() => {
+    const timer = setTimeout(() => {
+      onDestinationChange?.('OUTROS');
+      if (selectedSetter) {
+        setTimeout(() => onConfirm(), 50);
+      }
+      setOutrosPressed(false);
+    }, 250);
+    setOutrosPressTimer(timer);
+    setOutrosPressed(true);
+  }, [selectedSetter, onDestinationChange, onConfirm]);
+
+  const handleOutrosEnd = useCallback(() => {
+    if (outrosPressTimer) {
+      clearTimeout(outrosPressTimer);
+      setOutrosPressTimer(null);
+    }
+    setOutrosPressed(false);
+  }, [outrosPressTimer]);
 
   const handleDestinationWithAutoConfirm = useCallback((dest: PassDestination) => {
     if (selectedDestination === dest) {
@@ -150,11 +252,48 @@ export function ActionEditor({
     
     onDestinationChange?.(dest);
     
-    // Só auto-confirma se o setter estiver selecionado
     if (selectedSetter) {
-      setTimeout(() => onConfirm(), 50);
+      const player = players.find(p => p.id === selectedSetter);
+      setTimeout(() => {
+        showConfirmToast(player?.jersey_number, selectedPassCode ?? 2);
+        onConfirm();
+      }, 50);
     }
-  }, [selectedDestination, selectedSetter, onDestinationChange, onConfirm]);
+  }, [selectedDestination, selectedSetter, selectedPassCode, players, onDestinationChange, onConfirm, showConfirmToast]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    enabled: true,
+    onQualitySelect: (code) => {
+      if (actionType === 'setter' && currentStep === 1) {
+        onPassCodeChange?.(code);
+        setCurrentStep(2);
+      } else if (actionType === 'attack' && currentStep === 1) {
+        onAttackPassQualityChange?.(code);
+        setCurrentStep(2);
+      } else {
+        handleCodeWithAutoConfirm(code);
+      }
+    },
+    onUndo: onUndo,
+    onCancel: onCancel,
+    onDestinationSelect: actionType === 'setter' && currentStep === 2 ? (dest) => {
+      handleDestinationWithAutoConfirm(dest as PassDestination);
+    } : undefined,
+  });
+
+  // Get zone label wrapper for PlayerStrip
+  const getZoneLabelWrapper = useCallback((playerId: string) => {
+    return getZoneLabel ? getZoneLabel(playerId, side) : '';
+  }, [getZoneLabel, side]);
+
+  // Get shortcut hints based on action type and step
+  const getShortcutHints = () => {
+    if (actionType === 'setter' && currentStep === 2) {
+      return '2/3/4 Posição • O OP • I PIPE • B BACK • U Undo';
+    }
+    return '0-3 Qualidade • U Undo • Esc Cancelar';
+  };
 
   const renderContent = () => {
     switch (actionType) {
@@ -162,169 +301,168 @@ export function ActionEditor({
       case 'reception':
       case 'defense':
         return (
-          <div className="space-y-3">
-            {/* Player Grid instead of dropdown */}
-            <PlayerGrid
+          <div className="space-y-4">
+            <PlayerStrip
               players={players}
-              selectedPlayer={selectedPlayer}
-              onSelect={(id) => onPlayerChange(id)}
-              onDeselect={() => onPlayerChange(null)}
-              side={side}
-              getZoneLabel={getZoneLabel}
-              columns={6}
-              size="sm"
+              selectedPlayerId={selectedPlayer || null}
+              onSelect={onPlayerChange}
+              teamSide={teamSide}
+              lastUsedPlayerId={lastUsedPlayerId}
+              showZones={!!getZoneLabel}
+              getZoneLabel={getZoneLabelWrapper}
             />
-            <div className="grid grid-cols-4 gap-2">
-              {CODES.map((code) => (
-                <ColoredRatingButton
-                  key={code}
-                  code={code}
-                  selected={selectedCode === code}
-                  onClick={() => handleCodeWithAutoConfirm(code)}
-                />
-              ))}
-            </div>
+            <QualityPad
+              selectedCode={selectedCode ?? null}
+              onSelect={handleCodeWithAutoConfirm}
+            />
           </div>
         );
 
       case 'setter':
         return (
-          <div className="space-y-3">
-            {/* Setter Grid instead of dropdown */}
-            <PlayerGrid
-              players={players}
-              selectedPlayer={selectedSetter}
-              onSelect={(id) => onSetterChange?.(id)}
-              onDeselect={() => onSetterChange?.(null)}
-              side={side}
-              getZoneLabel={getZoneLabel}
-              columns={6}
-              size="sm"
-            />
-            
-            {/* Two Column Layout: Pass Quality | Destination */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Column 1: Pass Quality */}
-              <div className="space-y-2">
+          <div className="space-y-4">
+            {currentStep === 1 ? (
+              <>
+                <PlayerStrip
+                  players={players}
+                  selectedPlayerId={selectedSetter || null}
+                  onSelect={(id) => onSetterChange?.(id)}
+                  teamSide={teamSide}
+                  showZones={!!getZoneLabel}
+                  getZoneLabel={getZoneLabelWrapper}
+                />
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground text-center">
+                    Qualidade do Passe
+                  </div>
+                  <QualityPad
+                    selectedCode={selectedPassCode ?? null}
+                    onSelect={(code) => {
+                      onPassCodeChange?.(code);
+                      setCurrentStep(2);
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
                 <div className="text-xs font-medium text-muted-foreground text-center">
-                  Qualidade do Passe
+                  Destino do Passe
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {CODES.map((code) => (
-                    <ColoredRatingButton
-                      key={code}
-                      code={code}
-                      selected={selectedPassCode === code}
-                      onClick={() => onPassCodeChange?.(selectedPassCode === code ? null : code)}
-                      size="md"
-                    />
-                  ))}
-                </div>
-              </div>
-              
-              {/* Column 2: Destination */}
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground text-center">
-                  Destino
-                </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-3">
                   {availablePositions.map((dest) => (
                     <Button
                       key={dest}
                       variant={selectedDestination === dest ? 'default' : 'outline'}
-                      className="h-10 text-xs"
+                      className={cn(
+                        'h-14 text-base font-semibold transition-all',
+                        selectedDestination === dest && 'ring-2 ring-offset-2'
+                      )}
                       onClick={() => handleDestinationWithAutoConfirm(dest)}
                     >
                       {dest}
                     </Button>
                   ))}
                 </div>
+                {/* OUTROS with press-and-hold */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'w-full h-10 text-xs text-muted-foreground',
+                    outrosPressed && 'bg-muted',
+                    selectedDestination === 'OUTROS' && 'bg-primary text-primary-foreground'
+                  )}
+                  onMouseDown={handleOutrosStart}
+                  onMouseUp={handleOutrosEnd}
+                  onMouseLeave={handleOutrosEnd}
+                  onTouchStart={handleOutrosStart}
+                  onTouchEnd={handleOutrosEnd}
+                >
+                  OUTROS (manter 250ms)
+                </Button>
               </div>
-            </div>
+            )}
           </div>
         );
 
       case 'attack':
         return (
-          <div className="space-y-3">
-            {/* Attacker Grid instead of dropdown */}
-            <PlayerGrid
-              players={players}
-              selectedPlayer={selectedPlayer}
-              onSelect={(id) => onPlayerChange(id)}
-              onDeselect={() => onPlayerChange(null)}
-              side={side}
-              getZoneLabel={getZoneLabel}
-              columns={6}
-              size="sm"
-            />
-            
-            {/* Two Column Layout: Pass Quality | Attack Rating */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Column 1: Pass Quality (Primary) */}
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground text-center">
-                  Qualidade do Passe
+          <div className="space-y-4">
+            {currentStep === 1 ? (
+              <>
+                <PlayerStrip
+                  players={players}
+                  selectedPlayerId={selectedPlayer || null}
+                  onSelect={onPlayerChange}
+                  teamSide={teamSide}
+                  lastUsedPlayerId={lastUsedPlayerId}
+                  showZones={!!getZoneLabel}
+                  getZoneLabel={getZoneLabelWrapper}
+                />
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground text-center">
+                    Qualidade do Passe
+                  </div>
+                  <QualityPad
+                    selectedCode={attackPassQuality ?? null}
+                    onSelect={(code) => {
+                      onAttackPassQualityChange?.(code);
+                      setCurrentStep(2);
+                    }}
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {CODES.map((code) => (
-                    <ColoredRatingButton
-                      key={`pass-${code}`}
-                      code={code}
-                      selected={attackPassQuality === code}
-                      onClick={() => onAttackPassQualityChange?.(attackPassQuality === code ? null : code)}
-                      size="md"
-                    />
-                  ))}
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground text-center">
+                    Avaliação do Ataque
+                  </div>
+                  <QualityPad
+                    selectedCode={selectedCode ?? null}
+                    onSelect={handleCodeWithAutoConfirm}
+                    labels={{ 3: 'Kill' }}
+                  />
                 </div>
-              </div>
-              
-              {/* Column 2: Attack Rating */}
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground text-center">
-                  Avaliação do Ataque
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {CODES.map((code) => (
-                    <ColoredRatingButton
-                      key={code}
-                      code={code}
-                      selected={selectedCode === code}
-                      onClick={() => handleCodeWithAutoConfirm(code)}
-                      size="md"
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            {/* Kill Type Selection when code = 3 */}
-            {selectedCode === 3 && (
-              <div className={cn(
-                'flex items-center justify-between p-3 border-2 rounded-lg',
-                selectedKillType === null ? 'bg-success/10 border-success animate-pulse' : 'bg-success/5 border-success/30'
-              )}>
-                <span className="text-sm font-medium">
-                  Tipo de Kill <span className="text-destructive">*</span>
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    variant={selectedKillType === 'FLOOR' ? 'default' : 'outline'}
-                    size="sm"
-                    className={selectedKillType === 'FLOOR' ? 'bg-success hover:bg-success/90' : ''}
-                    onClick={() => handleKillTypeWithAutoConfirm('FLOOR')}
-                  >
-                    🏐 Chão
-                  </Button>
-                  <Button
-                    variant={selectedKillType === 'BLOCKOUT' ? 'default' : 'outline'}
-                    size="sm"
-                    className={selectedKillType === 'BLOCKOUT' ? 'bg-success hover:bg-success/90' : ''}
-                    onClick={() => handleKillTypeWithAutoConfirm('BLOCKOUT')}
-                  >
-                    🚫 Block-out
-                  </Button>
-                </div>
+                
+                {/* Kill Type Selection when code = 3 */}
+                {selectedCode === 3 && (
+                  <div className={cn(
+                    'flex items-center justify-between p-3 border-2 rounded-xl',
+                    selectedKillType === null 
+                      ? 'bg-success/10 border-success animate-pulse' 
+                      : 'bg-success/5 border-success/30'
+                  )}>
+                    <span className="text-sm font-medium">
+                      Tipo de Kill <span className="text-destructive">*</span>
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={selectedKillType === 'FLOOR' ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                          'min-w-[80px]',
+                          selectedKillType === 'FLOOR' && 'bg-success hover:bg-success/90'
+                        )}
+                        onClick={() => handleKillTypeWithAutoConfirm('FLOOR')}
+                      >
+                        🏐 Chão
+                      </Button>
+                      <Button
+                        variant={selectedKillType === 'BLOCKOUT' ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                          'min-w-[80px]',
+                          selectedKillType === 'BLOCKOUT' && 'bg-success hover:bg-success/90'
+                        )}
+                        onClick={() => handleKillTypeWithAutoConfirm('BLOCKOUT')}
+                      >
+                        🚫 Block-out
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -332,62 +470,105 @@ export function ActionEditor({
 
       case 'block':
         return (
-          <div className="space-y-3">
-            {/* Block - 3 compact player grids for blockers */}
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Bloqueadores (até 3)</div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground text-center">Bloq 1</div>
-                  <PlayerGrid
-                    players={players}
-                    selectedPlayer={selectedBlocker1}
-                    onSelect={(id) => onBlocker1Change?.(id)}
-                    onDeselect={() => onBlocker1Change?.(null)}
-                    side={side}
-                    getZoneLabel={getZoneLabel}
-                    columns={3}
+          <div className="space-y-4">
+            {currentStep === 1 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Bloqueadores (até 3)
+                  </span>
+                  <Button
+                    variant="ghost"
                     size="sm"
-                  />
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      onBlocker1Change?.(null);
+                      onBlocker2Change?.(null);
+                      onBlocker3Change?.(null);
+                      setCurrentStep(2);
+                    }}
+                  >
+                    Sem bloco →
+                  </Button>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground text-center">Bloq 2</div>
-                  <PlayerGrid
-                    players={players}
-                    selectedPlayer={selectedBlocker2}
-                    onSelect={(id) => onBlocker2Change?.(id)}
-                    onDeselect={() => onBlocker2Change?.(null)}
-                    side={side}
-                    getZoneLabel={getZoneLabel}
-                    columns={3}
-                    size="sm"
-                  />
+                
+                {/* 3 Slots for blockers */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Bloq 1', selected: selectedBlocker1, onChange: onBlocker1Change },
+                    { label: 'Bloq 2', selected: selectedBlocker2, onChange: onBlocker2Change },
+                    { label: 'Bloq 3', selected: selectedBlocker3, onChange: onBlocker3Change },
+                  ].map(({ label, selected, onChange }) => {
+                    const player = players.find(p => p.id === selected);
+                    return (
+                      <div key={label} className="text-center">
+                        <div className="text-[10px] text-muted-foreground mb-1">{label}</div>
+                        <div className={cn(
+                          'h-12 rounded-lg border-2 flex items-center justify-center text-lg font-bold',
+                          selected 
+                            ? cn('border-2', teamSide === 'home' ? 'border-home bg-home/10 text-home' : 'border-away bg-away/10 text-away')
+                            : 'border-dashed border-muted-foreground/30 text-muted-foreground/50'
+                        )}>
+                          {player ? `#${player.jersey_number}` : '—'}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground text-center">Bloq 3</div>
-                  <PlayerGrid
-                    players={players}
-                    selectedPlayer={selectedBlocker3}
-                    onSelect={(id) => onBlocker3Change?.(id)}
-                    onDeselect={() => onBlocker3Change?.(null)}
-                    side={side}
-                    getZoneLabel={getZoneLabel}
-                    columns={3}
-                    size="sm"
-                  />
+
+                {/* Player pool */}
+                <div className="grid grid-cols-6 gap-1.5">
+                  {players.map((player) => {
+                    const isSelected = player.id === selectedBlocker1 || 
+                                      player.id === selectedBlocker2 || 
+                                      player.id === selectedBlocker3;
+                    return (
+                      <button
+                        key={player.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            if (player.id === selectedBlocker1) onBlocker1Change?.(null);
+                            else if (player.id === selectedBlocker2) onBlocker2Change?.(null);
+                            else if (player.id === selectedBlocker3) onBlocker3Change?.(null);
+                          } else {
+                            if (!selectedBlocker1) onBlocker1Change?.(player.id);
+                            else if (!selectedBlocker2) onBlocker2Change?.(player.id);
+                            else if (!selectedBlocker3) onBlocker3Change?.(player.id);
+                          }
+                        }}
+                        className={cn(
+                          'h-10 rounded-lg text-sm font-bold transition-all',
+                          isSelected 
+                            ? cn('ring-2 ring-offset-1', teamSide === 'home' ? 'bg-home/20 ring-home text-home' : 'bg-away/20 ring-away text-away')
+                            : 'bg-muted hover:bg-muted/80 text-foreground'
+                        )}
+                      >
+                        {player.jersey_number}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                <Button 
+                  className="w-full" 
+                  onClick={() => setCurrentStep(2)}
+                  disabled={!selectedBlocker1}
+                >
+                  Continuar →
+                </Button>
               </div>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {CODES.map((code) => (
-                <ColoredRatingButton
-                  key={code}
-                  code={code}
-                  selected={selectedCode === code}
-                  onClick={() => handleCodeWithAutoConfirm(code)}
+            ) : (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Avaliação do Bloco
+                </div>
+                <QualityPad
+                  selectedCode={selectedCode ?? null}
+                  onSelect={handleCodeWithAutoConfirm}
+                  labels={{ 0: 'Falta', 1: 'Ofensivo', 2: 'Defensivo', 3: 'Ponto' }}
                 />
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         );
 
@@ -397,22 +578,32 @@ export function ActionEditor({
   };
 
   return (
-    <WizardSectionCard
+    <ActionPad
       actionType={actionType}
-      teamName={teamName}
       teamSide={teamSide}
+      teamName={teamName}
+      currentStep={currentStep}
+      totalSteps={totalSteps}
+      onUndo={onUndo}
+      customShortcuts={getShortcutHints()}
     >
       {renderContent()}
       
-      {/* Navigation footer with back/forward buttons */}
+      {/* Navigation footer */}
       <div className="flex justify-between pt-3 border-t mt-3">
         <Button 
           variant="ghost" 
           size="sm"
           className="gap-1 text-muted-foreground hover:text-foreground" 
-          onClick={currentActionIndex !== undefined && currentActionIndex > 0 && onNavigatePrev 
-            ? onNavigatePrev 
-            : onCancel}
+          onClick={() => {
+            if (currentStep > 1) {
+              setCurrentStep(currentStep - 1);
+            } else if (currentActionIndex !== undefined && currentActionIndex > 0 && onNavigatePrev) {
+              onNavigatePrev();
+            } else {
+              onCancel();
+            }
+          }}
         >
           <ChevronLeft className="h-3 w-3" />
           Voltar
@@ -430,6 +621,6 @@ export function ActionEditor({
           </Button>
         )}
       </div>
-    </WizardSectionCard>
+    </ActionPad>
   );
 }

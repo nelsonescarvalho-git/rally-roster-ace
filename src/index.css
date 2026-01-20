@@ -152,4 +152,51 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
+
+  /* Quality rating colors - FIXED across all actions */
+  .quality-0 {
+    @apply bg-destructive/10 text-destructive border-destructive/30;
+  }
+  .quality-1 {
+    @apply bg-warning/10 text-warning border-warning/30;
+  }
+  .quality-2 {
+    @apply bg-primary/10 text-primary border-primary/30;
+  }
+  .quality-3 {
+    @apply bg-success/10 text-success border-success/30;
+  }
+
+  .quality-0-selected {
+    @apply bg-destructive text-destructive-foreground ring-2 ring-destructive;
+  }
+  .quality-1-selected {
+    @apply bg-warning text-warning-foreground ring-2 ring-warning;
+  }
+  .quality-2-selected {
+    @apply bg-primary text-primary-foreground ring-2 ring-primary;
+  }
+  .quality-3-selected {
+    @apply bg-success text-success-foreground ring-2 ring-success;
+  }
+
+  /* Team accent utilities */
+  .team-home-ring {
+    @apply ring-2 ring-home;
+  }
+  .team-away-ring {
+    @apply ring-2 ring-away;
+  }
+  .team-home-border {
+    @apply border-home;
+  }
+  .team-away-border {
+    @apply border-away;
+  }
+  .team-home-bg {
+    @apply bg-home/10;
+  }
+  .team-away-bg {
+    @apply bg-away/10;
+  }
 }
