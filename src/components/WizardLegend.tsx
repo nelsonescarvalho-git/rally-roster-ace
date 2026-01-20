@@ -18,29 +18,29 @@ const RATING_DEFINITIONS = {
     icon: CircleDot,
     label: 'Serviço',
     codes: [
-      { code: 0, symbol: '✕', label: 'Erro', desc: 'Serviço falhado (fora/rede)' },
-      { code: 1, symbol: '−', label: 'Fraco', desc: 'Serviço fácil de receber' },
-      { code: 2, symbol: '+', label: 'Bom', desc: 'Dificulta receção adversária' },
-      { code: 3, symbol: '★', label: 'Ás', desc: 'Ponto direto de serviço' },
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Bola na rede ou fora' },
+      { code: 1, symbol: '−', label: 'Fraco', desc: 'Receção fácil para adversário' },
+      { code: 2, symbol: '+', label: 'Bom', desc: 'Receção dificultada' },
+      { code: 3, symbol: '★', label: 'Ás', desc: 'Ponto direto ou falha de receção' },
     ]
   },
   reception: {
     icon: Shield,
     label: 'Receção',
     codes: [
-      { code: 0, symbol: '✕', label: 'Erro', desc: 'Falha total (ponto adversário)' },
-      { code: 1, symbol: '−', label: 'Fraca', desc: 'Limita opções de ataque' },
-      { code: 2, symbol: '+', label: 'Boa', desc: 'Permite ataque organizado' },
-      { code: 3, symbol: '★', label: 'Perfeita', desc: 'Todas opções disponíveis' },
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Ponto perdido ou bola incontrolável' },
+      { code: 1, symbol: '−', label: 'Fraca', desc: 'Opções de ataque muito limitadas' },
+      { code: 2, symbol: '+', label: 'Boa', desc: 'Algumas opções de ataque disponíveis' },
+      { code: 3, symbol: '★', label: 'Perfeita', desc: 'Todas as opções disponíveis' },
     ]
   },
   attack: {
     icon: Swords,
     label: 'Ataque',
     codes: [
-      { code: 0, symbol: '✕', label: 'Erro', desc: 'Ataque falhado (fora/rede)' },
-      { code: 1, symbol: '−', label: 'Bloqueado', desc: 'Bloqueio ponto adversário' },
-      { code: 2, symbol: '+', label: 'Defesa', desc: 'Defendido, rally continua' },
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Bola na rede ou fora → ponto adversário' },
+      { code: 1, symbol: '−', label: 'Tocou bloco', desc: 'Desfecho depende do b_code' },
+      { code: 2, symbol: '+', label: 'Defendido', desc: 'Rally continua com contra-ataque' },
       { code: 3, symbol: '★', label: 'Kill', desc: 'Ponto direto de ataque' },
     ]
   },
@@ -48,30 +48,30 @@ const RATING_DEFINITIONS = {
     icon: Square,
     label: 'Bloco',
     codes: [
-      { code: 0, symbol: '✕', label: 'Falta', desc: 'Toque na rede ou invasão' },
-      { code: 1, symbol: '−', label: 'Block-out', desc: 'Bola tocou e saiu' },
-      { code: 2, symbol: '+', label: 'Toque', desc: 'Toca e rally continua' },
-      { code: 3, symbol: '★', label: 'Ponto', desc: 'Bloco direto (stuff)' },
+      { code: 0, symbol: '✕', label: 'Falta', desc: 'Toque na rede ou invasão → ponto atacante' },
+      { code: 1, symbol: '−', label: 'Ofensivo', desc: 'Bola jogável no campo adversário' },
+      { code: 2, symbol: '+', label: 'Defensivo', desc: 'Bola jogável no campo próprio' },
+      { code: 3, symbol: '★', label: 'Stuff', desc: 'Bola cai no campo do atacante → ponto' },
     ]
   },
   defense: {
     icon: ShieldCheck,
     label: 'Defesa',
     codes: [
-      { code: 0, symbol: '✕', label: 'Falha', desc: 'Bola não tocada/defendida' },
-      { code: 1, symbol: '−', label: 'Fraca', desc: 'Defesa sem controlo' },
-      { code: 2, symbol: '+', label: 'Boa', desc: 'Permite contra-ataque' },
-      { code: 3, symbol: '★', label: 'Perfeita', desc: 'Bola ideal para distribuidor' },
+      { code: 0, symbol: '✕', label: 'Falha', desc: 'Bola no chão' },
+      { code: 1, symbol: '−', label: 'Fraca', desc: 'Bola controlada mas sem opções' },
+      { code: 2, symbol: '+', label: 'Boa', desc: 'Contra-ataque possível' },
+      { code: 3, symbol: '★', label: 'Perfeita', desc: 'Condições ideais para contra-ataque' },
     ]
   },
   setter: {
     icon: Target,
     label: 'Distribuição',
     codes: [
-      { code: 0, symbol: '✕', label: 'Erro', desc: 'Falha no passe/toque duplo' },
-      { code: 1, symbol: '−', label: 'Fraco', desc: 'Atacante com dificuldade' },
-      { code: 2, symbol: '+', label: 'Bom', desc: 'Ataque com opções' },
-      { code: 3, symbol: '★', label: 'Perfeito', desc: 'Atacante livre de bloco' },
+      { code: 0, symbol: '✕', label: 'Erro', desc: 'Bola perdida ou ataque impossível' },
+      { code: 1, symbol: '−', label: 'Fraco', desc: 'Ataque forçado, sem opções' },
+      { code: 2, symbol: '+', label: 'Bom', desc: 'Ataque normal possível' },
+      { code: 3, symbol: '★', label: 'Perfeito', desc: 'Atacante em condições ideais' },
     ]
   },
 };
