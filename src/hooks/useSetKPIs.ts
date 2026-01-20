@@ -39,11 +39,14 @@ interface TeamKPIs {
   attErrorPercent: number;
   attBlocked: number;
   attBlockedPercent: number;
-  attBlockedPoint: number; // Block resulted in point for opponent
+  attBlockedPoint: number; // Block resulted in point for opponent (b_code=3)
   attBlockedPointPercent: number;
-  attBlockedTouch: number; // Block touch but rally continued
+  attBlockedTouch: number; // Block touch but rally continued (b_code=1 or 2)
   attBlockedTouchPercent: number;
-  attEfficiency: number; // (kills - errors - blocked) / total
+  attBlockFault: number; // Block fault = point for attacker (b_code=0)
+  attBlockFaultPercent: number;
+  attBlockIncomplete: number; // a_code=1 but b_code=NULL (missing data)
+  attEfficiency: number; // (kills - errors - blockedPoint) / total
   
   // Unforced errors
   unforcedServe: number;
@@ -179,6 +182,9 @@ function createEmptyTeamKPIs(): TeamKPIs {
     attBlockedPointPercent: 0,
     attBlockedTouch: 0,
     attBlockedTouchPercent: 0,
+    attBlockFault: 0,
+    attBlockFaultPercent: 0,
+    attBlockIncomplete: 0,
     attEfficiency: 0,
     unforcedServe: 0,
     unforcedAttack: 0,
@@ -458,10 +464,16 @@ export function useSetKPIs(
               // Stuff block = point for blocker, penalizes attacker efficiency
               home.attBlocked++;
               home.attBlockedPoint++;
-            } else {
-              // b_code 0/1/2 or NULL = block touch, rally continues or block fault
-              // Does NOT penalize attacker efficiency
+            } else if (rally.b_code === 1 || rally.b_code === 2) {
+              // Block touch, rally continues - does NOT penalize efficiency
               home.attBlockedTouch++;
+            } else if (rally.b_code === 0) {
+              // Block fault = point for attacker
+              home.attBlockFault++;
+            } else {
+              // b_code NULL = missing data, flag as incomplete
+              home.attBlockIncomplete++;
+              console.warn(`⚠️ Rally ${rally.rally_no}: a_code=1 mas b_code é NULL (dados incompletos)`);
             }
           }
         } else if (attackerSide === 'FORA') {
@@ -474,10 +486,16 @@ export function useSetKPIs(
               // Stuff block = point for blocker, penalizes attacker efficiency
               away.attBlocked++;
               away.attBlockedPoint++;
-            } else {
-              // b_code 0/1/2 or NULL = block touch, rally continues or block fault
-              // Does NOT penalize attacker efficiency
+            } else if (rally.b_code === 1 || rally.b_code === 2) {
+              // Block touch, rally continues - does NOT penalize efficiency
               away.attBlockedTouch++;
+            } else if (rally.b_code === 0) {
+              // Block fault = point for attacker
+              away.attBlockFault++;
+            } else {
+              // b_code NULL = missing data, flag as incomplete
+              away.attBlockIncomplete++;
+              console.warn(`⚠️ Rally ${rally.rally_no}: a_code=1 mas b_code é NULL (dados incompletos)`);
             }
           }
         }
@@ -564,10 +582,38 @@ export function useSetKPIs(
     away.attBlockedPointPercent = calcPercent(away.attBlockedPoint, away.attTotal);
     home.attBlockedTouchPercent = calcPercent(home.attBlockedTouch, home.attTotal);
     away.attBlockedTouchPercent = calcPercent(away.attBlockedTouch, away.attTotal);
+    home.attBlockFaultPercent = calcPercent(home.attBlockFault, home.attTotal);
+    away.attBlockFaultPercent = calcPercent(away.attBlockFault, away.attTotal);
+    
+    // Attack Efficiency: (kills - errors - blockedPoint) / total
+    // Only stuff blocks (b_code=3) penalize efficiency, NOT touches (b_code=1,2) or faults (b_code=0)
     home.attEfficiency = home.attTotal > 0 ? 
-      Math.round(((home.attKills - home.attErrors - home.attBlocked) / home.attTotal) * 100) / 100 : 0;
+      Math.round(((home.attKills - home.attErrors - home.attBlockedPoint) / home.attTotal) * 100) / 100 : 0;
     away.attEfficiency = away.attTotal > 0 ? 
-      Math.round(((away.attKills - away.attErrors - away.attBlocked) / away.attTotal) * 100) / 100 : 0;
+      Math.round(((away.attKills - away.attErrors - away.attBlockedPoint) / away.attTotal) * 100) / 100 : 0;
+    
+    // DEBUG: Log attack/block relationship for auditing
+    console.log('⚔️ Attack/Block Stats (Semantic):');
+    console.table({
+      'CASA Total': home.attTotal,
+      'CASA Kills (a=3)': home.attKills,
+      'CASA Errors (a=0)': home.attErrors,
+      'CASA Blocked Point (a=1,b=3)': home.attBlockedPoint,
+      'CASA Blocked Touch (a=1,b=1/2)': home.attBlockedTouch,
+      'CASA Block Fault (a=1,b=0)': home.attBlockFault,
+      'CASA Incomplete (a=1,b=NULL)': home.attBlockIncomplete,
+      'CASA Efficiency': home.attEfficiency,
+    });
+    console.table({
+      'FORA Total': away.attTotal,
+      'FORA Kills (a=3)': away.attKills,
+      'FORA Errors (a=0)': away.attErrors,
+      'FORA Blocked Point (a=1,b=3)': away.attBlockedPoint,
+      'FORA Blocked Touch (a=1,b=1/2)': away.attBlockedTouch,
+      'FORA Block Fault (a=1,b=0)': away.attBlockFault,
+      'FORA Incomplete (a=1,b=NULL)': away.attBlockIncomplete,
+      'FORA Efficiency': away.attEfficiency,
+    });
     
     // Calculate rotation percentages and find worst
     for (const key of Object.keys(rotationStats)) {
