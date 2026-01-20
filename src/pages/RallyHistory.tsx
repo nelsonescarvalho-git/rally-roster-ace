@@ -129,6 +129,7 @@ function RallyGroup({
     // Setter/Pass
     if (rally.setter_player_id || rally.pass_destination) {
       const setterPlayer = getPlayer(rally.setter_player_id);
+      const missingDestination = rally.setter_player_id && !rally.pass_destination;
       items.push(
         <TimelineItem
           key={`${rally.id}-set`}
@@ -139,7 +140,8 @@ function RallyGroup({
           playerNumber={setterPlayer?.jersey_number}
           playerName={setterPlayer?.name}
           code={rally.pass_code}
-          extra={rally.pass_destination || undefined}
+          extra={missingDestination ? undefined : (rally.pass_destination || undefined)}
+          warning={missingDestination ? 'Destino em falta' : undefined}
         />
       );
     }

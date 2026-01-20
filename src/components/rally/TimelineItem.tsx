@@ -14,6 +14,7 @@ interface TimelineItemProps {
   extra?: string;
   isLast?: boolean;
   highlight?: boolean;
+  warning?: string;
 }
 
 export function TimelineItem({
@@ -26,7 +27,8 @@ export function TimelineItem({
   code,
   extra,
   isLast = false,
-  highlight = false
+  highlight = false,
+  warning
 }: TimelineItemProps) {
   const teamColorClass = teamColor === 'home' 
     ? 'bg-home/10 text-home border-home/30' 
@@ -68,6 +70,9 @@ export function TimelineItem({
           )}
           {extra && (
             <Badge variant="secondary" className="text-[10px]">{extra}</Badge>
+          )}
+          {warning && (
+            <Badge variant="outline" className="text-[10px] border-warning text-warning">{warning}</Badge>
           )}
         </div>
       </div>

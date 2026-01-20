@@ -1,13 +1,14 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useDistributionStats, SetterDistribution, ReceptionBreakdown } from '@/hooks/useDistributionStats';
 import { Rally, Player, MatchPlayer, Side, Match, POSITIONS_BY_RECEPTION } from '@/types/volleyball';
 import { Progress } from '@/components/ui/progress';
-import { Target } from 'lucide-react';
-
+import { Target, AlertTriangle } from 'lucide-react';
 interface DistributionTabProps {
   rallies: Rally[];
   players: (Player | MatchPlayer)[];
@@ -23,7 +24,7 @@ export function DistributionTab({ rallies, players, match, selectedSet, getRalli
 
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
 
-  const { distributionStats, setters, destinations, globalReceptionBreakdown } = useDistributionStats(
+  const { distributionStats, setters, destinations, globalReceptionBreakdown, incompleteDistributionCount } = useDistributionStats(
     filteredRallies,
     players,
     { side: sideFilter, setterId: setterFilter, receptionCode: receptionFilter }
@@ -172,6 +173,24 @@ export function DistributionTab({ rallies, players, match, selectedSet, getRalli
 
   return (
     <div className="space-y-4">
+      {/* Warning for incomplete distributions */}
+      {incompleteDistributionCount > 0 && (
+        <Alert variant="default" className="border-warning bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              {incompleteDistributionCount} rally(s) com distribuidor mas sem destino definido.
+            </span>
+            <Link 
+              to={`/history/${match.id}`} 
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Ver histórico →
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Reception Quality Breakdown Card */}
       <Card>
         <CardHeader className="pb-2">
@@ -184,7 +203,6 @@ export function DistributionTab({ rallies, players, match, selectedSet, getRalli
           {renderReceptionBreakdownTable(globalReceptionBreakdown)}
         </CardContent>
       </Card>
-
       {/* Main Distribution Card */}
       <Card>
         <CardContent className="p-4 space-y-4">

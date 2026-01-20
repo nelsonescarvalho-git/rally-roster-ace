@@ -55,9 +55,14 @@ export function useDistributionStats(
     }, {} as Record<string, Rally>);
 
     // Filter rallies with setter and destination
-    let validRallies = Object.values(finalPhases).filter(
-      r => r.setter_player_id && r.pass_destination
+    const ralliesWithSetter = Object.values(finalPhases).filter(
+      r => r.setter_player_id
     );
+    
+    // Split into complete (with destination) and incomplete (no destination)
+    let validRallies = ralliesWithSetter.filter(r => r.pass_destination);
+    const incompleteRallies = ralliesWithSetter.filter(r => !r.pass_destination);
+    const incompleteDistributionCount = incompleteRallies.length;
 
     // Apply reception code filter if set
     if (filters.receptionCode !== undefined && filters.receptionCode !== null) {
@@ -277,5 +282,30 @@ export function useDistributionStats(
     });
   }, [rallies, players, filters.side, filters.setterId]);
 
-  return { distributionStats, setters, destinations: DESTINATIONS, globalReceptionBreakdown };
+  // Count incomplete distributions (setter but no destination)
+  const incompleteDistributionCount = useMemo(() => {
+    const finalPhases = rallies.reduce((acc, rally) => {
+      const key = `${rally.set_no}-${rally.rally_no}`;
+      if (!acc[key] || rally.phase > acc[key].phase) {
+        acc[key] = rally;
+      }
+      return acc;
+    }, {} as Record<string, Rally>);
+
+    const ralliesWithSetter = Object.values(finalPhases).filter(
+      r => r.setter_player_id && !r.pass_destination
+    );
+
+    // Apply side filter
+    if (filters.side !== 'TODAS') {
+      return ralliesWithSetter.filter(r => {
+        const setter = players.find(p => p.id === r.setter_player_id);
+        return setter && setter.side === filters.side;
+      }).length;
+    }
+
+    return ralliesWithSetter.length;
+  }, [rallies, players, filters.side]);
+
+  return { distributionStats, setters, destinations: DESTINATIONS, globalReceptionBreakdown, incompleteDistributionCount };
 }
