@@ -29,6 +29,7 @@ import {
   Reason, 
   Player, 
   Rally, 
+  Lineup,
   PassDestination, 
   KillType,
   RallyAction,
@@ -824,10 +825,17 @@ export default function Live() {
     return <div className="flex min-h-screen items-center justify-center">Jogo não encontrado</div>;
   }
 
+  // Helper to check if lineup has all 6 positions filled
+  const isLineupComplete = (lineup: Lineup | undefined): boolean => {
+    if (!lineup) return false;
+    return !!(lineup.rot1 && lineup.rot2 && lineup.rot3 && 
+              lineup.rot4 && lineup.rot5 && lineup.rot6);
+  };
+
   if (!gameState) {
     const homeLineup = lineups.find(l => l.set_no === currentSet && l.side === 'CASA');
     const awayLineup = lineups.find(l => l.set_no === currentSet && l.side === 'FORA');
-    const missingLineups = !homeLineup || !awayLineup;
+    const missingLineups = !isLineupComplete(homeLineup) || !isLineupComplete(awayLineup);
     
     return (
       <div className="min-h-screen bg-background safe-bottom">
