@@ -378,7 +378,10 @@ export default function Setup() {
                               checked={selectedPlayerIds.has(player.id)}
                               onCheckedChange={() => togglePlayerSelection(player.id)}
                             />
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                            <div 
+                              className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white"
+                              style={{ backgroundColor: activeSide === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))' }}
+                            >
                               {player.jersey_number}
                             </div>
                             <div className="flex-1">
@@ -417,7 +420,10 @@ export default function Setup() {
                   <Card key={player.id}>
                     <CardContent className="flex items-center justify-between py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                        <div 
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white"
+                          style={{ backgroundColor: activeSide === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))' }}
+                        >
                           {player.jersey_number}
                         </div>
                         <div>
