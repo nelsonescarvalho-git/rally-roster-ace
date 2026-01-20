@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -12,11 +13,14 @@ export function MainLayout({ children, title, showNav = true }: MainLayoutProps)
     <div className="min-h-screen bg-background">
       {title && (
         <header className="sticky top-0 z-10 border-b bg-card px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <span className="text-lg font-bold text-primary-foreground">🏐</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+                <span className="text-lg font-bold text-primary-foreground">🏐</span>
+              </div>
+              <h1 className="text-xl font-bold">{title}</h1>
             </div>
-            <h1 className="text-xl font-bold">{title}</h1>
+            <ThemeToggle />
           </div>
         </header>
       )}

@@ -541,16 +541,22 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          primary_color: string | null
+          secondary_color: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          primary_color?: string | null
+          secondary_color?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          primary_color?: string | null
+          secondary_color?: string | null
         }
         Relationships: []
       }
