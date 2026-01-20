@@ -148,7 +148,7 @@ export function ActionEditor({
       case 'block': return 2; // Blockers → Quality
       default: return 1;
     }
-  }, [actionType]);
+  }, [actionType, selectedCode]);
 
   // Show confirmation toast
   const showConfirmToast = useCallback((playerNumber: number | undefined, quality: number) => {
@@ -175,9 +175,18 @@ export function ActionEditor({
 
   // Auto-confirm handlers with toast
   const handleCodeWithAutoConfirm = useCallback((code: number) => {
+    // Se desselecionar o mesmo código, limpar tudo
     if (selectedCode === code) {
       onCodeChange(null);
+      onKillTypeChange?.(null);
+      onBlockCodeChange?.(null);
       return;
+    }
+    
+    // Se mudar de código, limpar estados do Step 3
+    if (selectedCode !== null && selectedCode !== code) {
+      onKillTypeChange?.(null);
+      onBlockCodeChange?.(null);
     }
     
     onCodeChange(code);
@@ -222,7 +231,7 @@ export function ActionEditor({
         }, 0);
       });
     }
-  }, [actionType, selectedCode, selectedPlayer, players, onCodeChange, onConfirm, showConfirmToast]);
+  }, [actionType, selectedCode, selectedPlayer, players, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange]);
 
   // Handler for block result when a_code=1
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
@@ -498,54 +507,54 @@ export function ActionEditor({
                       <Button
                         variant={selectedBlockCode === 0 ? 'default' : 'outline'}
                         className={cn(
-                          'h-16 flex flex-col gap-1',
+                          'h-20 flex flex-col gap-1',
                           'bg-success/10 border-success/30 hover:bg-success/20',
                           selectedBlockCode === 0 && 'bg-success hover:bg-success/90 text-success-foreground'
                         )}
                         onClick={() => handleBlockCodeWithAutoConfirm(0)}
                       >
-                        <span className="text-xl">🎯</span>
-                        <span className="text-xs font-medium">Falta Bloco</span>
-                        <span className="text-[10px] text-muted-foreground">Ponto atacante</span>
+                        <span className="text-lg">🎯</span>
+                        <span className="text-xs font-medium">Falta</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight">Ponto Adversário</span>
                       </Button>
                       <Button
                         variant={selectedBlockCode === 1 ? 'default' : 'outline'}
                         className={cn(
-                          'h-16 flex flex-col gap-1',
+                          'h-20 flex flex-col gap-1',
                           'bg-primary/10 border-primary/30 hover:bg-primary/20',
                           selectedBlockCode === 1 && 'bg-primary hover:bg-primary/90'
                         )}
                         onClick={() => handleBlockCodeWithAutoConfirm(1)}
                       >
-                        <span className="text-xl">⚔️</span>
+                        <span className="text-lg">⚔️</span>
                         <span className="text-xs font-medium">Bloco Ofensivo</span>
-                        <span className="text-[10px] text-muted-foreground">Bola campo adversário</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight">Bola jogável campo adversário</span>
                       </Button>
                       <Button
                         variant={selectedBlockCode === 2 ? 'default' : 'outline'}
                         className={cn(
-                          'h-16 flex flex-col gap-1',
+                          'h-20 flex flex-col gap-1',
                           'bg-warning/10 border-warning/30 hover:bg-warning/20',
                           selectedBlockCode === 2 && 'bg-warning hover:bg-warning/90'
                         )}
                         onClick={() => handleBlockCodeWithAutoConfirm(2)}
                       >
-                        <span className="text-xl">🛡️</span>
+                        <span className="text-lg">🛡️</span>
                         <span className="text-xs font-medium">Bloco Defensivo</span>
-                        <span className="text-[10px] text-muted-foreground">Bola no nosso campo</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight">Bola jogável campo bloqueador</span>
                       </Button>
                       <Button
                         variant={selectedBlockCode === 3 ? 'default' : 'outline'}
                         className={cn(
-                          'h-16 flex flex-col gap-1',
+                          'h-20 flex flex-col gap-1',
                           'bg-destructive/10 border-destructive/30 hover:bg-destructive/20',
                           selectedBlockCode === 3 && 'bg-destructive hover:bg-destructive/90'
                         )}
                         onClick={() => handleBlockCodeWithAutoConfirm(3)}
                       >
-                        <span className="text-xl">🧱</span>
+                        <span className="text-lg">🧱</span>
                         <span className="text-xs font-medium">Bloco Ponto</span>
-                        <span className="text-[10px] text-muted-foreground">Stuff block</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight">Stuff block</span>
                       </Button>
                     </div>
                   </div>
@@ -682,15 +691,20 @@ export function ActionEditor({
           variant="ghost" 
           size="sm"
           className="gap-1 text-muted-foreground hover:text-foreground" 
-          onClick={() => {
-            if (currentStep > 1) {
-              setCurrentStep(currentStep - 1);
-            } else if (currentActionIndex !== undefined && currentActionIndex > 0 && onNavigatePrev) {
-              onNavigatePrev();
-            } else {
-              onCancel();
-            }
-          }}
+              onClick={() => {
+                if (currentStep > 1) {
+                  // Se estiver no Step 3, limpar estados do Step 3
+                  if (currentStep === 3 && actionType === 'attack') {
+                    onKillTypeChange?.(null);
+                    onBlockCodeChange?.(null);
+                  }
+                  setCurrentStep(currentStep - 1);
+                } else if (currentActionIndex !== undefined && currentActionIndex > 0 && onNavigatePrev) {
+                  onNavigatePrev();
+                } else {
+                  onCancel();
+                }
+              }}
         >
           <ChevronLeft className="h-3 w-3" />
           Voltar
