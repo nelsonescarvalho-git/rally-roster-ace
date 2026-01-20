@@ -31,6 +31,8 @@ export interface RallyAction {
 export interface Team {
   id: string;
   name: string;
+  primary_color?: string | null;
+  secondary_color?: string | null;
   created_at: string;
 }
 

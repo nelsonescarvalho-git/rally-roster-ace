@@ -122,11 +122,32 @@ export function useTeams() {
     return updateTeamPlayer(playerId, { active: false });
   }, [updateTeamPlayer]);
 
+  const updateTeam = useCallback(async (
+    teamId: string,
+    updates: { name?: string; primary_color?: string | null; secondary_color?: string | null }
+  ): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('teams')
+        .update(updates)
+        .eq('id', teamId);
+
+      if (error) throw error;
+      await loadTeams();
+      toast({ title: 'Equipa atualizada' });
+      return true;
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return false;
+    }
+  }, [loadTeams, toast]);
+
   return {
     teams,
     loading,
     loadTeams,
     createTeam,
+    updateTeam,
     getTeamPlayers,
     addTeamPlayer,
     updateTeamPlayer,
