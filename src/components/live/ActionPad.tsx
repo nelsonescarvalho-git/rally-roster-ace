@@ -46,12 +46,16 @@ export function ActionPad({
   const config = ACTION_CONFIG[actionType];
   const Icon = config.icon;
 
-  const teamColorClasses = teamSide === 'home'
-    ? 'bg-home text-home-foreground'
-    : 'bg-away text-away-foreground';
+  // Dynamic team colors from CSS variables
+  const teamBorderStyle = {
+    borderLeftWidth: '4px',
+    borderLeftColor: teamSide === 'home' 
+      ? 'hsl(var(--home))' 
+      : 'hsl(var(--away))'
+  };
 
   return (
-    <Card className="overflow-hidden border-2">
+    <Card className="overflow-hidden border-2" style={teamBorderStyle}>
       {/* Compact Header */}
       <CardHeader className="py-2.5 px-4 bg-muted/50 border-b">
         <div className="flex items-center justify-between">
@@ -70,7 +74,14 @@ export function ActionPad({
 
           {/* Right: Team Badge + Undo */}
           <div className="flex items-center gap-2">
-            <Badge className={cn('text-xs font-semibold', teamColorClasses)}>
+            <Badge 
+              className="text-xs font-semibold text-white"
+              style={{ 
+                backgroundColor: teamSide === 'home' 
+                  ? 'hsl(var(--home))' 
+                  : 'hsl(var(--away))'
+              }}
+            >
               {teamName.length > 10 ? teamName.slice(0, 10) + '…' : teamName}
             </Badge>
             {onUndo && (

@@ -33,11 +33,17 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
     const awayPrimary = awayColors?.primary || AWAY_DEFAULT.primary;
     const awaySecondary = awayColors?.secondary || AWAY_DEFAULT.secondary;
 
-    // Set CSS custom properties
+    // Set CSS custom properties with HEX values
     root.style.setProperty('--team-home-primary', homePrimary);
     root.style.setProperty('--team-home-secondary', homeSecondary);
     root.style.setProperty('--team-away-primary', awayPrimary);
     root.style.setProperty('--team-away-secondary', awaySecondary);
+
+    // ALSO set HSL versions for Tailwind compatibility (--home, --away)
+    root.style.setProperty('--home', hexToHsl(homePrimary));
+    root.style.setProperty('--away', hexToHsl(awayPrimary));
+    root.style.setProperty('--home-secondary', hexToHsl(homeSecondary));
+    root.style.setProperty('--away-secondary', hexToHsl(awaySecondary));
 
     // Cleanup
     return () => {
@@ -45,6 +51,10 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
       root.style.removeProperty('--team-home-secondary');
       root.style.removeProperty('--team-away-primary');
       root.style.removeProperty('--team-away-secondary');
+      root.style.removeProperty('--home');
+      root.style.removeProperty('--away');
+      root.style.removeProperty('--home-secondary');
+      root.style.removeProperty('--away-secondary');
     };
   }, [homeColors, awayColors]);
 

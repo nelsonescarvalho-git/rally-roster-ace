@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
 import { useSetKPIs } from '@/hooks/useSetKPIs';
+import { useTeamColors } from '@/hooks/useTeamColors';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -103,6 +105,15 @@ export default function Live() {
     side: Side;
   } | null>(null);
   
+  // Team colors state
+  const [teamColors, setTeamColors] = useState<{
+    home: { primary?: string; secondary?: string };
+    away: { primary?: string; secondary?: string };
+  }>({ home: {}, away: {} });
+  
+  // Apply team colors via CSS variables
+  useTeamColors({ homeColors: teamColors.home, awayColors: teamColors.away });
+  
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
   const [receptionCompleted, setReceptionCompleted] = useState(false);
@@ -130,6 +141,53 @@ export default function Live() {
   useEffect(() => {
     if (matchId) loadMatch();
   }, [matchId, loadMatch]);
+
+  // Fetch team colors when match loads
+  useEffect(() => {
+    async function fetchTeamColors() {
+      if (!match?.home_team_id && !match?.away_team_id) return;
+      
+      const promises = [];
+      if (match.home_team_id) {
+        promises.push(
+          supabase
+            .from('teams')
+            .select('primary_color, secondary_color')
+            .eq('id', match.home_team_id)
+            .maybeSingle()
+        );
+      } else {
+        promises.push(Promise.resolve({ data: null }));
+      }
+      
+      if (match.away_team_id) {
+        promises.push(
+          supabase
+            .from('teams')
+            .select('primary_color, secondary_color')
+            .eq('id', match.away_team_id)
+            .maybeSingle()
+        );
+      } else {
+        promises.push(Promise.resolve({ data: null }));
+      }
+      
+      const [homeRes, awayRes] = await Promise.all(promises);
+      
+      setTeamColors({
+        home: {
+          primary: homeRes.data?.primary_color || undefined,
+          secondary: homeRes.data?.secondary_color || undefined,
+        },
+        away: {
+          primary: awayRes.data?.primary_color || undefined,
+          secondary: awayRes.data?.secondary_color || undefined,
+        },
+      });
+    }
+    
+    fetchTeamColors();
+  }, [match?.home_team_id, match?.away_team_id]);
 
   useEffect(() => {
     if (currentSet === 5 && needsFifthSetServeChoice(5)) {

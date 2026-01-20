@@ -106,19 +106,24 @@ export function ComboSetterAttack({
     }
   };
 
+  // Dynamic team color from CSS variables
+  const teamColorHsl = side === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))';
+
   return (
-    <Card className={cn(
-      'overflow-hidden border-l-4',
-      side === 'CASA' ? 'border-l-home' : 'border-l-away'
-    )}>
+    <Card 
+      className="overflow-hidden"
+      style={{ 
+        borderLeftWidth: '4px',
+        borderLeftColor: teamColorHsl
+      }}
+    >
       {/* Header with gradient indicating combo */}
-      <div className={cn(
-        'flex items-center gap-2 px-4 py-2 text-white',
-        'bg-gradient-to-r',
-        side === 'CASA' 
-          ? 'from-home via-purple-600 to-home'
-          : 'from-away via-purple-600 to-away'
-      )}>
+      <div 
+        className="flex items-center gap-2 px-4 py-2 text-white"
+        style={{
+          background: `linear-gradient(to right, ${teamColorHsl}, rgb(147 51 234), ${teamColorHsl})`
+        }}
+      >
         <Target className="h-4 w-4" />
         <ArrowRight className="h-3 w-3" />
         <Swords className="h-4 w-4" />
@@ -160,12 +165,8 @@ export function ComboSetterAttack({
                     <Button
                       key={dest}
                       variant={destination === dest ? 'default' : 'outline'}
-                      className={cn(
-                        'h-10 text-xs transition-all',
-                        destination === dest 
-                          ? (side === 'CASA' ? 'bg-home' : 'bg-away')
-                          : ''
-                      )}
+                      className="h-10 text-xs transition-all"
+                      style={destination === dest ? { backgroundColor: teamColorHsl } : undefined}
                       onClick={() => handleDestinationSelect(dest)}
                     >
                       {dest}
@@ -177,12 +178,8 @@ export function ComboSetterAttack({
                     <Button
                       key={dest}
                       variant={destination === dest ? 'default' : 'outline'}
-                      className={cn(
-                        'h-10 text-xs transition-all',
-                        destination === dest 
-                          ? (side === 'CASA' ? 'bg-home' : 'bg-away')
-                          : ''
-                      )}
+                      className="h-10 text-xs transition-all"
+                      style={destination === dest ? { backgroundColor: teamColorHsl } : undefined}
                       onClick={() => handleDestinationSelect(dest)}
                     >
                       {dest}
@@ -253,14 +250,14 @@ export function ComboSetterAttack({
           
           {/* Progress indicator */}
           <div className="flex items-center gap-1">
-            <div className={cn(
-              'w-2 h-2 rounded-full transition-colors',
-              step >= 1 ? (side === 'CASA' ? 'bg-home' : 'bg-away') : 'bg-muted'
-            )} />
-            <div className={cn(
-              'w-2 h-2 rounded-full transition-colors',
-              step >= 2 ? (side === 'CASA' ? 'bg-home' : 'bg-away') : 'bg-muted'
-            )} />
+            <div 
+              className="w-2 h-2 rounded-full transition-colors"
+              style={{ backgroundColor: step >= 1 ? teamColorHsl : 'hsl(var(--muted))' }}
+            />
+            <div 
+              className="w-2 h-2 rounded-full transition-colors"
+              style={{ backgroundColor: step >= 2 ? teamColorHsl : 'hsl(var(--muted))' }}
+            />
           </div>
         </div>
       </CardContent>
