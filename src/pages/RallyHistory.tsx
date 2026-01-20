@@ -20,7 +20,9 @@ import {
   LayoutList,
   LayoutGrid,
   FileSpreadsheet,
-  ChevronDown as DropdownChevron
+  ChevronDown as DropdownChevron,
+  Wand2,
+  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -370,12 +372,13 @@ function RallyGroup({
 export default function RallyHistory() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
-  const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet } = useMatch(matchId || null);
+  const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet, autoFixMissingPlayerIds } = useMatch(matchId || null);
   const players = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0);
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('timeline');
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -553,6 +556,39 @@ export default function RallyHistory() {
             <h1 className="font-semibold">Histórico de Rallies</h1>
             <p className="text-xs text-muted-foreground">{match.title}</p>
           </div>
+          
+          {/* Auto-fix Button */}
+          {issueCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={async () => {
+                setIsAutoFixing(true);
+                try {
+                  const result = await autoFixMissingPlayerIds();
+                  if (result.fixed > 0) {
+                    toast.success(`${result.fixed} rallies corrigidos automaticamente`);
+                  } else {
+                    toast.info('Nenhum rally pôde ser corrigido automaticamente');
+                  }
+                  if (result.errors > 0) {
+                    toast.error(`${result.errors} erros durante a correção`);
+                  }
+                } finally {
+                  setIsAutoFixing(false);
+                }
+              }}
+              disabled={isAutoFixing}
+            >
+              {isAutoFixing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Corrigir Auto</span>
+            </Button>
+          )}
           
           {/* Export Button */}
           <DropdownMenu>

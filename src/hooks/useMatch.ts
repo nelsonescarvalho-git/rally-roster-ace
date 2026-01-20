@@ -473,6 +473,127 @@ export function useMatch(matchId: string | null) {
     }
   }, [loadMatch, toast]);
 
+  // Auto-fix missing player IDs based on jersey numbers
+  const autoFixMissingPlayerIds = useCallback(async (): Promise<{ fixed: number; errors: number }> => {
+    if (!matchId) return { fixed: 0, errors: 0 };
+    
+    const effectivePlayers = getEffectivePlayers();
+    let fixed = 0;
+    let errors = 0;
+    
+    // Find rallies with missing player IDs but have jersey numbers
+    const ralliesToFix = rallies.filter(r => 
+      // Serve: has s_no but no s_player_id
+      (r.s_no !== null && !r.s_player_id) ||
+      // Reception: has r_no but no r_player_id
+      (r.r_no !== null && !r.r_player_id) ||
+      // Attack: has a_no but no a_player_id
+      (r.a_no !== null && !r.a_player_id) ||
+      // Defense: has d_no but no d_player_id
+      (r.d_no !== null && !r.d_player_id) ||
+      // Block: has b1_no but no b1_player_id
+      (r.b1_no !== null && !r.b1_player_id) ||
+      // Setter: has pass_destination but no setter_player_id
+      (r.pass_destination && !r.setter_player_id)
+    );
+
+    for (const rally of ralliesToFix) {
+      const updates: Partial<Rally> = {};
+
+      // Fix s_player_id
+      if (rally.s_no !== null && !rally.s_player_id) {
+        const player = effectivePlayers.find(p => 
+          p.jersey_number === rally.s_no && p.side === rally.serve_side
+        );
+        if (player) updates.s_player_id = player.id;
+      }
+
+      // Fix r_player_id
+      if (rally.r_no !== null && !rally.r_player_id) {
+        const player = effectivePlayers.find(p => 
+          p.jersey_number === rally.r_no && p.side === rally.recv_side
+        );
+        if (player) updates.r_player_id = player.id;
+      }
+
+      // Fix a_player_id - determine side based on k_phase
+      // K3 = transition/counter attack (serve side attacks), K1/K2 = reception side attacks
+      if (rally.a_no !== null && !rally.a_player_id) {
+        const attackSide = rally.k_phase === 'K3'
+          ? rally.serve_side
+          : rally.recv_side;
+        const player = effectivePlayers.find(p => 
+          p.jersey_number === rally.a_no && p.side === attackSide
+        );
+        if (player) updates.a_player_id = player.id;
+      }
+
+      // Fix d_player_id - defense is on opposite side of attack
+      if (rally.d_no !== null && !rally.d_player_id) {
+        const attackSide = rally.k_phase === 'K3'
+          ? rally.serve_side
+          : rally.recv_side;
+        const defSide = attackSide === 'CASA' ? 'FORA' : 'CASA';
+        const player = effectivePlayers.find(p => 
+          p.jersey_number === rally.d_no && p.side === defSide
+        );
+        if (player) updates.d_player_id = player.id;
+      }
+
+      // Fix b1_player_id - block is on opposite side of attack
+      if (rally.b1_no !== null && !rally.b1_player_id) {
+        const attackSide = rally.k_phase === 'K3'
+          ? rally.serve_side
+          : rally.recv_side;
+        const blockSide = attackSide === 'CASA' ? 'FORA' : 'CASA';
+        const player = effectivePlayers.find(p => 
+          p.jersey_number === rally.b1_no && p.side === blockSide
+        );
+        if (player) updates.b1_player_id = player.id;
+      }
+
+      // Fix setter_player_id - setter is on attacking side, find player with position 'S'
+      if (rally.pass_destination && !rally.setter_player_id) {
+        const attackSide = rally.phase % 2 === 1 ? rally.recv_side : rally.serve_side;
+        // First try to find a setter (position 'S')
+        let setter = effectivePlayers.find(p => 
+          p.side === attackSide && p.position === 'S'
+        );
+        // If no setter found, try libero (position 'L') - sometimes acts as setter in back row
+        if (!setter) {
+          setter = effectivePlayers.find(p => 
+            p.side === attackSide && p.position === 'L'
+          );
+        }
+        if (setter) updates.setter_player_id = setter.id;
+      }
+
+      // Apply updates if any
+      if (Object.keys(updates).length > 0) {
+        try {
+          const { error } = await supabase
+            .from('rallies')
+            .update(updates)
+            .eq('id', rally.id);
+          if (error) {
+            errors++;
+          } else {
+            fixed++;
+          }
+        } catch {
+          errors++;
+        }
+      }
+    }
+
+    // Reload data after fixes
+    if (fixed > 0) {
+      await loadMatch();
+    }
+
+    return { fixed, errors };
+  }, [matchId, rallies, getEffectivePlayers, loadMatch]);
+
   return {
     match,
     players,
@@ -503,6 +624,8 @@ export function useMatch(matchId: string | null) {
     getPlayersOnBench,
     makeSubstitution,
     undoSubstitution,
+    // Auto-fix
+    autoFixMissingPlayerIds,
     // 5th set serve choice
     setFifthSetServe,
     needsFifthSetServeChoice,
