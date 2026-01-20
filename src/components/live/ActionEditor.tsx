@@ -266,9 +266,12 @@ export function ActionEditor({
   const handleOutrosStart = useCallback(() => {
     const timer = setTimeout(() => {
       onDestinationChange?.('OUTROS');
-      if (selectedSetter) {
-        setTimeout(() => onConfirm(), 50);
+      if (!selectedSetter) {
+        toast.warning('Selecione um distribuidor primeiro');
+        setOutrosPressed(false);
+        return;
       }
+      setTimeout(() => onConfirm(), 50);
       setOutrosPressed(false);
     }, 250);
     setOutrosPressTimer(timer);
@@ -291,13 +294,17 @@ export function ActionEditor({
     
     onDestinationChange?.(dest);
     
-    if (selectedSetter) {
-      const player = players.find(p => p.id === selectedSetter);
-      setTimeout(() => {
-        showConfirmToast(player?.jersey_number, selectedPassCode ?? 2);
-        onConfirm();
-      }, 50);
+    // Only auto-confirm if setter is selected
+    if (!selectedSetter) {
+      toast.warning('Selecione um distribuidor primeiro');
+      return;
     }
+    
+    const player = players.find(p => p.id === selectedSetter);
+    setTimeout(() => {
+      showConfirmToast(player?.jersey_number, selectedPassCode ?? 2);
+      onConfirm();
+    }, 50);
   }, [selectedDestination, selectedSetter, selectedPassCode, players, onDestinationChange, onConfirm, showConfirmToast]);
 
   // Keyboard shortcuts
