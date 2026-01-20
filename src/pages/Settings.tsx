@@ -2,12 +2,33 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Download, Info, Trash2 } from 'lucide-react';
+import { Download, Info, Trash2, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Settings() {
   return (
     <MainLayout title="Definições">
       <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BookOpen className="h-4 w-4" />
+              Documentação
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Consulte o guia completo do sistema de lançamento, códigos e lógicas de jogo.
+            </p>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/guia">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Abrir Guia do Sistema
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
