@@ -101,8 +101,12 @@ export function EditRallyModal({
     }
   };
 
-  const hasIssues = (rally.reason === 'KILL' && !editData.a_player_id) ||
-                   (editData.a_code !== null && editData.a_code !== undefined && !editData.a_player_id);
+  // Expanded issue detection
+  const hasAttackIssue = (rally.reason === 'KILL' && !editData.a_player_id) ||
+                         (editData.a_code !== null && editData.a_code !== undefined && !editData.a_player_id);
+  const hasSetterIssue = editData.pass_destination && !editData.setter_player_id;
+  const hasReceptionIssue = editData.r_code !== null && editData.r_code !== undefined && !editData.r_player_id;
+  const hasIssues = hasAttackIssue || hasSetterIssue || hasReceptionIssue;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -166,13 +170,18 @@ export function EditRallyModal({
 
           {/* Reception */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Receção ({rally.recv_side === 'CASA' ? homeName : awayName})</Label>
+            <Label className="text-sm font-medium flex items-center gap-2">
+              Receção ({rally.recv_side === 'CASA' ? homeName : awayName})
+              {hasReceptionIssue && (
+                <Badge variant="destructive" className="text-xs">Necessário</Badge>
+              )}
+            </Label>
             <div className="flex gap-2">
               <Select
                 value={editData.r_player_id || 'none'}
                 onValueChange={(v) => setEditData(prev => ({ ...prev, r_player_id: v === 'none' ? null : v }))}
               >
-                <SelectTrigger className="flex-1">
+                <SelectTrigger className={`flex-1 ${hasReceptionIssue ? 'border-destructive' : ''}`}>
                   <SelectValue placeholder="Jogador" />
                 </SelectTrigger>
                 <SelectContent>
@@ -199,11 +208,65 @@ export function EditRallyModal({
             </div>
           </div>
 
+          {/* Passe/Distribuição */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              Passe/Distribuição ({attackSide === 'CASA' ? homeName : awayName})
+              {hasSetterIssue && (
+                <Badge variant="destructive" className="text-xs">Necessário</Badge>
+              )}
+            </Label>
+            <div className="flex gap-2">
+              <Select
+                value={editData.setter_player_id || 'none'}
+                onValueChange={(v) => setEditData(prev => ({ ...prev, setter_player_id: v === 'none' ? null : v }))}
+              >
+                <SelectTrigger className={`flex-1 ${hasSetterIssue ? 'border-destructive' : ''}`}>
+                  <SelectValue placeholder="Distribuidor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {attackPlayers.map(p => (
+                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={editData.pass_code?.toString() ?? 'none'}
+                onValueChange={(v) => setEditData(prev => ({ ...prev, pass_code: v === 'none' ? null : parseInt(v) }))}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue placeholder="Cód" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-</SelectItem>
+                  {CODES.map(c => (
+                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Select
+              value={editData.pass_destination || 'none'}
+              onValueChange={(v) => setEditData(prev => ({ ...prev, pass_destination: v === 'none' ? null : v as PassDestination }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Destino do passe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">-</SelectItem>
+                {DESTINATIONS.map(d => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Attack */}
           <div className="space-y-2">
             <Label className="text-sm font-medium flex items-center gap-2">
               Ataque ({attackSide === 'CASA' ? homeName : awayName})
-              {hasIssues && !editData.a_player_id && (
+              {hasAttackIssue && (
                 <Badge variant="destructive" className="text-xs">Necessário</Badge>
               )}
             </Label>
@@ -212,7 +275,7 @@ export function EditRallyModal({
                 value={editData.a_player_id || 'none'}
                 onValueChange={(v) => setEditData(prev => ({ ...prev, a_player_id: v === 'none' ? null : v }))}
               >
-                <SelectTrigger className={`flex-1 ${hasIssues && !editData.a_player_id ? 'border-destructive' : ''}`}>
+                <SelectTrigger className={`flex-1 ${hasAttackIssue ? 'border-destructive' : ''}`}>
                   <SelectValue placeholder="Jogador" />
                 </SelectTrigger>
                 <SelectContent>
