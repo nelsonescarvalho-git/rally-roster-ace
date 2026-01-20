@@ -9,6 +9,13 @@ interface SetScore {
   away_score: number;
 }
 
+interface TeamColors {
+  homePrimary: string | null;
+  homeSecondary: string | null;
+  awayPrimary: string | null;
+  awaySecondary: string | null;
+}
+
 interface DashboardStats {
   totalMatches: number;
   teamsCount: number;
@@ -17,6 +24,7 @@ interface DashboardStats {
   lastMatchScores: SetScore[];
   homeSetsWon: number;
   awaySetsWon: number;
+  teamColors: TeamColors | null;
   loading: boolean;
 }
 
@@ -82,6 +90,33 @@ export function useDashboardStats(): DashboardStats {
   const homeSetsWon = lastMatchScores.filter(s => s.home_score > s.away_score).length;
   const awaySetsWon = lastMatchScores.filter(s => s.away_score > s.home_score).length;
   
+  // Fetch team colors
+  const { data: teamColorsData } = useQuery({
+    queryKey: ['dashboard-team-colors', lastMatch?.home_team_id, lastMatch?.away_team_id],
+    queryFn: async () => {
+      if (!lastMatch?.home_team_id && !lastMatch?.away_team_id) return null;
+      
+      const teamIds = [lastMatch.home_team_id, lastMatch.away_team_id].filter(Boolean);
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, primary_color, secondary_color')
+        .in('id', teamIds);
+      
+      if (error) throw error;
+      
+      const homeTeam = data?.find(t => t.id === lastMatch.home_team_id);
+      const awayTeam = data?.find(t => t.id === lastMatch.away_team_id);
+      
+      return {
+        homePrimary: homeTeam?.primary_color || null,
+        homeSecondary: homeTeam?.secondary_color || null,
+        awayPrimary: awayTeam?.primary_color || null,
+        awaySecondary: awayTeam?.secondary_color || null,
+      };
+    },
+    enabled: !!(lastMatch?.home_team_id || lastMatch?.away_team_id),
+  });
+  
   return {
     totalMatches: matches.length,
     teamsCount: teams.length,
@@ -90,6 +125,7 @@ export function useDashboardStats(): DashboardStats {
     lastMatchScores,
     homeSetsWon,
     awaySetsWon,
+    teamColors: teamColorsData || null,
     loading: matchesLoading || teamsLoading,
   };
 }

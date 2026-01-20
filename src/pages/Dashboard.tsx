@@ -19,6 +19,7 @@ import { pt } from 'date-fns/locale';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { VolleyballBackground } from '@/components/ui/VolleyballBackground';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { useTeamColors } from '@/hooks/useTeamColors';
 import { cn } from '@/lib/utils';
 
 // KPI Chip component
@@ -208,8 +209,21 @@ export default function Dashboard() {
     lastMatchScores,
     homeSetsWon,
     awaySetsWon,
+    teamColors,
     loading 
   } = useDashboardStats();
+
+  // Apply dynamic team colors
+  useTeamColors({
+    homeColors: teamColors?.homePrimary ? {
+      primary: teamColors.homePrimary,
+      secondary: teamColors.homeSecondary || undefined,
+    } : undefined,
+    awayColors: teamColors?.awayPrimary ? {
+      primary: teamColors.awayPrimary,
+      secondary: teamColors.awaySecondary || undefined,
+    } : undefined,
+  });
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
