@@ -20,7 +20,7 @@ export default function Setup() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { match, lineups, loading, loadMatch, getLineupForSet } = useMatch(matchId || null);
-  const { teams, createTeam, getTeamPlayers, addTeamPlayer } = useTeams();
+  const { teams, getTeamPlayers, addTeamPlayer } = useTeams();
   const { matchPlayers, loadMatchPlayers, getPlayersForSide, importTeamPlayers, addMatchPlayer, removeMatchPlayer } = useMatchPlayers(matchId || null);
 
   const [activeSide, setActiveSide] = useState<Side>('CASA');
@@ -29,7 +29,7 @@ export default function Setup() {
   
   // Team selection
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const [newTeamName, setNewTeamName] = useState('');
+  
   const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([]);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
   
@@ -95,16 +95,6 @@ export default function Setup() {
     }
   }, [activeSet, activeSide, getLineupForSet]);
 
-  const handleCreateTeam = async () => {
-    if (!newTeamName.trim()) return;
-    const team = await createTeam(newTeamName.trim());
-    if (team) {
-      setSelectedTeamId(team.id);
-      setNewTeamName('');
-      // Update match with team reference
-      await updateMatchTeam(team.id);
-    }
-  };
 
   const handleSelectTeam = async (teamId: string) => {
     setSelectedTeamId(teamId);
@@ -270,18 +260,6 @@ export default function Setup() {
                     ))}
                   </SelectContent>
                 </Select>
-                
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nova equipa..."
-                    value={newTeamName}
-                    onChange={(e) => setNewTeamName(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button onClick={handleCreateTeam} disabled={!newTeamName.trim()}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
               </CardContent>
             </Card>
 
