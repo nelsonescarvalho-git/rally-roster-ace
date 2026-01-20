@@ -39,9 +39,13 @@ const RATING_DEFINITIONS = {
     label: 'Ataque',
     codes: [
       { code: 0, symbol: '✕', label: 'Erro', desc: 'Bola na rede ou fora → ponto adversário' },
-      { code: 1, symbol: '−', label: 'Tocou bloco', desc: 'Desfecho depende do b_code' },
+      { code: 1, symbol: '−', label: 'Tocou bloco', desc: 'Resultado depende do b_code (0-3)' },
       { code: 2, symbol: '+', label: 'Defendido', desc: 'Rally continua com contra-ataque' },
-      { code: 3, symbol: '★', label: 'Kill', desc: 'Ponto direto de ataque' },
+      { code: 3, symbol: '★', label: 'Kill', desc: 'Ponto direto → escolher: Chão ou Blockout' },
+    ],
+    killTypes: [
+      { type: 'FLOOR', emoji: '⬇️', label: 'Chão', desc: 'Bola no chão do adversário' },
+      { type: 'BLOCKOUT', emoji: '↗️', label: 'Blockout', desc: 'Bola sai fora após tocar bloco' },
     ]
   },
   block: {
@@ -343,28 +347,64 @@ export function WizardLegend({ homeName, awayName, kpis }: WizardLegendProps) {
                         </div>
                       </button>
                       {isExpanded && (
-                        <div className="grid grid-cols-4 gap-1 px-2 pb-2">
-                          {action.codes.map((codeInfo) => {
-                            const colors = CODE_COLORS[codeInfo.code as keyof typeof CODE_COLORS];
-                            return (
-                              <div 
-                                key={codeInfo.code}
-                                className={cn(
-                                  "px-1.5 py-1 rounded text-center border",
-                                  colors.bg,
-                                  colors.border
-                                )}
-                                title={codeInfo.desc}
-                              >
-                                <div className={cn("text-[10px] font-medium leading-tight", colors.text)}>
-                                  {codeInfo.label}
+                        <div className="px-2 pb-2 space-y-2">
+                          <div className="grid grid-cols-4 gap-1">
+                            {action.codes.map((codeInfo) => {
+                              const colors = CODE_COLORS[codeInfo.code as keyof typeof CODE_COLORS];
+                              return (
+                                <div 
+                                  key={codeInfo.code}
+                                  className={cn(
+                                    "px-1.5 py-1 rounded text-center border",
+                                    colors.bg,
+                                    colors.border
+                                  )}
+                                  title={codeInfo.desc}
+                                >
+                                  <div className={cn("text-[10px] font-medium leading-tight", colors.text)}>
+                                    {codeInfo.label}
+                                  </div>
+                                  <div className="text-[9px] text-muted-foreground leading-tight truncate">
+                                    {codeInfo.desc}
+                                  </div>
                                 </div>
-                                <div className="text-[9px] text-muted-foreground leading-tight truncate">
-                                  {codeInfo.desc}
+                              );
+                            })}
+                          </div>
+                          {/* Kill Types subsection for attack */}
+                          {key === 'attack' && 'killTypes' in action && (
+                            <div className="pt-2 border-t border-border/30">
+                              <div className="text-[9px] font-medium text-muted-foreground mb-1">Tipo de Kill (código 3):</div>
+                              <div className="flex gap-2">
+                                {(action as typeof RATING_DEFINITIONS.attack).killTypes?.map((kt) => (
+                                  <div key={kt.type} className="flex items-center gap-1 text-[10px] bg-success/10 border border-success/30 px-1.5 py-0.5 rounded">
+                                    <span>{kt.emoji}</span>
+                                    <span className="font-medium">{kt.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {/* Block relationship subsection for attack */}
+                          {key === 'attack' && (
+                            <div className="pt-2 border-t border-border/30">
+                              <div className="text-[9px] font-medium text-muted-foreground mb-1">Quando "Tocou bloco" (código 1):</div>
+                              <div className="grid grid-cols-2 gap-1 text-[9px]">
+                                <div className="bg-success/10 border border-success/30 px-1 py-0.5 rounded">
+                                  <span className="font-bold">b0:</span> Falta → Ponto atac.
+                                </div>
+                                <div className="bg-primary/10 border border-primary/30 px-1 py-0.5 rounded">
+                                  <span className="font-bold">b1:</span> Ofensivo → Continua
+                                </div>
+                                <div className="bg-warning/10 border border-warning/30 px-1 py-0.5 rounded">
+                                  <span className="font-bold">b2:</span> Defensivo → Continua
+                                </div>
+                                <div className="bg-destructive/10 border border-destructive/30 px-1 py-0.5 rounded">
+                                  <span className="font-bold">b3:</span> Stuff → Ponto bloq.
                                 </div>
                               </div>
-                            );
-                          })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

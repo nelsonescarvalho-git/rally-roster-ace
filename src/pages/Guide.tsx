@@ -52,9 +52,13 @@ const ACTION_DEFINITIONS = {
     label: 'Ataque',
     codes: [
       { code: 0, label: 'Erro de ataque', description: 'Bola na rede ou fora → ponto adversário' },
-      { code: 1, label: 'Tocou no bloco', description: 'Desfecho depende do b_code; NÃO fecha rally por si' },
+      { code: 1, label: 'Tocou bloco', description: 'Resultado depende do b_code (0-3)' },
       { code: 2, label: 'Defendido', description: 'Rally continua com contra-ataque' },
-      { code: 3, label: 'Kill', description: 'Ponto direto de ataque' },
+      { code: 3, label: 'Kill', description: 'Ponto direto → escolher tipo: Chão ou Blockout' },
+    ],
+    killTypes: [
+      { type: 'FLOOR', emoji: '⬇️', label: 'Chão', description: 'Bola toca diretamente no chão do campo adversário' },
+      { type: 'BLOCKOUT', emoji: '↗️', label: 'Blockout', description: 'Bola sai para fora após tocar no bloco adversário' },
     ]
   },
   block: {
@@ -269,6 +273,52 @@ export default function Guide() {
                       ))}
                     </TableBody>
                   </Table>
+                  {/* Show Kill Types subsection for attack */}
+                  {key === 'attack' && 'killTypes' in action && (
+                    <div className="mt-4 pt-4 border-t border-border/50">
+                      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                        <span>⚔️</span> Tipos de Kill (quando código 3)
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {(action as typeof ACTION_DEFINITIONS.attack).killTypes?.map((kt) => (
+                          <div key={kt.type} className="p-3 rounded-lg border bg-success/10 border-success/30">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xl">{kt.emoji}</span>
+                              <Badge className="bg-success text-success-foreground">{kt.type}</Badge>
+                            </div>
+                            <h5 className="font-medium text-sm">{kt.label}</h5>
+                            <p className="text-xs text-muted-foreground mt-1">{kt.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                        <strong>📊 Para KPIs:</strong> Ambos os tipos contam como Kill (a_code=3), 
+                        mas a distinção permite análise detalhada de eficácia contra diferentes sistemas de bloco.
+                      </div>
+                    </div>
+                  )}
+                  {/* Show Block relationship for attack code 1 */}
+                  {key === 'attack' && (
+                    <div className="mt-4 pt-4 border-t border-border/50">
+                      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                        <span>🛡️</span> Quando "Tocou bloco" (código 1) → Resultado do b_code
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded bg-success/10 border border-success/30">
+                          <span className="font-bold">b_code 0:</span> Falta → <span className="text-success font-medium">Ponto atacante</span>
+                        </div>
+                        <div className="p-2 rounded bg-primary/10 border border-primary/30">
+                          <span className="font-bold">b_code 1:</span> Ofensivo → <span className="text-muted-foreground">Rally continua</span>
+                        </div>
+                        <div className="p-2 rounded bg-warning/10 border border-warning/30">
+                          <span className="font-bold">b_code 2:</span> Defensivo → <span className="text-muted-foreground">Rally continua</span>
+                        </div>
+                        <div className="p-2 rounded bg-destructive/10 border border-destructive/30">
+                          <span className="font-bold">b_code 3:</span> Stuff → <span className="text-destructive font-medium">Ponto bloqueador</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CollapsibleContent>
               </Collapsible>
             ))}
@@ -547,8 +597,11 @@ export default function Guide() {
                 <Badge className="bg-blue-500 text-white">💥 Ataque K1</Badge>
               </div>
               <div className="text-xs text-muted-foreground pl-4 border-l-2 border-primary/30 space-y-1">
-                <p>• Se <strong>Kill (código 3)</strong> → Ponto para atacante</p>
-                <p>• Se <strong>Bloqueado (código 1)</strong> → Ponto para bloqueador</p>
+                <p>• Se <strong>Kill (código 3)</strong> → Escolher tipo: Chão ou Blockout → Ponto atacante</p>
+                <p>• Se <strong>Tocou bloco (código 1)</strong> → Consultar b_code:</p>
+                <p className="ml-4">• b_code 0 (Falta) → Ponto atacante</p>
+                <p className="ml-4">• b_code 1-2 (Ofensivo/Defensivo) → Rally continua</p>
+                <p className="ml-4">• b_code 3 (Stuff) → Ponto bloqueador</p>
                 <p>• Se <strong>Defendido (código 2)</strong> → Contra-ataque (K2/K3)</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap text-sm mt-2">
