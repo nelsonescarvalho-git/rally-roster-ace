@@ -77,6 +77,11 @@ function RallyGroup({
     (p.r_code !== null && !p.r_player_id)
   );
   
+  // Block code consistency check: a_code=1 should have b_code
+  const hasBlockInconsistency = phases.some(p => 
+    p.a_code === 1 && p.b_code === null
+  );
+  
   const getPlayer = (id: string | null) => players.find(p => p.id === id);
   
   const renderTimelinePhase = (rally: Rally, isLastPhase: boolean) => {
@@ -225,6 +230,7 @@ function RallyGroup({
                 scoreBefore={scoreBefore}
                 scoreAfter={scoreAfter}
                 hasIssue={hasIssue}
+                hasBlockInconsistency={hasBlockInconsistency}
                 isExpanded={isOpen}
               />
             </div>

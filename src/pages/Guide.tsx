@@ -51,9 +51,9 @@ const ACTION_DEFINITIONS = {
     icon: '💥',
     label: 'Ataque',
     codes: [
-      { code: 0, label: 'Erro de ataque', description: 'Bola na rede ou fora' },
-      { code: 1, label: 'Ataque bloqueado', description: 'Bloco adversário eficaz' },
-      { code: 2, label: 'Ataque defendido', description: 'Rally continua' },
+      { code: 0, label: 'Erro de ataque', description: 'Bola na rede ou fora → ponto adversário' },
+      { code: 1, label: 'Tocou no bloco', description: 'Desfecho depende do b_code; NÃO fecha rally por si' },
+      { code: 2, label: 'Defendido', description: 'Rally continua com contra-ataque' },
       { code: 3, label: 'Kill', description: 'Ponto direto de ataque' },
     ]
   },
@@ -61,10 +61,10 @@ const ACTION_DEFINITIONS = {
     icon: '🛡️',
     label: 'Bloco',
     codes: [
-      { code: 0, label: 'Falta de bloco', description: 'Toque na rede ou fora de posição' },
-      { code: 1, label: 'Bloco tocado', description: 'Toque sem controlo, rally continua' },
-      { code: 2, label: 'Bloco defensivo', description: 'Bola controlada, defesa possível' },
-      { code: 3, label: 'Stuff block', description: 'Ponto direto de bloco' },
+      { code: 0, label: 'Falta de bloco', description: 'Toque na rede ou fora de posição → ponto para atacante' },
+      { code: 1, label: 'Bloco ofensivo', description: 'Bola fica jogável no campo adversário' },
+      { code: 2, label: 'Bloco defensivo', description: 'Bola fica jogável no campo da equipa que blocou' },
+      { code: 3, label: 'Bloco ponto (Stuff)', description: 'Bola cai no campo do atacante → ponto imediato' },
     ]
   },
   defense: {
@@ -437,12 +437,58 @@ export default function Guide() {
           <div className="space-y-4">
             <div className="p-4 rounded-lg border bg-muted/30">
               <h4 className="font-medium mb-2">Eficiência de Ataque</h4>
-              <code className="text-sm bg-background px-2 py-1 rounded">
-                (Kills - Erros - Bloqueados) / Total Ataques × 100
+              <code className="text-sm bg-background px-2 py-1 rounded block">
+                (Kills - Erros - Bloqueados Ponto) / Total Ataques
               </code>
-              <p className="text-xs text-muted-foreground mt-2">
-                Onde: Kills = código 3, Erros = código 0, Bloqueados = código 1
-              </p>
+              <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                <p><strong>Kills</strong> = a_code === 3</p>
+                <p><strong>Erros</strong> = a_code === 0</p>
+                <p><strong>Bloqueados Ponto</strong> = a_code === 1 AND b_code === 3</p>
+                <p><strong>Total Ataques</strong> = count(a_player_id && a_code != null)</p>
+              </div>
+              <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs">
+                <strong>⚠️ Importante:</strong> Toques no bloco (a_code=1) onde b_code ≠ 3 <strong>não penalizam</strong> a eficiência.
+              </div>
+            </div>
+            
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="font-medium mb-2">Relação Ataque ↔ Bloco</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-24">a_code</TableHead>
+                    <TableHead className="w-24">b_code</TableHead>
+                    <TableHead>Resultado</TableHead>
+                    <TableHead className="w-32">Ponto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell><CodeBadge code={1} /></TableCell>
+                    <TableCell><CodeBadge code={3} /></TableCell>
+                    <TableCell>Bloco ponto (Stuff block)</TableCell>
+                    <TableCell className="text-destructive font-medium">Bloqueador</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><CodeBadge code={1} /></TableCell>
+                    <TableCell><CodeBadge code={2} /></TableCell>
+                    <TableCell>Bloco defensivo, rally continua</TableCell>
+                    <TableCell className="text-muted-foreground">—</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><CodeBadge code={1} /></TableCell>
+                    <TableCell><CodeBadge code={1} /></TableCell>
+                    <TableCell>Bloco ofensivo, bola no adversário</TableCell>
+                    <TableCell className="text-muted-foreground">—</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><CodeBadge code={1} /></TableCell>
+                    <TableCell><CodeBadge code={0} /></TableCell>
+                    <TableCell>Falta de bloco (net/posição)</TableCell>
+                    <TableCell className="text-success font-medium">Atacante</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
             
             <div className="p-4 rounded-lg border bg-muted/30">
@@ -466,11 +512,21 @@ export default function Guide() {
             </div>
             
             <div className="p-4 rounded-lg border bg-muted/30">
-              <h4 className="font-medium mb-2">Distinção: Bloco Ponto vs Bloco Toque</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• <strong>Bloco Ponto (Stuff):</strong> Ataque bloqueado = ponto imediato (código 3 no bloco)</li>
-                <li>• <strong>Bloco Toque:</strong> Ataque tocado mas rally continua (código 1 no ataque)</li>
-              </ul>
+              <h4 className="font-medium mb-2">KPIs de Bloco</h4>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <div>
+                  <strong>Pressão de Bloco</strong> = (b_code in 1,2,3) / Total tentativas de bloco
+                  <p className="text-xs">Mede com que frequência o bloco afeta o ataque adversário.</p>
+                </div>
+                <div>
+                  <strong>% Bloco Ponto</strong> = (b_code === 3) / Total tentativas de bloco
+                  <p className="text-xs">Taxa de blocos que resultam em ponto direto.</p>
+                </div>
+                <div>
+                  <strong>% Bloco Defensivo</strong> = (b_code === 2) / Total tentativas de bloco
+                  <p className="text-xs">Taxa de blocos que mantêm a bola jogável na própria equipa.</p>
+                </div>
+              </div>
             </div>
           </div>
         </CollapsibleSection>

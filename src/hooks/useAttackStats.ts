@@ -11,6 +11,7 @@ export interface AttackerStats {
   totalAttempts: number;
   totalKills: number;
   totalErrors: number;
+  totalBlocked: number; // Blocked for point (a_code=1 AND b_code=3)
   efficiency: number;
   
   // New metrics by distribution quality
@@ -28,6 +29,7 @@ export interface AttackerStats {
     attempts: number;
     kills: number;
     errors: number;
+    blocked: number;
     efficiency: number;
   }[];
 }
@@ -96,7 +98,7 @@ export function useAttackStats(
     const statsMap: Record<string, {
       stats: AttackerStats;
       passCodeSum: number;
-      byDistribution: Record<number, { attempts: number; kills: number; errors: number }>;
+      byDistribution: Record<number, { attempts: number; kills: number; errors: number; blocked: number }>;
     }> = {};
 
     // Initialize for all attackers
@@ -111,6 +113,7 @@ export function useAttackStats(
             totalAttempts: 0,
             totalKills: 0,
             totalErrors: 0,
+            totalBlocked: 0,
             efficiency: 0,
             avgDistributionQuality: 0,
             killsWithGoodDist: 0,
@@ -122,7 +125,7 @@ export function useAttackStats(
             statsByDistribution: [],
           },
           passCodeSum: 0,
-          byDistribution: { 0: { attempts: 0, kills: 0, errors: 0 }, 1: { attempts: 0, kills: 0, errors: 0 }, 2: { attempts: 0, kills: 0, errors: 0 }, 3: { attempts: 0, kills: 0, errors: 0 } },
+          byDistribution: { 0: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 1: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 2: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 3: { attempts: 0, kills: 0, errors: 0, blocked: 0 } },
         };
       }
     });
@@ -150,14 +153,17 @@ export function useAttackStats(
       
       if (aCode === 3) entry.stats.totalKills++;
       if (aCode === 0) entry.stats.totalErrors++;
+      // SEMANTIC CORRECTION: blocked for point = a_code=1 AND b_code=3
+      if (aCode === 1 && rally.b_code === 3) entry.stats.totalBlocked++;
 
       // By distribution quality
       if (!entry.byDistribution[passCode]) {
-        entry.byDistribution[passCode] = { attempts: 0, kills: 0, errors: 0 };
+        entry.byDistribution[passCode] = { attempts: 0, kills: 0, errors: 0, blocked: 0 };
       }
       entry.byDistribution[passCode].attempts++;
       if (aCode === 3) entry.byDistribution[passCode].kills++;
       if (aCode === 0) entry.byDistribution[passCode].errors++;
+      if (aCode === 1 && rally.b_code === 3) entry.byDistribution[passCode].blocked++;
 
       // Good dist (>= 2) vs Bad dist (<= 1)
       if (passCode >= 2) {
@@ -188,26 +194,31 @@ export function useAttackStats(
     Object.values(statsMap).forEach(entry => {
       const s = entry.stats;
       if (s.totalAttempts > 0) {
-        s.efficiency = (s.totalKills - s.totalErrors) / s.totalAttempts;
+        // Correct efficiency: (kills - errors - blocked_point) / total
+        s.efficiency = (s.totalKills - s.totalErrors - s.totalBlocked) / s.totalAttempts;
         s.avgDistributionQuality = entry.passCodeSum / s.totalAttempts;
       }
       if (s.attemptsWithGoodDist > 0) {
         const errorsWithGood = [3, 2].reduce((sum, code) => sum + (entry.byDistribution[code]?.errors || 0), 0);
-        s.efficiencyWithGoodDist = (s.killsWithGoodDist - errorsWithGood) / s.attemptsWithGoodDist;
+        const blockedWithGood = [3, 2].reduce((sum, code) => sum + (entry.byDistribution[code]?.blocked || 0), 0);
+        s.efficiencyWithGoodDist = (s.killsWithGoodDist - errorsWithGood - blockedWithGood) / s.attemptsWithGoodDist;
       }
       if (s.attemptsWithBadDist > 0) {
         const errorsWithBad = [1, 0].reduce((sum, code) => sum + (entry.byDistribution[code]?.errors || 0), 0);
-        s.efficiencyWithBadDist = (s.killsWithBadDist - errorsWithBad) / s.attemptsWithBadDist;
+        const blockedWithBad = [1, 0].reduce((sum, code) => sum + (entry.byDistribution[code]?.blocked || 0), 0);
+        s.efficiencyWithBadDist = (s.killsWithBadDist - errorsWithBad - blockedWithBad) / s.attemptsWithBadDist;
       }
       
       s.statsByDistribution = [3, 2, 1, 0].map(code => {
-        const d = entry.byDistribution[code] || { attempts: 0, kills: 0, errors: 0 };
+        const d = entry.byDistribution[code] || { attempts: 0, kills: 0, errors: 0, blocked: 0 };
         return {
           distributionCode: code,
           attempts: d.attempts,
           kills: d.kills,
           errors: d.errors,
-          efficiency: d.attempts > 0 ? (d.kills - d.errors) / d.attempts : 0,
+          blocked: d.blocked,
+          // Correct efficiency per distribution: (kills - errors - blocked) / attempts
+          efficiency: d.attempts > 0 ? (d.kills - d.errors - d.blocked) / d.attempts : 0,
         };
       });
     });

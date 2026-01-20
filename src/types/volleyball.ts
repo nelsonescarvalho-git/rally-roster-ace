@@ -218,6 +218,7 @@ export interface PlayerStats {
   attErrors: number;
   attFloorKills: number;
   attBlockoutKills: number;
+  attBlocked?: number; // Attacks blocked for point (a_code=1 AND b_code=3)
   attAvg: number;
   attEfficiency: number;
   blkAttempts: number;

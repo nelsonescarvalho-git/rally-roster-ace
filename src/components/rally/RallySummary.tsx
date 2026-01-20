@@ -11,6 +11,7 @@ interface RallySummaryProps {
   scoreBefore?: { home: number; away: number };
   scoreAfter?: { home: number; away: number };
   hasIssue?: boolean;
+  hasBlockInconsistency?: boolean;
   isExpanded?: boolean;
 }
 
@@ -22,6 +23,7 @@ export function RallySummary({
   scoreBefore,
   scoreAfter,
   hasIssue = false,
+  hasBlockInconsistency = false,
   isExpanded = false
 }: RallySummaryProps) {
   const finalPhase = phases[phases.length - 1];
@@ -84,6 +86,14 @@ export function RallySummary({
         <Badge variant="destructive" className="text-[10px] gap-1 flex-shrink-0">
           <AlertTriangle className="h-3 w-3" />
           <span className="hidden sm:inline">Dados</span>
+        </Badge>
+      )}
+      
+      {/* Block Inconsistency Warning */}
+      {hasBlockInconsistency && !hasIssue && (
+        <Badge variant="outline" className="text-[10px] gap-1 flex-shrink-0 border-warning text-warning">
+          <AlertTriangle className="h-3 w-3" />
+          <span className="hidden sm:inline">b_code</span>
         </Badge>
       )}
       
