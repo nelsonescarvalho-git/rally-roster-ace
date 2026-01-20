@@ -441,6 +441,8 @@ export function useSetKPIs(
     }
     
     // === ATTACK STATS (using rawSetRallies to include all phases) ===
+    // SEMANTIC CORRECTION: a_code=1 means "touched block", the outcome is in b_code
+    // Only count as "blocked" (penalizing efficiency) when b_code=3 (stuff block = point)
     for (const rally of rawSetRallies) {
       if (rally.a_player_id && rally.a_code !== null) {
         // Use playerSideMap to determine attacker's team directly
@@ -451,12 +453,14 @@ export function useSetKPIs(
           if (rally.a_code === 3) home.attKills++;
           if (rally.a_code === 0) home.attErrors++;
           if (rally.a_code === 1) {
-            home.attBlocked++;
-            // Distinguish: block point vs block touch
-            // Block point = blocked AND opponent wins point AND reason is BLK
-            if (rally.point_won_by === 'FORA' && rally.reason === 'BLK') {
+            // a_code=1 = attack touched block, check b_code for outcome
+            if (rally.b_code === 3) {
+              // Stuff block = point for blocker, penalizes attacker efficiency
+              home.attBlocked++;
               home.attBlockedPoint++;
             } else {
+              // b_code 0/1/2 or NULL = block touch, rally continues or block fault
+              // Does NOT penalize attacker efficiency
               home.attBlockedTouch++;
             }
           }
@@ -465,11 +469,14 @@ export function useSetKPIs(
           if (rally.a_code === 3) away.attKills++;
           if (rally.a_code === 0) away.attErrors++;
           if (rally.a_code === 1) {
-            away.attBlocked++;
-            // Distinguish: block point vs block touch
-            if (rally.point_won_by === 'CASA' && rally.reason === 'BLK') {
+            // a_code=1 = attack touched block, check b_code for outcome
+            if (rally.b_code === 3) {
+              // Stuff block = point for blocker, penalizes attacker efficiency
+              away.attBlocked++;
               away.attBlockedPoint++;
             } else {
+              // b_code 0/1/2 or NULL = block touch, rally continues or block fault
+              // Does NOT penalize attacker efficiency
               away.attBlockedTouch++;
             }
           }

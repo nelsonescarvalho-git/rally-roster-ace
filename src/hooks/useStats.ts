@@ -73,6 +73,10 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
           }
         }
         if (rally.a_code === 0) stats[rally.a_player_id].attErrors++;
+        // Track blocked for efficiency: only when a_code=1 AND b_code=3 (stuff block)
+        if (rally.a_code === 1 && rally.b_code === 3) {
+          stats[rally.a_player_id].attBlocked = (stats[rally.a_player_id].attBlocked || 0) + 1;
+        }
       }
 
       // Block
@@ -104,7 +108,9 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
       }
       if (s.attAttempts > 0) {
         s.attAvg = (s.attPoints * 3 + (s.attAttempts - s.attPoints - s.attErrors) * 1.5) / s.attAttempts;
-        s.attEfficiency = (s.attPoints - s.attErrors) / s.attAttempts;
+        // Correct efficiency formula: (kills - errors - blocked_point) / total
+        // attBlocked only counts a_code=1 AND b_code=3 (stuff blocks)
+        s.attEfficiency = (s.attPoints - s.attErrors - (s.attBlocked || 0)) / s.attAttempts;
       }
       if (s.defAttempts > 0) {
         s.defAvg = (s.defPoints * 3 + (s.defAttempts - s.defPoints - s.defErrors) * 1.5) / s.defAttempts;
