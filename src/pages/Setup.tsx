@@ -280,7 +280,7 @@ export default function Setup() {
           </Button>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} key={activeSide}>
           <TabsList className="w-full">
             <TabsTrigger value="team" className="flex-1">
               <Users className="h-4 w-4 mr-1" />
@@ -291,7 +291,7 @@ export default function Setup() {
           </TabsList>
 
           {/* TEAM TAB - Select/Create team and manage roster */}
-          <TabsContent value="team" className="space-y-4">
+          <TabsContent value="team" className="space-y-4 animate-fade-in">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Selecionar Equipa</CardTitle>
@@ -401,7 +401,7 @@ export default function Setup() {
           </TabsContent>
 
           {/* MATCH TAB - Players in this match */}
-          <TabsContent value="match" className="space-y-4">
+          <TabsContent value="match" className="space-y-4 animate-fade-in">
             <div className="space-y-2">
               {sidePlayers.length === 0 ? (
                 <Card className="border-dashed">
@@ -444,7 +444,7 @@ export default function Setup() {
           </TabsContent>
 
           {/* LINEUP TAB */}
-          <TabsContent value="lineup" className="space-y-4">
+          <TabsContent value="lineup" className="space-y-4 animate-fade-in">
             <div className="flex gap-1 overflow-x-auto pb-2">
               {[1, 2, 3, 4, 5].map((set) => (
                 <Button
