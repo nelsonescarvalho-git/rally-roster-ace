@@ -14,6 +14,7 @@ import Setup from "./pages/Setup";
 import Live from "./pages/Live";
 import Stats from "./pages/Stats";
 import RallyHistory from "./pages/RallyHistory";
+import Guide from "./pages/Guide";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/live/:matchId" element={<Live />} />
             <Route path="/stats/:matchId" element={<Stats />} />
             <Route path="/history/:matchId" element={<RallyHistory />} />
+            <Route path="/guia" element={<Guide />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
