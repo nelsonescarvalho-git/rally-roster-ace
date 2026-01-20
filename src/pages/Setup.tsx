@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useMatch } from '@/hooks/useMatch';
 import { useTeams } from '@/hooks/useTeams';
 import { useMatchPlayers } from '@/hooks/useMatchPlayers';
+import { useTeamColors } from '@/hooks/useTeamColors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,15 @@ export default function Setup() {
   
   // Lineup selections
   const [lineupSelections, setLineupSelections] = useState<Record<string, string>>({});
+  
+  // Team colors state
+  const [teamColors, setTeamColors] = useState<{
+    home: { primary?: string; secondary?: string };
+    away: { primary?: string; secondary?: string };
+  }>({ home: {}, away: {} });
+  
+  // Apply team colors via CSS variables
+  useTeamColors({ homeColors: teamColors.home, awayColors: teamColors.away });
 
   useEffect(() => {
     if (matchId) {
@@ -46,7 +56,7 @@ export default function Setup() {
     }
   }, [matchId, loadMatch, loadMatchPlayers]);
 
-  // Load team based on match team_id
+  // Load team based on match team_id and fetch team colors
   useEffect(() => {
     if (match) {
       const teamId = activeSide === 'CASA' ? match.home_team_id : match.away_team_id;
@@ -55,6 +65,29 @@ export default function Setup() {
       } else {
         setSelectedTeamId('');
       }
+      
+      // Fetch team colors for both teams
+      const fetchTeamColors = async () => {
+        const teamIds = [match.home_team_id, match.away_team_id].filter(Boolean);
+        if (teamIds.length === 0) return;
+        
+        const { data: teamsData } = await supabase
+          .from('teams')
+          .select('id, primary_color, secondary_color')
+          .in('id', teamIds);
+        
+        if (teamsData) {
+          const homeTeam = teamsData.find(t => t.id === match.home_team_id);
+          const awayTeam = teamsData.find(t => t.id === match.away_team_id);
+          
+          setTeamColors({
+            home: homeTeam ? { primary: homeTeam.primary_color || undefined, secondary: homeTeam.secondary_color || undefined } : {},
+            away: awayTeam ? { primary: awayTeam.primary_color || undefined, secondary: awayTeam.secondary_color || undefined } : {},
+          });
+        }
+      };
+      
+      fetchTeamColors();
     }
   }, [match, activeSide]);
 
@@ -216,16 +249,32 @@ export default function Setup() {
       <div className="p-4 space-y-4">
         <div className="flex gap-2">
           <Button
-            variant={activeSide === 'CASA' ? 'default' : 'outline'}
+            variant="outline"
             onClick={() => setActiveSide('CASA')}
-            className="flex-1"
+            className="flex-1 font-semibold transition-all"
+            style={activeSide === 'CASA' ? {
+              backgroundColor: 'hsl(var(--home))',
+              color: 'white',
+              borderColor: 'hsl(var(--home))',
+            } : {
+              borderColor: 'hsl(var(--home) / 0.5)',
+              color: 'hsl(var(--home))',
+            }}
           >
             {match.home_name}
           </Button>
           <Button
-            variant={activeSide === 'FORA' ? 'default' : 'outline'}
+            variant="outline"
             onClick={() => setActiveSide('FORA')}
-            className="flex-1"
+            className="flex-1 font-semibold transition-all"
+            style={activeSide === 'FORA' ? {
+              backgroundColor: 'hsl(var(--away))',
+              color: 'white',
+              borderColor: 'hsl(var(--away))',
+            } : {
+              borderColor: 'hsl(var(--away) / 0.5)',
+              color: 'hsl(var(--away))',
+            }}
           >
             {match.away_name}
           </Button>
