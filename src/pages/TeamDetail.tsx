@@ -3,14 +3,15 @@ import { useParams, Link } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useTeams } from '@/hooks/useTeams';
 import { TeamPlayer } from '@/types/volleyball';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Plus, Pencil, UserMinus, Check, X } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, UserMinus, Check, X, Palette } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const POSITIONS = [
   { value: 'OH', label: 'Ponta (OH)' },
@@ -20,13 +21,23 @@ const POSITIONS = [
   { value: 'L', label: 'Líbero (L)' },
 ];
 
+const DEFAULT_COLORS = {
+  primary: '#3B82F6',
+  secondary: '#1E40AF',
+};
+
 export default function TeamDetail() {
   const { teamId } = useParams<{ teamId: string }>();
-  const { teams, getTeamPlayers, addTeamPlayer, updateTeamPlayer, deactivateTeamPlayer } = useTeams();
+  const { teams, getTeamPlayers, addTeamPlayer, updateTeamPlayer, deactivateTeamPlayer, updateTeam } = useTeams();
   const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Team color state
+  const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLORS.primary);
+  const [secondaryColor, setSecondaryColor] = useState(DEFAULT_COLORS.secondary);
+  const [colorsSaving, setColorsSaving] = useState(false);
   
   // Add form state
   const [newNumber, setNewNumber] = useState('');
@@ -39,6 +50,14 @@ export default function TeamDetail() {
 
   const team = teams.find(t => t.id === teamId);
 
+  // Load team colors when team changes
+  useEffect(() => {
+    if (team) {
+      setPrimaryColor(team.primary_color || DEFAULT_COLORS.primary);
+      setSecondaryColor(team.secondary_color || DEFAULT_COLORS.secondary);
+    }
+  }, [team]);
+
   const loadPlayers = async () => {
     if (!teamId) return;
     setLoading(true);
@@ -50,6 +69,16 @@ export default function TeamDetail() {
   useEffect(() => {
     loadPlayers();
   }, [teamId]);
+
+  const handleSaveColors = async () => {
+    if (!teamId) return;
+    setColorsSaving(true);
+    await updateTeam(teamId, {
+      primary_color: primaryColor,
+      secondary_color: secondaryColor,
+    });
+    setColorsSaving(false);
+  };
 
   const handleAdd = async () => {
     if (!teamId || !newNumber || !newName.trim()) return;
@@ -180,6 +209,118 @@ export default function TeamDetail() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Team Colors Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Cores da Equipa
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Personalize as cores para identificar esta equipa nos jogos
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Primary Color */}
+              <div className="space-y-2">
+                <Label htmlFor="primary-color" className="text-xs">Cor Primária</Label>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="h-10 w-10 rounded-lg border-2 border-border shadow-sm cursor-pointer overflow-hidden"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    <input
+                      type="color"
+                      id="primary-color"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      className="w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+                  <Input
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    placeholder="#3B82F6"
+                    className="font-mono text-xs h-10"
+                  />
+                </div>
+              </div>
+              
+              {/* Secondary Color */}
+              <div className="space-y-2">
+                <Label htmlFor="secondary-color" className="text-xs">Cor Secundária</Label>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="h-10 w-10 rounded-lg border-2 border-border shadow-sm cursor-pointer overflow-hidden"
+                    style={{ backgroundColor: secondaryColor }}
+                  >
+                    <input
+                      type="color"
+                      id="secondary-color"
+                      value={secondaryColor}
+                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      className="w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+                  <Input
+                    value={secondaryColor}
+                    onChange={(e) => setSecondaryColor(e.target.value)}
+                    placeholder="#1E40AF"
+                    className="font-mono text-xs h-10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Color Preview */}
+            <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="text-xs text-muted-foreground mb-2">Pré-visualização</div>
+              <div className="flex items-center gap-3">
+                <div 
+                  className="h-12 w-12 rounded-xl flex items-center justify-center text-lg font-bold shadow-md"
+                  style={{ 
+                    backgroundColor: primaryColor, 
+                    color: '#fff',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  #7
+                </div>
+                <div className="flex-1">
+                  <div 
+                    className="h-2 rounded-full mb-1"
+                    style={{ backgroundColor: primaryColor }}
+                  />
+                  <div 
+                    className="h-2 rounded-full w-2/3"
+                    style={{ backgroundColor: secondaryColor }}
+                  />
+                </div>
+                <div 
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ 
+                    backgroundColor: primaryColor, 
+                    color: '#fff',
+                  }}
+                >
+                  {team.name}
+                </div>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <Button 
+              onClick={handleSaveColors} 
+              disabled={colorsSaving}
+              className="w-full"
+              size="sm"
+            >
+              {colorsSaving ? 'A guardar...' : 'Guardar Cores'}
+            </Button>
+          </CardContent>
+        </Card>
 
         {loading ? (
           <div className="flex h-64 items-center justify-center">
