@@ -193,6 +193,10 @@ export function ActionEditor({
     
     // Auto-confirm for Block and Defense (no additional input needed)
     if (actionType === 'block' || actionType === 'defense') {
+      if (!selectedPlayer) {
+        toast.warning('Selecione um jogador primeiro');
+        return;
+      }
       const player = players.find(p => p.id === selectedPlayer);
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -205,6 +209,10 @@ export function ActionEditor({
     
     // Auto-confirm for Serve/Reception
     if (actionType === 'serve' || actionType === 'reception') {
+      if (!selectedPlayer) {
+        toast.warning('Selecione um jogador primeiro');
+        return;
+      }
       const player = players.find(p => p.id === selectedPlayer);
       requestAnimationFrame(() => {
         setTimeout(() => {
