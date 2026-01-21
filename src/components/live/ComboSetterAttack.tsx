@@ -5,7 +5,7 @@ import { PlayerGrid } from './PlayerGrid';
 import { ColoredRatingButton } from './ColoredRatingButton';
 import { ChevronLeft, Target, Swords, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Player, Side, PassDestination, RallyAction } from '@/types/volleyball';
+import { Player, Side, PassDestination, RallyAction, KillType } from '@/types/volleyball';
 
 interface ComboSetterAttackProps {
   players: Player[];
@@ -32,12 +32,13 @@ export function ComboSetterAttack({
   onComplete,
   onCancel,
 }: ComboSetterAttackProps) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [setterId, setSetterId] = useState<string | null>(null);
   const [destination, setDestination] = useState<PassDestination | null>(null);
   const [attackerId, setAttackerId] = useState<string | null>(null);
   const [attackCode, setAttackCode] = useState<number | null>(null);
   const [passQuality, setPassQuality] = useState<number | null>(null);
+  const [killType, setKillType] = useState<KillType | null>(null);
 
   const teamName = side === 'CASA' ? homeName : awayName;
   const teamColor = side === 'CASA' ? 'home' : 'away';
@@ -67,37 +68,57 @@ export function ComboSetterAttack({
     setAttackerId(id);
   };
 
+  // Complete the action with all data
+  const completeAction = (code: number, selectedKillType: KillType | null) => {
+    const setterAction: RallyAction = {
+      type: 'setter',
+      side,
+      phase: 1,
+      setterId,
+      passDestination: destination,
+      passCode: passQuality,
+      playerNo: setterPlayer?.jersey_number || null,
+    };
+
+    const attackAction: RallyAction = {
+      type: 'attack',
+      side,
+      phase: 1,
+      playerId: attackerId,
+      playerNo: attackerPlayer?.jersey_number || null,
+      code,
+      attackPassQuality: passQuality,
+      killType: code === 3 ? selectedKillType : null,
+    };
+
+    onComplete(setterAction, attackAction);
+  };
+
   const handleAttackCodeSelect = (code: number) => {
     setAttackCode(code);
     
-    // Auto-complete on code selection (if attacker already selected)
+    // For kills (code 3), require kill type selection
+    if (code === 3) {
+      setStep(3);
+      return;
+    }
+    
+    // Auto-complete for codes 0, 1, 2
     if (attackerId) {
-      const setterAction: RallyAction = {
-        type: 'setter',
-        side,
-        phase: 1,
-        setterId,
-        passDestination: destination,
-        passCode: passQuality,
-        playerNo: setterPlayer?.jersey_number || null,
-      };
-
-      const attackAction: RallyAction = {
-        type: 'attack',
-        side,
-        phase: 1,
-        playerId: attackerId,
-        playerNo: attackerPlayer?.jersey_number || null,
-        code,
-        attackPassQuality: passQuality,
-      };
-
-      onComplete(setterAction, attackAction);
+      completeAction(code, null);
     }
   };
 
+  const handleKillTypeSelect = (type: KillType) => {
+    setKillType(type);
+    completeAction(3, type);
+  };
+
   const handleBack = () => {
-    if (step === 2) {
+    if (step === 3) {
+      setStep(2);
+      setKillType(null);
+    } else if (step === 2) {
       setStep(1);
       setAttackerId(null);
       setAttackCode(null);
@@ -236,6 +257,40 @@ export function ComboSetterAttack({
           </>
         )}
 
+        {step === 3 && (
+          <>
+            {/* Step 3: Kill Type Selection */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-muted-foreground">
+                  5. Tipo de Kill <span className="text-destructive">*</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {attackerPlayer && `Ataque: #${attackerPlayer.jersey_number}`}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant={killType === 'FLOOR' ? 'default' : 'outline'}
+                  className="h-14 text-base font-medium gap-2"
+                  style={killType === 'FLOOR' ? { backgroundColor: teamColorHsl } : undefined}
+                  onClick={() => handleKillTypeSelect('FLOOR')}
+                >
+                  🏐 Chão
+                </Button>
+                <Button
+                  variant={killType === 'BLOCKOUT' ? 'default' : 'outline'}
+                  className="h-14 text-base font-medium gap-2"
+                  style={killType === 'BLOCKOUT' ? { backgroundColor: teamColorHsl } : undefined}
+                  onClick={() => handleKillTypeSelect('BLOCKOUT')}
+                >
+                  ✋ Blockout
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Navigation */}
         <div className="flex justify-between pt-3 border-t">
           <Button 
@@ -258,6 +313,12 @@ export function ComboSetterAttack({
               className="w-2 h-2 rounded-full transition-colors"
               style={{ backgroundColor: step >= 2 ? teamColorHsl : 'hsl(var(--muted))' }}
             />
+            {attackCode === 3 && (
+              <div 
+                className="w-2 h-2 rounded-full transition-colors"
+                style={{ backgroundColor: step >= 3 ? teamColorHsl : 'hsl(var(--muted))' }}
+              />
+            )}
           </div>
         </div>
       </CardContent>
