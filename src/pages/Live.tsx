@@ -34,6 +34,7 @@ import { PositionBadge } from '@/components/live/PositionBadge';
 import { PlayerGrid } from '@/components/live/PlayerGrid';
 import { QuickAttackBar } from '@/components/live/QuickAttackBar';
 import { LiberoPrompt } from '@/components/live/LiberoPrompt';
+import { CourtView } from '@/components/live/CourtView';
 import { useLiberoTracking } from '@/hooks/useLiberoTracking';
 import { 
   Side, 
@@ -1545,6 +1546,25 @@ export default function Live() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Real-time Court View */}
+        <CourtView
+          currentSet={currentSet}
+          currentRally={gameState.currentRally}
+          serveSide={gameState.serveSide}
+          serveRotation={gameState.serveRot}
+          recvRotation={gameState.recvRot}
+          homeName={match.home_name}
+          awayName={match.away_name}
+          getPlayersOnCourt={getPlayersOnCourt}
+          getPlayerZone={getPlayerZone}
+          homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
+          homeLiberoId={liberoTrackingHome.activeLiberoPlayer?.id ?? null}
+          awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
+          awayLiberoId={liberoTrackingAway.activeLiberoPlayer?.id ?? null}
+          homeColor={teamColors.home.primary}
+          awayColor={teamColors.away.primary}
+        />
 
         {/* Substitution Buttons & Cancel */}
         <div className="flex gap-2 items-center">
