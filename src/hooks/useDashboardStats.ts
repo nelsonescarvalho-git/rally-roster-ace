@@ -40,7 +40,8 @@ export function useDashboardStats(): DashboardStats {
     queryFn: async () => {
       const { count, error } = await supabase
         .from('rallies')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true })
+        .is('deleted_at', null);
       
       if (error) throw error;
       return count || 0;
@@ -57,6 +58,7 @@ export function useDashboardStats(): DashboardStats {
         .from('rallies')
         .select('set_no, point_won_by')
         .eq('match_id', lastMatch.id)
+        .is('deleted_at', null)
         .not('point_won_by', 'is', null);
       
       if (error) throw error;

@@ -14,6 +14,7 @@ export function useMatches() {
       const { data, error } = await supabase
         .from('matches')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -48,10 +49,10 @@ export function useMatches() {
 
   const deleteMatch = useCallback(async (matchId: string) => {
     try {
-      const { error } = await supabase.from('matches').delete().eq('id', matchId);
+      const { error } = await supabase.rpc('soft_delete_match', { p_match_id: matchId });
       if (error) throw error;
       await loadMatches();
-      toast({ title: 'Eliminado', description: 'Jogo removido com sucesso' });
+      toast({ title: 'Eliminado', description: 'Jogo removido com sucesso. Será apagado definitivamente em 15 dias.' });
       return true;
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });

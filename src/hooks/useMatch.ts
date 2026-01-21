@@ -18,12 +18,12 @@ export function useMatch(matchId: string | null) {
     setLoading(true);
     try {
       const [matchRes, playersRes, matchPlayersRes, lineupsRes, ralliesRes, subsRes] = await Promise.all([
-        supabase.from('matches').select('*').eq('id', matchId).maybeSingle(),
+        supabase.from('matches').select('*').eq('id', matchId).is('deleted_at', null).maybeSingle(),
         supabase.from('players').select('*').eq('match_id', matchId).order('jersey_number'),
-        supabase.from('match_players').select('*').eq('match_id', matchId).order('jersey_number'),
-        supabase.from('lineups').select('*').eq('match_id', matchId),
-        supabase.from('rallies').select('*').eq('match_id', matchId).order('set_no').order('rally_no').order('phase'),
-        supabase.from('substitutions').select('*').eq('match_id', matchId).order('created_at'),
+        supabase.from('match_players').select('*').eq('match_id', matchId).is('deleted_at', null).order('jersey_number'),
+        supabase.from('lineups').select('*').eq('match_id', matchId).is('deleted_at', null),
+        supabase.from('rallies').select('*').eq('match_id', matchId).is('deleted_at', null).order('set_no').order('rally_no').order('phase'),
+        supabase.from('substitutions').select('*').eq('match_id', matchId).is('deleted_at', null).order('created_at'),
       ]);
 
       if (matchRes.data) setMatch(matchRes.data as Match);

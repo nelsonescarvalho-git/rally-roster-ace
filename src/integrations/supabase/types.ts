@@ -17,6 +17,8 @@ export type Database = {
       lineups: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           match_id: string
           rot1: string | null
@@ -30,6 +32,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           match_id: string
           rot1?: string | null
@@ -43,6 +47,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           match_id?: string
           rot1?: string | null
@@ -109,6 +115,8 @@ export type Database = {
       match_players: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           jersey_number: number
           match_id: string
@@ -120,6 +128,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           jersey_number: number
           match_id: string
@@ -131,6 +141,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           jersey_number?: number
           match_id?: string
@@ -169,6 +181,8 @@ export type Database = {
           away_name: string
           away_team_id: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           first_serve_side: string
           home_name: string
           home_team_id: string | null
@@ -181,6 +195,8 @@ export type Database = {
           away_name?: string
           away_team_id?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           first_serve_side?: string
           home_name?: string
           home_team_id?: string | null
@@ -193,6 +209,8 @@ export type Database = {
           away_name?: string
           away_team_id?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           first_serve_side?: string
           home_name?: string
           home_team_id?: string | null
@@ -273,6 +291,8 @@ export type Database = {
           d_code: number | null
           d_no: number | null
           d_player_id: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           k_phase: string | null
           kill_type: string | null
@@ -312,6 +332,8 @@ export type Database = {
           d_code?: number | null
           d_no?: number | null
           d_player_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           k_phase?: string | null
           kill_type?: string | null
@@ -351,6 +373,8 @@ export type Database = {
           d_code?: number | null
           d_no?: number | null
           d_player_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           k_phase?: string | null
           kill_type?: string | null
@@ -443,6 +467,8 @@ export type Database = {
       substitutions: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           is_libero: boolean
           match_id: string
@@ -454,6 +480,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_libero?: boolean
           match_id: string
@@ -465,6 +493,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_libero?: boolean
           match_id?: string
@@ -566,6 +596,12 @@ export type Database = {
     }
     Functions: {
       delete_set: {
+        Args: { p_match_id: string; p_set_no: number }
+        Returns: undefined
+      }
+      purge_deleted: { Args: never; Returns: undefined }
+      soft_delete_match: { Args: { p_match_id: string }; Returns: undefined }
+      soft_delete_set: {
         Args: { p_match_id: string; p_set_no: number }
         Returns: undefined
       }
