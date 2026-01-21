@@ -1451,11 +1451,11 @@ export default function Live() {
           </div>
         </div>
 
-        {/* Match Sets Score */}
+        {/* Match Sets Score - compact */}
         {(() => {
           const matchStatus = getMatchStatus();
           return (
-            <div className="text-center text-sm text-muted-foreground">
+            <div className="text-center text-xs text-muted-foreground">
               Sets: <span className={matchStatus.setsHome > matchStatus.setsAway ? 'text-home font-semibold' : ''}>{matchStatus.setsHome}</span>
               {' - '}
               <span className={matchStatus.setsAway > matchStatus.setsHome ? 'text-away font-semibold' : ''}>{matchStatus.setsAway}</span>
@@ -1463,82 +1463,32 @@ export default function Live() {
           );
         })()}
 
-        {/* Score Display */}
+        {/* Compact Score Display */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <div className="flex items-stretch">
+            <div className="flex items-center justify-center py-2 px-3 gap-4">
               {/* Home Team */}
-              <div className="flex-1 bg-home/10 border-r border-home/20 p-4 text-center">
-                <div className="text-sm font-semibold text-home">{match.home_name}</div>
-                <div className="text-5xl font-bold text-home mt-1">{gameState.homeScore}</div>
-                <div className="flex flex-wrap gap-1 justify-center mt-2">
-                  {(() => {
-                    const homePlayers = getPlayersOnCourt(currentSet, 'CASA', gameState.currentRally);
-                    const homeSubsForSet = getSubstitutionsForSet(currentSet, 'CASA');
-                    
-                    return homePlayers.map(player => {
-                      const isLiberoIn = homeSubsForSet.some(
-                        s => s.is_libero && s.player_in_id === player.id && s.rally_no <= gameState.currentRally
-                      );
-                      const isLibero = player.position === 'L' || isLiberoIn;
-                      
-                      return (
-                        <Badge
-                          key={player.id}
-                          variant="secondary"
-                          className={`text-xs ${isLibero ? 'bg-warning text-warning-foreground' : 'bg-home/20 text-home'}`}
-                        >
-                          #{player.jersey_number}
-                          {isLibero && ' L'}
-                        </Badge>
-                      );
-                    });
-                  })()}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-home truncate max-w-[60px]">{match.home_name}</span>
+                <span className="text-3xl font-bold text-home">{gameState.homeScore}</span>
               </div>
               
-              {/* Divider */}
-              <div className="flex flex-col items-center justify-center px-3 py-2 bg-muted/50">
-                <div className="text-lg font-bold text-muted-foreground">—</div>
-                <div className="text-[10px] text-muted-foreground text-center leading-tight mt-1">
-                  <div>R{gameState.currentRally}</div>
-                </div>
+              {/* Divider with rally */}
+              <div className="flex flex-col items-center">
+                <span className="text-lg font-bold text-muted-foreground">—</span>
+                <span className="text-[9px] text-muted-foreground">R{gameState.currentRally}</span>
               </div>
               
               {/* Away Team */}
-              <div className="flex-1 bg-away/10 border-l border-away/20 p-4 text-center">
-                <div className="text-sm font-semibold text-away">{match.away_name}</div>
-                <div className="text-5xl font-bold text-away mt-1">{gameState.awayScore}</div>
-                <div className="flex flex-wrap gap-1 justify-center mt-2">
-                  {(() => {
-                    const awayPlayers = getPlayersOnCourt(currentSet, 'FORA', gameState.currentRally);
-                    const awaySubsForSet = getSubstitutionsForSet(currentSet, 'FORA');
-                    
-                    return awayPlayers.map(player => {
-                      const isLiberoIn = awaySubsForSet.some(
-                        s => s.is_libero && s.player_in_id === player.id && s.rally_no <= gameState.currentRally
-                      );
-                      const isLibero = player.position === 'L' || isLiberoIn;
-                      
-                      return (
-                        <Badge
-                          key={player.id}
-                          variant="secondary"
-                          className={`text-xs ${isLibero ? 'bg-warning text-warning-foreground' : 'bg-away/20 text-away'}`}
-                        >
-                          #{player.jersey_number}
-                          {isLibero && ' L'}
-                        </Badge>
-                      );
-                    });
-                  })()}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-3xl font-bold text-away">{gameState.awayScore}</span>
+                <span className="text-xs font-medium text-away truncate max-w-[60px]">{match.away_name}</span>
               </div>
             </div>
             
             {/* Server info bar */}
-            <div className="px-4 py-2 bg-muted/30 text-center text-xs text-muted-foreground border-t">
-              Serve: <span className={gameState.serveSide === 'CASA' ? 'text-home font-medium' : 'text-away font-medium'}>
+            <div className="px-2 py-1 bg-muted/30 text-center text-[10px] text-muted-foreground border-t">
+              🏐 <span className={gameState.serveSide === 'CASA' ? 'text-home font-medium' : 'text-away font-medium'}>
                 {gameState.serveSide === 'CASA' ? match.home_name : match.away_name}
               </span>
               {' '}(R{gameState.serveRot})

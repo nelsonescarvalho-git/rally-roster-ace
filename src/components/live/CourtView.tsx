@@ -20,18 +20,19 @@ interface CourtViewProps {
   awayColor?: string;
 }
 
-// Zone layout for each side - courts face each other across the net
-// Back row at top (away from net), Front row at bottom (near net)
-// Home (left): Back row Z5-Z6-Z1, Front row Z4-Z3-Z2
-// Away (right): Back row Z1-Z6-Z5, Front row Z2-Z3-Z4 (mirrored)
+// Zone layout: 3 rows × 2 cols - courts face each other with vertical net in center
+// HOME (left): Col1 = Back court, Col2 = Front court (near net)
+// AWAY (right): Col1 = Front court (near net), Col2 = Back court
 const HOME_ZONES = [
-  [5, 6, 1], // Back row (top - away from net)
-  [4, 3, 2], // Front row (bottom - near net)
+  [5, 4], // Row 1: Z5 (back), Z4 (front)
+  [6, 3], // Row 2: Z6 (back), Z3 (front)
+  [1, 2], // Row 3: Z1 (back, server), Z2 (front)
 ];
 
 const AWAY_ZONES = [
-  [1, 6, 5], // Back row (top - away from net, mirrored)
-  [2, 3, 4], // Front row (bottom - near net, mirrored)
+  [2, 1], // Row 1: Z2 (front), Z1 (back)
+  [3, 6], // Row 2: Z3 (front), Z6 (back)
+  [4, 5], // Row 3: Z4 (front), Z5 (back)
 ];
 
 interface PlayerInZone {
@@ -48,6 +49,7 @@ function CourtHalf({
   zones,
   isServing,
   teamColor,
+  isHome,
 }: {
   side: Side;
   teamName: string;
@@ -55,17 +57,22 @@ function CourtHalf({
   zones: number[][];
   isServing: boolean;
   teamColor?: string;
+  isHome: boolean;
 }) {
   const getPlayerInZone = (zone: number): PlayerInZone | undefined => {
     return players.find(p => p.zone === zone);
   };
+
+  // Determine which column is front (near net) vs back
+  const getFrontCol = () => isHome ? 1 : 0;
+  const getBackCol = () => isHome ? 0 : 1;
 
   return (
     <div className="flex flex-col gap-1">
       {/* Team header */}
       <div 
         className={cn(
-          "text-center py-1.5 px-2 rounded-t-lg font-semibold text-sm flex items-center justify-center gap-2",
+          "text-center py-1 px-2 rounded-t-lg font-semibold text-xs flex items-center justify-center gap-1",
           side === 'CASA' ? 'bg-home/20 text-home' : 'bg-away/20 text-away'
         )}
         style={teamColor ? { 
@@ -73,31 +80,30 @@ function CourtHalf({
           color: teamColor 
         } : undefined}
       >
-        {isServing && <span className="text-base animate-pulse">🏐</span>}
-        <span className="truncate max-w-[100px]">{teamName}</span>
-        {isServing && <span className="text-[10px] opacity-70">(a servir)</span>}
+        {isServing && <span className="text-sm animate-pulse">🏐</span>}
+        <span className="truncate max-w-[80px]">{teamName}</span>
       </div>
       
-      {/* Court grid */}
-      <div className="grid grid-rows-2 gap-0.5 bg-accent/30 p-1 rounded-b-lg border border-accent/30">
+      {/* Court grid - 3 rows × 2 cols */}
+      <div className="grid grid-rows-3 gap-0.5 bg-accent/30 p-1 rounded-b-lg border border-accent/30">
         {zones.map((row, rowIdx) => (
-          <div key={rowIdx} className="grid grid-cols-3 gap-0.5">
-            {row.map((zone) => {
+          <div key={rowIdx} className="grid grid-cols-2 gap-0.5">
+            {row.map((zone, colIdx) => {
               const playerData = getPlayerInZone(zone);
-              const isBackRow = rowIdx === 0; // Back row is now at top (index 0)
+              const isFrontRow = colIdx === getFrontCol();
               
               return (
                 <div
                   key={zone}
                   className={cn(
-                    "relative flex flex-col items-center justify-center p-1.5 rounded min-h-[52px] min-w-[56px] transition-all",
-                    isBackRow ? "bg-muted/60" : "bg-muted/40",
+                    "relative flex flex-col items-center justify-center p-1 rounded min-h-[56px] min-w-[60px] transition-all",
+                    isFrontRow ? "bg-muted/40" : "bg-muted/60",
                     playerData?.isLibero && "bg-warning/30 ring-1 ring-warning/60",
                     playerData?.isServer && "ring-2 ring-primary"
                   )}
                 >
                   {/* Zone label */}
-                  <span className="absolute top-0.5 left-1 text-[9px] text-muted-foreground/60 font-medium">
+                  <span className="absolute top-0.5 left-1 text-[8px] text-muted-foreground/60 font-medium">
                     Z{zone}
                   </span>
                   
@@ -105,7 +111,7 @@ function CourtHalf({
                     <>
                       {/* Jersey number */}
                       <span className={cn(
-                        "text-base font-bold leading-none",
+                        "text-lg font-bold leading-none",
                         playerData.isLibero ? "text-warning" : "text-foreground"
                       )}>
                         #{playerData.player.jersey_number}
@@ -114,7 +120,7 @@ function CourtHalf({
                       {/* Position badge */}
                       <PositionBadge 
                         position={playerData.player.position} 
-                        className="mt-0.5 text-[9px] px-1 py-0"
+                        className="mt-0.5 text-[8px] px-1 py-0"
                       />
                       
                       {/* Server indicator */}
@@ -134,10 +140,19 @@ function CourtHalf({
         ))}
       </div>
       
-      {/* Row labels */}
-      <div className="flex justify-between text-[9px] text-muted-foreground/50 px-1">
-        <span>↑ Fundo</span>
-        <span>Rede ↓</span>
+      {/* Column labels */}
+      <div className="flex justify-between text-[8px] text-muted-foreground/50 px-1">
+        {isHome ? (
+          <>
+            <span>Fundo</span>
+            <span>Rede →</span>
+          </>
+        ) : (
+          <>
+            <span>← Rede</span>
+            <span>Fundo</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -216,36 +231,38 @@ export function CourtView({
         Campo em Tempo Real
       </div>
       
-      {/* Courts side by side - facing each other */}
-      <div className="flex flex-col items-center gap-0">
-        <div className="flex gap-2 justify-center">
-          {/* Home court (left) */}
-          <CourtHalf
-            side="CASA"
-            teamName={homeName}
-            players={homePlayersWithZones}
-            zones={HOME_ZONES}
-            isServing={serveSide === 'CASA'}
-            teamColor={homeColor}
-          />
-          
-          {/* Away court (right) */}
-          <CourtHalf
-            side="FORA"
-            teamName={awayName}
-            players={awayPlayersWithZones}
-            zones={AWAY_ZONES}
-            isServing={serveSide === 'FORA'}
-            teamColor={awayColor}
-          />
+      {/* Courts side by side with vertical net */}
+      <div className="flex items-stretch justify-center gap-0">
+        {/* Home court (left) */}
+        <CourtHalf
+          side="CASA"
+          teamName={homeName}
+          players={homePlayersWithZones}
+          zones={HOME_ZONES}
+          isServing={serveSide === 'CASA'}
+          teamColor={homeColor}
+          isHome={true}
+        />
+        
+        {/* Net separator - vertical */}
+        <div className="flex flex-col items-center justify-center px-1">
+          <div className="w-1 h-full bg-destructive/70 rounded-full relative flex items-center justify-center">
+            <span className="absolute bg-card px-0.5 py-2 text-[8px] font-bold text-destructive/80 writing-vertical">
+              REDE
+            </span>
+          </div>
         </div>
         
-        {/* Net separator - horizontal line between courts */}
-        <div className="w-full flex items-center justify-center py-1">
-          <div className="flex-1 h-px bg-border/40"></div>
-          <span className="px-3 text-[10px] font-medium text-muted-foreground/60 bg-card/50">═══ REDE ═══</span>
-          <div className="flex-1 h-px bg-border/40"></div>
-        </div>
+        {/* Away court (right) */}
+        <CourtHalf
+          side="FORA"
+          teamName={awayName}
+          players={awayPlayersWithZones}
+          zones={AWAY_ZONES}
+          isServing={serveSide === 'FORA'}
+          teamColor={awayColor}
+          isHome={false}
+        />
       </div>
       
       {/* Legend */}
