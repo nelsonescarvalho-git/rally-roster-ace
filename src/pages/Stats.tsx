@@ -7,7 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, AlertTriangle, Pencil } from 'lucide-react';
+import { ArrowLeft, Download, AlertTriangle, Pencil, HelpCircle, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Side, Rally } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
@@ -217,6 +218,68 @@ export default function Stats() {
 
                   return (
                     <>
+                      {/* Legenda Compacta */}
+                      <Collapsible className="mb-4">
+                        <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                          <HelpCircle className="h-4 w-4" />
+                          Legenda dos códigos
+                          <ChevronDown className="h-4 w-4" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 p-3 bg-muted/50 rounded-lg text-xs space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Qualidade */}
+                            <div>
+                              <h4 className="font-semibold mb-1.5">Qualidade (Q)</h4>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Q0</Badge> Fraco - ataque muito difícil</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Q1</Badge> Razoável - opções limitadas</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Q2</Badge> Bom - várias opções</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Q3</Badge> Perfeito - todas as opções</div>
+                              </div>
+                            </div>
+
+                            {/* Ataque */}
+                            <div>
+                              <h4 className="font-semibold mb-1.5">Ataque</h4>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">0</Badge> Erro</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">1</Badge> Tocou bloco (ver b_code)</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">2</Badge> Defendido</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">3</Badge> Kill (ponto direto)</div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                                <div className="flex items-center gap-1.5"><Badge className="text-[10px] px-1 bg-primary/80">FLOOR</Badge> Chão direto</div>
+                                <div className="flex items-center gap-1.5"><Badge className="text-[10px] px-1 bg-primary/80">BLOCKOUT</Badge> Mão-fora</div>
+                              </div>
+                            </div>
+
+                            {/* Bloco */}
+                            <div>
+                              <h4 className="font-semibold mb-1.5">Bloco</h4>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Falta</Badge> Falta do bloco (0)</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Ofens</Badge> Ofensivo - bola jogável adversário (1)</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Def</Badge> Defensivo - bola nossa (2)</div>
+                                <div className="flex items-center gap-1.5"><Badge variant="outline" className="text-[10px] px-1">Ponto</Badge> Stuff block (3)</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Zonas */}
+                          <div className="pt-3 border-t border-border/50">
+                            <h4 className="font-semibold mb-1.5">Zonas de Destino</h4>
+                            <div className="flex flex-wrap gap-3">
+                              <span className="flex items-center gap-1"><Badge variant="secondary" className="text-[10px] px-1">Z1</Badge> Ponta direita</span>
+                              <span className="flex items-center gap-1"><Badge variant="secondary" className="text-[10px] px-1">Z2</Badge> Central direita</span>
+                              <span className="flex items-center gap-1"><Badge variant="secondary" className="text-[10px] px-1">Z3</Badge> Ponta esquerda</span>
+                              <span className="flex items-center gap-1"><Badge variant="secondary" className="text-[10px] px-1">Z4</Badge> Oposto</span>
+                              <span className="flex items-center gap-1"><Badge variant="secondary" className="text-[10px] px-1">Z5</Badge> Pipe</span>
+                              <span className="flex items-center gap-1"><Badge variant="secondary" className="text-[10px] px-1">Z6</Badge> Back-row</span>
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+
                       {ralliesWithIssues.length > 0 && (
                         <div className="p-3 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-destructive" />
