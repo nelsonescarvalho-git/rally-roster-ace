@@ -65,14 +65,13 @@ function CourtHalf({
 
   // Determine which column is front (near net) vs back
   const getFrontCol = () => isHome ? 1 : 0;
-  const getBackCol = () => isHome ? 0 : 1;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {/* Team header */}
       <div 
         className={cn(
-          "text-center py-1 px-2 rounded-t-lg font-semibold text-xs flex items-center justify-center gap-1",
+          "text-center py-2 px-3 rounded-t-lg font-semibold text-sm flex items-center justify-center gap-2",
           side === 'CASA' ? 'bg-home/20 text-home' : 'bg-away/20 text-away'
         )}
         style={teamColor ? { 
@@ -80,14 +79,14 @@ function CourtHalf({
           color: teamColor 
         } : undefined}
       >
-        {isServing && <span className="text-sm animate-pulse">🏐</span>}
-        <span className="truncate max-w-[80px]">{teamName}</span>
+        {isServing && <span className="text-lg animate-pulse">🏐</span>}
+        <span className="truncate max-w-[160px]">{teamName}</span>
       </div>
       
       {/* Court grid - 3 rows × 2 cols */}
-      <div className="grid grid-rows-3 gap-0.5 bg-accent/30 p-1 rounded-b-lg border border-accent/30">
+      <div className="grid grid-rows-3 gap-1 bg-accent/30 p-2 rounded-b-lg border border-accent/30">
         {zones.map((row, rowIdx) => (
-          <div key={rowIdx} className="grid grid-cols-2 gap-0.5">
+          <div key={rowIdx} className="grid grid-cols-2 gap-1">
             {row.map((zone, colIdx) => {
               const playerData = getPlayerInZone(zone);
               const isFrontRow = colIdx === getFrontCol();
@@ -96,14 +95,14 @@ function CourtHalf({
                 <div
                   key={zone}
                   className={cn(
-                    "relative flex flex-col items-center justify-center p-1 rounded min-h-[56px] min-w-[60px] transition-all",
+                    "relative flex flex-col items-center justify-center p-2 rounded min-h-[80px] min-w-[180px] transition-all",
                     isFrontRow ? "bg-muted/40" : "bg-muted/60",
                     playerData?.isLibero && "bg-warning/30 ring-1 ring-warning/60",
                     playerData?.isServer && "ring-2 ring-primary"
                   )}
                 >
                   {/* Zone label */}
-                  <span className="absolute top-0.5 left-1 text-[8px] text-muted-foreground/60 font-medium">
+                  <span className="absolute top-1 left-2 text-xs text-muted-foreground/60 font-medium">
                     Z{zone}
                   </span>
                   
@@ -111,7 +110,7 @@ function CourtHalf({
                     <>
                       {/* Jersey number */}
                       <span className={cn(
-                        "text-lg font-bold leading-none",
+                        "text-3xl font-bold leading-none",
                         playerData.isLibero ? "text-warning" : "text-foreground"
                       )}>
                         #{playerData.player.jersey_number}
@@ -120,18 +119,18 @@ function CourtHalf({
                       {/* Position badge */}
                       <PositionBadge 
                         position={playerData.player.position} 
-                        className="mt-0.5 text-[8px] px-1 py-0"
+                        className="mt-1 text-xs px-2 py-0.5"
                       />
                       
                       {/* Server indicator */}
                       {playerData.isServer && (
-                        <span className="absolute bottom-0.5 right-0.5 text-xs animate-pulse">
+                        <span className="absolute bottom-1 right-1 text-lg animate-pulse">
                           🏐
                         </span>
                       )}
                     </>
                   ) : (
-                    <span className="text-muted-foreground/40 text-xs">—</span>
+                    <span className="text-muted-foreground/40 text-sm">—</span>
                   )}
                 </div>
               );
@@ -141,7 +140,7 @@ function CourtHalf({
       </div>
       
       {/* Column labels */}
-      <div className="flex justify-between text-[8px] text-muted-foreground/50 px-1">
+      <div className="flex justify-between text-sm text-muted-foreground/50 px-2">
         {isHome ? (
           <>
             <span>Fundo</span>
@@ -266,13 +265,13 @@ export function CourtView({
       </div>
       
       {/* Legend */}
-      <div className="flex justify-center gap-4 mt-2 text-[9px] text-muted-foreground/70">
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-warning/30 ring-1 ring-warning/60"></span>
+      <div className="flex justify-center gap-6 mt-3 text-sm text-muted-foreground/70">
+        <span className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded bg-warning/30 ring-1 ring-warning/60"></span>
           Libero
         </span>
-        <span className="flex items-center gap-1">
-          <span>🏐</span>
+        <span className="flex items-center gap-2">
+          <span className="text-lg">🏐</span>
           Servidor
         </span>
       </div>
