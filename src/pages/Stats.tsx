@@ -304,7 +304,7 @@ export default function Stats() {
                                           <Badge variant="outline" className="text-[10px] px-1">{r.a_code}</Badge>
                                         )}
                                         {r.a_pass_quality !== null && (
-                                          <Badge variant="secondary" className="text-[10px] px-1">P{r.a_pass_quality}</Badge>
+                                          <Badge variant="secondary" className="text-[10px] px-1">Q{r.a_pass_quality}</Badge>
                                         )}
                                       </div>
                                       {r.kill_type && (
