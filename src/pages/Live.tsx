@@ -9,7 +9,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight, Zap, MoreVertical, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { WizardStepHelp } from '@/components/WizardStepHelp';
 import { SetSummaryKPIs } from '@/components/live/SetSummaryKPIs';
@@ -98,6 +104,9 @@ export default function Live() {
   
   // UI Mode: compact (new fast UI) vs classic (old dropdown UI)
   const [useCompactUI, setUseCompactUI] = useState(true);
+  
+  // Delete confirmation modal state
+  const [deleteTarget, setDeleteTarget] = useState<'set' | 'match' | null>(null);
   
   // Last attacker for ultra-rapid mode
   const [lastAttacker, setLastAttacker] = useState<{
@@ -1034,6 +1043,49 @@ export default function Live() {
       </div>
     );
   }
+  
+  // Delete set or match function
+  const doDelete = async () => {
+    if (!matchId) return;
+    
+    if (deleteTarget === 'set') {
+      if (currentSet === null || currentSet === undefined) return;
+      
+      const { error } = await supabase.rpc('delete_set', { 
+        p_match_id: matchId, 
+        p_set_no: currentSet 
+      });
+      
+      if (error) {
+        toast({
+          title: 'Erro ao apagar set',
+          description: error.message,
+          variant: 'destructive'
+        });
+      } else {
+        toast({ title: `Set ${currentSet} apagado com sucesso` });
+        window.location.reload();
+      }
+    } else if (deleteTarget === 'match') {
+      const { error } = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', matchId);
+      
+      if (error) {
+        toast({
+          title: 'Erro ao apagar jogo',
+          description: error.message,
+          variant: 'destructive'
+        });
+      } else {
+        toast({ title: 'Jogo apagado com sucesso' });
+        navigate('/');
+      }
+    }
+    
+    setDeleteTarget(null);
+  };
 
   return (
     <div className="min-h-screen bg-background safe-bottom">
@@ -1055,6 +1107,43 @@ export default function Live() {
           <Button variant="ghost" size="icon" onClick={() => navigate(`/stats/${matchId}`)}>
             <BarChart2 className="h-5 w-5" />
           </Button>
+          
+          {/* Delete Set Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={currentSet === null || currentSet === undefined}
+            onClick={() => setDeleteTarget('set')}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+          
+          {/* More Options Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem 
+                onClick={() => setDeleteTarget('set')}
+                disabled={currentSet === null || currentSet === undefined}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Apagar Set {currentSet}
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setDeleteTarget('match')}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Apagar Jogo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -1660,6 +1749,32 @@ export default function Live() {
               {match?.away_name}
             </Button>
           </div>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Delete Confirmation Modal */}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteTarget === 'set' ? `Apagar Set ${currentSet}?` : 'Apagar Jogo?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget === 'set' 
+                ? `Esta ação é irreversível. Todos os rallies, substituições e lineup do Set ${currentSet} serão permanentemente apagados.`
+                : 'Esta ação é irreversível. O jogo e todos os dados associados (jogadores, lineups, rallies, substituições) serão permanentemente apagados.'
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={doDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Apagar
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

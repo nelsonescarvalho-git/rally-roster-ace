@@ -565,7 +565,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_set: {
+        Args: { p_match_id: string; p_set_no: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
