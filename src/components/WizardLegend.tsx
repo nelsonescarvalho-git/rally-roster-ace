@@ -71,12 +71,12 @@ const RATING_DEFINITIONS = {
   setter: {
     icon: Target,
     label: 'Distribuição',
-    codes: [
-      { code: 0, symbol: '✕', label: 'Erro', desc: 'Bola perdida ou ataque impossível' },
-      { code: 1, symbol: '−', label: 'Fraco', desc: 'Ataque forçado, sem opções' },
-      { code: 2, symbol: '+', label: 'Bom', desc: 'Ataque normal possível' },
-      { code: 3, symbol: '★', label: 'Perfeito', desc: 'Atacante em condições ideais' },
-    ]
+  codes: [
+    { code: 0, symbol: '✕', label: 'Q0: Fraco', desc: 'Dificulta muito o ataque' },
+    { code: 1, symbol: '−', label: 'Q1: Razoável', desc: 'Opções limitadas' },
+    { code: 2, symbol: '+', label: 'Q2: Bom', desc: 'Várias opções' },
+    { code: 3, symbol: '★', label: 'Q3: Perfeito', desc: 'Todas as opções disponíveis' },
+  ]
   },
 };
 

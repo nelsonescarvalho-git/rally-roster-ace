@@ -40,12 +40,12 @@ const ACTION_DEFINITIONS = {
   pass: {
     icon: '👐',
     label: 'Distribuição/Passe',
-    codes: [
-      { code: 0, label: 'Erro de passe', description: 'Bola perdida ou ataque impossível' },
-      { code: 1, label: 'Passe fraco', description: 'Ataque forçado, sem opções' },
-      { code: 2, label: 'Passe bom', description: 'Ataque normal possível' },
-      { code: 3, label: 'Passe perfeito', description: 'Atacante em condições ideais' },
-    ]
+  codes: [
+    { code: 0, label: 'Q0: Passe fraco', description: 'Dificulta muito o ataque' },
+    { code: 1, label: 'Q1: Passe razoável', description: 'Opções limitadas' },
+    { code: 2, label: 'Q2: Passe bom', description: 'Várias opções' },
+    { code: 3, label: 'Q3: Passe perfeito', description: 'Todas as opções disponíveis' },
+  ]
   },
   attack: {
     icon: '💥',
