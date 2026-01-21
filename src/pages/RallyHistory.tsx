@@ -270,6 +270,11 @@ function RallyGroup({
                       Recetor em falta
                     </Badge>
                   )}
+                  {phase.a_code === 3 && !phase.kill_type && (
+                    <Badge variant="outline" className="text-[10px] border-warning text-warning">
+                      Kill type em falta
+                    </Badge>
+                  )}
                 </div>
                 <Button 
                   variant="ghost" 

@@ -670,6 +670,19 @@ export default function Live() {
   const handleQuickAttack = (code: number) => {
     if (!lastAttacker || !gameState) return;
     
+    // For kills (code 3), redirect to normal attack flow to select kill type
+    if (code === 3) {
+      handleSelectAction('attack', lastAttacker.side);
+      // Pre-fill the player in pending action
+      setTimeout(() => {
+        setPendingAction(prev => prev ? {
+          ...prev,
+          playerId: lastAttacker.playerId,
+        } : null);
+      }, 0);
+      return;
+    }
+    
     const effectivePlayers = getEffectivePlayers();
     const player = effectivePlayers.find(p => p.id === lastAttacker.playerId);
     if (!player) return;
@@ -681,13 +694,13 @@ export default function Live() {
       playerId: lastAttacker.playerId,
       playerNo: player.jersey_number,
       code: code,
-      killType: code === 3 ? 'FLOOR' : null, // Default to FLOOR for kill
+      killType: null, // Not applicable for codes 0, 1, 2
     };
 
     setRegisteredActions(prev => [...prev, attackAction]);
     
     // Feedback visual using the app's toast hook
-    const codeLabel = code === 3 ? '★' : code === 2 ? '+' : code === 1 ? '−' : '✕';
+    const codeLabel = code === 2 ? '+' : code === 1 ? '−' : '✕';
     toast({
       title: `Ataque #${player.jersey_number}: ${codeLabel}`,
       duration: 1500,
