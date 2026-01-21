@@ -594,6 +594,42 @@ export function useMatch(matchId: string | null) {
     return { fixed, errors };
   }, [matchId, rallies, getEffectivePlayers, loadMatch]);
 
+  // Auto-fix missing kill types - default to FLOOR for kills without kill_type
+  const autoFixMissingKillTypes = useCallback(async () => {
+    if (!matchId) return { fixed: 0, errors: 0 };
+    
+    let fixed = 0;
+    let errors = 0;
+    
+    // Find rallies with a_code === 3 (kill) but no kill_type
+    const ralliesToFix = rallies.filter(r => 
+      r.a_code === 3 && !r.kill_type
+    );
+
+    for (const rally of ralliesToFix) {
+      try {
+        const { error } = await supabase
+          .from('rallies')
+          .update({ kill_type: 'FLOOR' })
+          .eq('id', rally.id);
+        if (error) {
+          errors++;
+        } else {
+          fixed++;
+        }
+      } catch {
+        errors++;
+      }
+    }
+
+    // Reload data after fixes
+    if (fixed > 0) {
+      await loadMatch();
+    }
+
+    return { fixed, errors };
+  }, [matchId, rallies, loadMatch]);
+
   return {
     match,
     players,
@@ -626,6 +662,7 @@ export function useMatch(matchId: string | null) {
     undoSubstitution,
     // Auto-fix
     autoFixMissingPlayerIds,
+    autoFixMissingKillTypes,
     // 5th set serve choice
     setFifthSetServe,
     needsFifthSetServeChoice,
