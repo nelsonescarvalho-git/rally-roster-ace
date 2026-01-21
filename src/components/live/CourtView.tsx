@@ -20,17 +20,18 @@ interface CourtViewProps {
   awayColor?: string;
 }
 
-// Zone layout for each side
-// Home (left): Front row Z4-Z3-Z2, Back row Z5-Z6-Z1
-// Away (right): Front row Z2-Z3-Z4, Back row Z1-Z6-Z5 (mirrored)
+// Zone layout for each side - courts face each other across the net
+// Back row at top (away from net), Front row at bottom (near net)
+// Home (left): Back row Z5-Z6-Z1, Front row Z4-Z3-Z2
+// Away (right): Back row Z1-Z6-Z5, Front row Z2-Z3-Z4 (mirrored)
 const HOME_ZONES = [
-  [4, 3, 2], // Front row
-  [5, 6, 1], // Back row
+  [5, 6, 1], // Back row (top - away from net)
+  [4, 3, 2], // Front row (bottom - near net)
 ];
 
 const AWAY_ZONES = [
-  [2, 3, 4], // Front row (mirrored)
-  [1, 6, 5], // Back row (mirrored)
+  [1, 6, 5], // Back row (top - away from net, mirrored)
+  [2, 3, 4], // Front row (bottom - near net, mirrored)
 ];
 
 interface PlayerInZone {
@@ -83,7 +84,7 @@ function CourtHalf({
           <div key={rowIdx} className="grid grid-cols-3 gap-0.5">
             {row.map((zone) => {
               const playerData = getPlayerInZone(zone);
-              const isBackRow = rowIdx === 1;
+              const isBackRow = rowIdx === 0; // Back row is now at top (index 0)
               
               return (
                 <div
@@ -135,8 +136,8 @@ function CourtHalf({
       
       {/* Row labels */}
       <div className="flex justify-between text-[9px] text-muted-foreground/50 px-1">
-        <span>Rede ↑</span>
-        <span>↓ Fundo</span>
+        <span>↑ Fundo</span>
+        <span>Rede ↓</span>
       </div>
     </div>
   );
@@ -215,36 +216,36 @@ export function CourtView({
         Campo em Tempo Real
       </div>
       
-      {/* Courts side by side */}
-      <div className="flex gap-2 justify-center">
-        {/* Home court (left) */}
-        <CourtHalf
-          side="CASA"
-          teamName={homeName}
-          players={homePlayersWithZones}
-          zones={HOME_ZONES}
-          isServing={serveSide === 'CASA'}
-          teamColor={homeColor}
-        />
-        
-        {/* Net separator */}
-        <div className="flex flex-col items-center justify-center">
-          <div className="w-px h-full bg-border/60 relative">
-            <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-background px-1 py-0.5 text-[9px] text-muted-foreground/60 whitespace-nowrap rotate-90">
-              REDE
-            </div>
-          </div>
+      {/* Courts side by side - facing each other */}
+      <div className="flex flex-col items-center gap-0">
+        <div className="flex gap-2 justify-center">
+          {/* Home court (left) */}
+          <CourtHalf
+            side="CASA"
+            teamName={homeName}
+            players={homePlayersWithZones}
+            zones={HOME_ZONES}
+            isServing={serveSide === 'CASA'}
+            teamColor={homeColor}
+          />
+          
+          {/* Away court (right) */}
+          <CourtHalf
+            side="FORA"
+            teamName={awayName}
+            players={awayPlayersWithZones}
+            zones={AWAY_ZONES}
+            isServing={serveSide === 'FORA'}
+            teamColor={awayColor}
+          />
         </div>
         
-        {/* Away court (right) */}
-        <CourtHalf
-          side="FORA"
-          teamName={awayName}
-          players={awayPlayersWithZones}
-          zones={AWAY_ZONES}
-          isServing={serveSide === 'FORA'}
-          teamColor={awayColor}
-        />
+        {/* Net separator - horizontal line between courts */}
+        <div className="w-full flex items-center justify-center py-1">
+          <div className="flex-1 h-px bg-border/40"></div>
+          <span className="px-3 text-[10px] font-medium text-muted-foreground/60 bg-card/50">═══ REDE ═══</span>
+          <div className="flex-1 h-px bg-border/40"></div>
+        </div>
       </div>
       
       {/* Legend */}
