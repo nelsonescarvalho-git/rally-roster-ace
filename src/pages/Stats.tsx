@@ -192,9 +192,11 @@ export default function Stats() {
             <Card>
               <CardContent className="p-0 overflow-x-auto">
                 {(() => {
-                  // Get rallies with issues (KILL without attacker)
+                  // Get rallies with issues (KILL without attacker, setter without destination, block touched without result)
                   const ralliesWithIssues = filteredRallies.filter(r => 
-                    r.reason === 'KILL' && !r.a_player_id
+                    (r.reason === 'KILL' && !r.a_player_id) ||
+                    (r.setter_player_id && !r.pass_destination) ||
+                    (r.a_code === 1 && r.b_code === null)
                   );
                   
                   // Group rallies by rally_no and get final phase
@@ -230,17 +232,28 @@ export default function Stats() {
                             <TableHead className="w-12">#</TableHead>
                             <TableHead>Serv</TableHead>
                             <TableHead>Rec</TableHead>
+                            <TableHead>Dist</TableHead>
                             <TableHead>Atq</TableHead>
+                            <TableHead>Bloco</TableHead>
+                            <TableHead>Def</TableHead>
                             <TableHead>Result</TableHead>
                             <TableHead className="w-12"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {uniqueRallies.map((r) => {
-                            const hasIssue = r.reason === 'KILL' && !r.a_player_id;
+                            const hasIssue = (r.reason === 'KILL' && !r.a_player_id) ||
+                              (r.setter_player_id && !r.pass_destination) ||
+                              (r.a_code === 1 && r.b_code === null);
                             const sPlayer = effectivePlayers.find(p => p.id === r.s_player_id);
                             const rPlayer = effectivePlayers.find(p => p.id === r.r_player_id);
                             const aPlayer = effectivePlayers.find(p => p.id === r.a_player_id);
+                            const setterPlayer = effectivePlayers.find(p => p.id === r.setter_player_id);
+                            const b1 = effectivePlayers.find(p => p.id === r.b1_player_id);
+                            const b2 = effectivePlayers.find(p => p.id === r.b2_player_id);
+                            const b3 = effectivePlayers.find(p => p.id === r.b3_player_id);
+                            const dPlayer = effectivePlayers.find(p => p.id === r.d_player_id);
+                            const blockers = [b1, b2, b3].filter(Boolean);
                             
                             return (
                               <TableRow 
@@ -265,20 +278,71 @@ export default function Stats() {
                                     </Badge>
                                   )}
                                 </TableCell>
+                                {/* Distribuição */}
+                                <TableCell className="text-xs">
+                                  {setterPlayer || r.pass_destination ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      {setterPlayer && <span>#{setterPlayer.jersey_number}</span>}
+                                      <div className="flex gap-1 flex-wrap">
+                                        {r.pass_code !== null && (
+                                          <Badge variant="outline" className="text-[10px] px-1">Q{r.pass_code}</Badge>
+                                        )}
+                                        {r.pass_destination && (
+                                          <Badge variant="secondary" className="text-[10px] px-1">{r.pass_destination}</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : '-'}
+                                </TableCell>
+                                {/* Ataque */}
                                 <TableCell className="text-xs">
                                   {aPlayer ? (
-                                    `#${aPlayer.jersey_number}`
-                                  ) : hasIssue ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span>#{aPlayer.jersey_number}</span>
+                                      <div className="flex gap-1 flex-wrap">
+                                        {r.a_code !== null && (
+                                          <Badge variant="outline" className="text-[10px] px-1">{r.a_code}</Badge>
+                                        )}
+                                        {r.a_pass_quality !== null && (
+                                          <Badge variant="secondary" className="text-[10px] px-1">P{r.a_pass_quality}</Badge>
+                                        )}
+                                      </div>
+                                      {r.kill_type && (
+                                        <Badge className="text-[10px] px-1 bg-primary/80">{r.kill_type}</Badge>
+                                      )}
+                                    </div>
+                                  ) : (r.reason === 'KILL' && !r.a_player_id) ? (
                                     <Badge variant="destructive" className="text-[10px]">
                                       <AlertTriangle className="h-3 w-3 mr-1" />
                                       Falta
                                     </Badge>
                                   ) : '-'}
-                                  {r.a_code !== null && aPlayer && (
-                                    <Badge variant="outline" className="ml-1 text-[10px] px-1">
-                                      {r.a_code}
-                                    </Badge>
-                                  )}
+                                </TableCell>
+                                {/* Bloco */}
+                                <TableCell className="text-xs">
+                                  {blockers.length > 0 || r.b_code !== null ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      {blockers.length > 0 && (
+                                        <span>{blockers.map(b => `#${b!.jersey_number}`).join(', ')}</span>
+                                      )}
+                                      {r.b_code !== null && (
+                                        <Badge variant="outline" className="text-[10px] px-1">
+                                          {r.b_code === 0 ? 'Falta' : r.b_code === 1 ? 'Ofens' : r.b_code === 2 ? 'Def' : 'Ponto'}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  ) : '-'}
+                                </TableCell>
+                                {/* Defesa */}
+                                <TableCell className="text-xs">
+                                  {dPlayer || r.d_code !== null ? (
+                                    <div className="flex items-center gap-1">
+                                      {dPlayer && <span>#{dPlayer.jersey_number}</span>}
+                                      {r.d_code !== null && (
+                                        <Badge variant="outline" className="text-[10px] px-1">{r.d_code}</Badge>
+                                      )}
+                                    </div>
+                                  ) : '-'}
                                 </TableCell>
                                 <TableCell className="text-xs">
                                   {r.point_won_by && (
