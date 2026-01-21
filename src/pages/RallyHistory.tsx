@@ -385,13 +385,14 @@ function RallyGroup({
 export default function RallyHistory() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
-  const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet, autoFixMissingPlayerIds } = useMatch(matchId || null);
+  const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet, autoFixMissingPlayerIds, autoFixMissingKillTypes } = useMatch(matchId || null);
   const players = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0);
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('timeline');
   const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const [isAutoFixingKillTypes, setIsAutoFixingKillTypes] = useState(false);
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -533,7 +534,8 @@ export default function RallyHistory() {
         (p.reason === 'KILL' && !p.a_player_id) ||
         (p.a_code !== null && !p.a_player_id) ||
         (p.pass_destination && !p.setter_player_id) ||
-        (p.r_code !== null && !p.r_player_id)
+        (p.r_code !== null && !p.r_player_id) ||
+        (p.a_code === 3 && !p.kill_type)
       );
       if (!hasIssue) return;
     }
@@ -554,9 +556,12 @@ export default function RallyHistory() {
       (p.reason === 'KILL' && !p.a_player_id) ||
       (p.a_code !== null && !p.a_player_id) ||
       (p.pass_destination && !p.setter_player_id) ||
-      (p.r_code !== null && !p.r_player_id)
+      (p.r_code !== null && !p.r_player_id) ||
+      (p.a_code === 3 && !p.kill_type)
     )
   ).length;
+
+  const killTypeIssueCount = rallies.filter(r => r.a_code === 3 && !r.kill_type).length;
 
   return (
     <div className="min-h-screen bg-background safe-bottom">
@@ -570,7 +575,40 @@ export default function RallyHistory() {
             <p className="text-xs text-muted-foreground">{match.title}</p>
           </div>
           
-          {/* Auto-fix Button */}
+          {/* Auto-fix Buttons */}
+          {killTypeIssueCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={async () => {
+                setIsAutoFixingKillTypes(true);
+                try {
+                  const result = await autoFixMissingKillTypes();
+                  if (result.fixed > 0) {
+                    toast.success(`${result.fixed} kill types corrigidos (→ Chão)`);
+                  } else {
+                    toast.info('Nenhum kill type pôde ser corrigido');
+                  }
+                  if (result.errors > 0) {
+                    toast.error(`${result.errors} erros durante a correção`);
+                  }
+                } finally {
+                  setIsAutoFixingKillTypes(false);
+                }
+              }}
+              disabled={isAutoFixingKillTypes}
+              title={`${killTypeIssueCount} kills sem tipo definido`}
+            >
+              {isAutoFixingKillTypes ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Target className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Fix Kills</span>
+            </Button>
+          )}
+          
           {issueCount > 0 && (
             <Button
               variant="outline"
