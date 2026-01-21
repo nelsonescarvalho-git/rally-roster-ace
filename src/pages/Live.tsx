@@ -1059,14 +1059,14 @@ export default function Live() {
     );
   }
   
-  // Delete set or match function
+  // Delete set or match function (soft delete)
   const doDelete = async () => {
     if (!matchId) return;
     
     if (deleteTarget === 'set') {
       if (currentSet === null || currentSet === undefined) return;
       
-      const { error } = await supabase.rpc('delete_set', { 
+      const { error } = await supabase.rpc('soft_delete_set', { 
         p_match_id: matchId, 
         p_set_no: currentSet 
       });
@@ -1078,8 +1078,11 @@ export default function Live() {
           variant: 'destructive'
         });
       } else {
-        toast({ title: `Set ${currentSet} apagado com sucesso` });
-        window.location.reload();
+        toast({ title: `Set ${currentSet} removido. Será apagado definitivamente em 15 dias.` });
+        // Recarregar dados e encontrar próximo set disponível
+        await loadMatch();
+        // O estado será atualizado pelo useEffect que depende de lineups
+        resetWizard();
       }
     } else if (deleteTarget === 'match') {
       // Extra safety check for match deletion
@@ -1092,10 +1095,9 @@ export default function Live() {
         return;
       }
       
-      const { error } = await supabase
-        .from('matches')
-        .delete()
-        .eq('id', matchId);
+      const { error } = await supabase.rpc('soft_delete_match', { 
+        p_match_id: matchId 
+      });
       
       if (error) {
         toast({
@@ -1104,8 +1106,8 @@ export default function Live() {
           variant: 'destructive'
         });
       } else {
-        toast({ title: 'Jogo apagado com sucesso' });
-        navigate('/');
+        toast({ title: 'Jogo removido. Será apagado definitivamente em 15 dias.' });
+        navigate('/jogos');
       }
     }
     

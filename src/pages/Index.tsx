@@ -192,7 +192,7 @@ const Index = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Eliminar Jogo?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Esta ação não pode ser revertida. Todos os dados do jogo "{match.title}" serão permanentemente eliminados, incluindo jogadores, lineups e rallies registados.
+                            O jogo "{match.title}" será removido do dashboard e KPIs imediatamente. Será apagado definitivamente em 15 dias.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
