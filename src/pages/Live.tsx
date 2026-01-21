@@ -33,6 +33,8 @@ import { ColoredRatingButton } from '@/components/live/ColoredRatingButton';
 import { PositionBadge } from '@/components/live/PositionBadge';
 import { PlayerGrid } from '@/components/live/PlayerGrid';
 import { QuickAttackBar } from '@/components/live/QuickAttackBar';
+import { LiberoPrompt } from '@/components/live/LiberoPrompt';
+import { useLiberoTracking } from '@/hooks/useLiberoTracking';
 import { 
   Side, 
   Reason, 
@@ -87,7 +89,8 @@ export default function Live() {
     saveRally, deleteLastRally, getPlayersForSide, getEffectivePlayers, 
     isSetComplete, getMatchStatus,
     getSubstitutionsForSet, getSubstitutionsUsed, getPlayersOnCourt, getPlayerZone, getPlayersOnBench, makeSubstitution, undoSubstitution,
-    setFifthSetServe, needsFifthSetServeChoice
+    setFifthSetServe, needsFifthSetServeChoice,
+    substitutions
   } = useMatch(matchId || null);
 
   const [currentSet, setCurrentSet] = useState(1);
@@ -219,6 +222,73 @@ export default function Live() {
 
   const gameState = getGameState(currentSet);
   const serverPlayer = gameState ? getServerPlayer(currentSet, gameState.serveSide, gameState.serveRot, gameState.currentRally) : null;
+
+  // Libero tracking state
+  const [liberoPromptDismissedForRally, setLiberoPromptDismissedForRally] = useState<number | null>(null);
+  const [liberoLoading, setLiberoLoading] = useState(false);
+  
+  // Libero tracking for receiving team (CASA)
+  const liberoTrackingHome = useLiberoTracking({
+    matchId: matchId || null,
+    currentSet,
+    side: 'CASA',
+    currentRally: gameState?.currentRally || 1,
+    rotation: gameState?.serveSide === 'CASA' ? (gameState?.serveRot || 1) : (gameState?.recvRot || 1),
+    isReceiving: gameState?.recvSide === 'CASA',
+    substitutions: substitutions || [],
+    getPlayersForSide,
+    getPlayersOnCourt,
+    getPlayerZone,
+    makeSubstitution,
+  });
+  
+  // Libero tracking for away team (FORA)
+  const liberoTrackingAway = useLiberoTracking({
+    matchId: matchId || null,
+    currentSet,
+    side: 'FORA',
+    currentRally: gameState?.currentRally || 1,
+    rotation: gameState?.serveSide === 'FORA' ? (gameState?.serveRot || 1) : (gameState?.recvRot || 1),
+    isReceiving: gameState?.recvSide === 'FORA',
+    substitutions: substitutions || [],
+    getPlayersForSide,
+    getPlayersOnCourt,
+    getPlayerZone,
+    makeSubstitution,
+  });
+  
+  // Get active libero tracking based on receiving side
+  const activeLiberoTracking = gameState?.recvSide === 'CASA' ? liberoTrackingHome : liberoTrackingAway;
+  
+  // Check for mandatory exit on serving side (after rotation)
+  const servingSideLiberoTracking = gameState?.serveSide === 'CASA' ? liberoTrackingHome : liberoTrackingAway;
+  
+  // Determine if we should show libero prompt
+  const shouldShowLiberoEntryPrompt = 
+    activeLiberoTracking.shouldPromptLiberoEntry && 
+    liberoPromptDismissedForRally !== gameState?.currentRally &&
+    !serveCompleted; // Only show before reception phase
+  
+  // Check for mandatory exit (either side)
+  const mustShowLiberoExitPrompt = 
+    liberoTrackingHome.mustExitLibero || liberoTrackingAway.mustExitLibero;
+  
+  const liberoExitTracking = liberoTrackingHome.mustExitLibero ? liberoTrackingHome : 
+                              liberoTrackingAway.mustExitLibero ? liberoTrackingAway : null;
+  const liberoExitSide: Side | null = liberoTrackingHome.mustExitLibero ? 'CASA' : 
+                                       liberoTrackingAway.mustExitLibero ? 'FORA' : null;
+  
+  // Reset dismissed state when rally changes
+  useEffect(() => {
+    if (gameState?.currentRally !== liberoPromptDismissedForRally) {
+      // Rally changed, allow prompts again (but don't reset if null)
+    }
+  }, [gameState?.currentRally]);
+
+  // Reset libero prompt dismissed state when set changes
+  useEffect(() => {
+    setLiberoPromptDismissedForRally(null);
+  }, [currentSet]);
 
   // Auto-add serve action when rally starts
   useEffect(() => {
@@ -404,7 +474,27 @@ export default function Live() {
     return null;
   }, [gameState, serveData, receptionData, registeredActions, getEffectivePlayers]);
 
-  // Handle serve code selection - upsert serve action and auto-completes
+  // Libero entry/exit handlers
+  const handleLiberoEntry = async (replacedPlayerId: string) => {
+    if (!activeLiberoTracking.availableLiberos.length) return;
+    const libero = activeLiberoTracking.availableLiberos[0]; // Use first available libero
+    setLiberoLoading(true);
+    await activeLiberoTracking.enterLibero(libero.id, replacedPlayerId);
+    setLiberoLoading(false);
+  };
+
+  const handleLiberoSkip = () => {
+    if (gameState) {
+      setLiberoPromptDismissedForRally(gameState.currentRally);
+    }
+  };
+
+  const handleLiberoExit = async () => {
+    if (!liberoExitTracking) return;
+    setLiberoLoading(true);
+    await liberoExitTracking.exitLibero();
+    setLiberoLoading(false);
+  };
   const handleServeCodeSelect = (code: number) => {
     // Toggle off if same code clicked
     const newCode = serveData.code === code ? null : code;
@@ -1175,6 +1265,38 @@ export default function Live() {
         </div>
       </header>
 
+      {/* Libero Entry Prompt - Shows when receiving team can enter libero */}
+      {shouldShowLiberoEntryPrompt && activeLiberoTracking.availableLiberos.length > 0 && (
+        <LiberoPrompt
+          type="entry"
+          side={gameState!.recvSide}
+          libero={activeLiberoTracking.availableLiberos[0]}
+          eligiblePlayers={activeLiberoTracking.eligibleForLiberoEntry}
+          getZoneLabel={(id) => getZoneLabel(id, gameState!.recvSide)}
+          onConfirm={handleLiberoEntry}
+          onSkip={handleLiberoSkip}
+          isLoading={liberoLoading}
+          teamColor={gameState!.recvSide === 'CASA' 
+            ? teamColors.home.primary 
+            : teamColors.away.primary}
+        />
+      )}
+      
+      {/* Libero Exit Prompt - Shows when libero must exit (reached Z4) */}
+      {mustShowLiberoExitPrompt && liberoExitTracking && liberoExitTracking.activeLiberoPlayer && (
+        <LiberoPrompt
+          type="exit"
+          side={liberoExitSide!}
+          libero={liberoExitTracking.activeLiberoPlayer}
+          playerToReturn={liberoExitTracking.playerToReturn}
+          onConfirm={handleLiberoExit}
+          isLoading={liberoLoading}
+          teamColor={liberoExitSide === 'CASA' 
+            ? teamColors.home.primary 
+            : teamColors.away.primary}
+        />
+      )}
+
       {/* Set End Overlay */}
       {(() => {
         const setStatus = isSetComplete(currentSet);
@@ -1765,13 +1887,13 @@ export default function Live() {
           </AlertDialogHeader>
           <div className="flex gap-4 justify-center py-4">
             <Button 
-              className="flex-1 h-16 text-lg bg-blue-600 hover:bg-blue-700"
+              className="flex-1 h-16 text-lg bg-home hover:bg-home/90 text-home-foreground"
               onClick={() => handleSet5ServeChoice('CASA')}
             >
               {match?.home_name}
             </Button>
             <Button 
-              className="flex-1 h-16 text-lg bg-orange-600 hover:bg-orange-700"
+              className="flex-1 h-16 text-lg bg-away hover:bg-away/90 text-away-foreground"
               onClick={() => handleSet5ServeChoice('FORA')}
             >
               {match?.away_name}
