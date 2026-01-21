@@ -6,6 +6,7 @@ import { useTeamColors } from '@/hooks/useTeamColors';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -107,6 +108,7 @@ export default function Live() {
   
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<'set' | 'match' | null>(null);
+  const [matchNameInput, setMatchNameInput] = useState('');
   
   // Last attacker for ultra-rapid mode
   const [lastAttacker, setLastAttacker] = useState<{
@@ -1067,6 +1069,16 @@ export default function Live() {
         window.location.reload();
       }
     } else if (deleteTarget === 'match') {
+      // Extra safety check for match deletion
+      if (matchNameInput !== match?.title) {
+        toast({
+          title: 'Nome do jogo incorreto',
+          description: 'Por favor, digite o nome exato do jogo para confirmar.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
       const { error } = await supabase
         .from('matches')
         .delete()
@@ -1085,6 +1097,7 @@ export default function Live() {
     }
     
     setDeleteTarget(null);
+    setMatchNameInput('');
   };
 
   return (
@@ -1753,7 +1766,7 @@ export default function Live() {
       </AlertDialog>
       
       {/* Delete Confirmation Modal */}
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setMatchNameInput(''); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -1762,15 +1775,24 @@ export default function Live() {
             <AlertDialogDescription>
               {deleteTarget === 'set' 
                 ? `Esta ação é irreversível. Todos os rallies, substituições e lineup do Set ${currentSet} serão permanentemente apagados.`
-                : 'Esta ação é irreversível. O jogo e todos os dados associados (jogadores, lineups, rallies, substituições) serão permanentemente apagados.'
+                : `Esta ação é irreversível. Digite o nome do jogo "${match?.title}" para confirmar.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteTarget === 'match' && (
+            <Input
+              placeholder={`Digite "${match?.title}"`}
+              value={matchNameInput}
+              onChange={(e) => setMatchNameInput(e.target.value)}
+              className="mt-2"
+            />
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={doDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteTarget === 'match' && matchNameInput !== match?.title}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
             >
               Apagar
             </AlertDialogAction>
