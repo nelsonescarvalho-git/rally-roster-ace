@@ -1403,195 +1403,280 @@ export default function Live() {
         return null;
       })()}
 
-      <div className="p-4 space-y-4">
-        {/* Set Selector */}
-        <div className="flex gap-1 justify-center">
-          {[1, 2, 3, 4, 5].map((set) => {
-            const result = isSetComplete(set);
-            const matchStatus = getMatchStatus();
-            const isPlayable = set === 1 || isSetComplete(set - 1).complete;
-            const isNeeded = !matchStatus.matchComplete || set <= matchStatus.setResults.filter(s => s.complete).length;
-            const isCurrent = currentSet === set;
-            
-            if (!isNeeded && !result.complete) return null;
-            
-            return (
-              <Button
-                key={set}
-                variant={isCurrent ? 'default' : result.complete ? 'secondary' : 'outline'}
-                size="sm"
-                disabled={!isPlayable}
-                onClick={() => { setCurrentSet(set); resetWizard(); }}
-                className="relative min-w-[48px]"
-              >
-                {!isPlayable && !result.complete && <Lock className="h-3 w-3 mr-1" />}
-                S{set}
-                {result.complete && (
-                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                    <Check className="h-3 w-3" />
+      <div className="p-3 lg:p-4 xl:p-6 space-y-3 lg:space-y-0">
+        {/* Desktop: 3-column grid | Mobile: vertical stack */}
+        <div className="lg:grid lg:grid-cols-12 lg:gap-4 xl:gap-6 space-y-3 lg:space-y-0">
+          
+          {/* LEFT COLUMN: Controls & Info (3 cols on desktop) */}
+          <div className="lg:col-span-3 space-y-3 lg:space-y-4">
+            {/* Set Selector + UI Mode Toggle - Combined row on desktop */}
+            <div className="flex flex-wrap items-center justify-center gap-2 lg:flex-col lg:items-stretch lg:gap-3">
+              <div className="flex gap-1 justify-center">
+                {[1, 2, 3, 4, 5].map((set) => {
+                  const result = isSetComplete(set);
+                  const matchStatus = getMatchStatus();
+                  const isPlayable = set === 1 || isSetComplete(set - 1).complete;
+                  const isNeeded = !matchStatus.matchComplete || set <= matchStatus.setResults.filter(s => s.complete).length;
+                  const isCurrent = currentSet === set;
+                  
+                  if (!isNeeded && !result.complete) return null;
+                  
+                  return (
+                    <Button
+                      key={set}
+                      variant={isCurrent ? 'default' : result.complete ? 'secondary' : 'outline'}
+                      size="sm"
+                      disabled={!isPlayable}
+                      onClick={() => { setCurrentSet(set); resetWizard(); }}
+                      className="relative min-w-[40px] lg:min-w-[48px]"
+                    >
+                      {!isPlayable && !result.complete && <Lock className="h-3 w-3 mr-1" />}
+                      S{set}
+                      {result.complete && (
+                        <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              {/* UI Mode Toggle */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">
+                <Zap className={cn("h-4 w-4 transition-colors", useCompactUI ? "text-warning" : "text-muted-foreground")} />
+                <Switch
+                  checked={useCompactUI}
+                  onCheckedChange={setUseCompactUI}
+                  className="h-5 w-9"
+                />
+                <span className="text-xs text-muted-foreground min-w-[52px]">
+                  {useCompactUI ? 'Rápida' : 'Clássica'}
+                </span>
+              </div>
+            </div>
+
+            {/* Match Sets Score */}
+            {(() => {
+              const matchStatus = getMatchStatus();
+              return (
+                <div className="text-center text-xs text-muted-foreground">
+                  Sets: <span className={matchStatus.setsHome > matchStatus.setsAway ? 'text-home font-semibold' : ''}>{matchStatus.setsHome}</span>
+                  {' - '}
+                  <span className={matchStatus.setsAway > matchStatus.setsHome ? 'text-away font-semibold' : ''}>{matchStatus.setsAway}</span>
+                </div>
+              );
+            })()}
+
+            {/* Compact Score Display */}
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex items-center justify-center py-2 px-3 gap-4">
+                  {/* Home Team */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-home truncate max-w-[60px]">{match.home_name}</span>
+                    <span className="text-2xl lg:text-3xl font-bold text-home">{gameState.homeScore}</span>
+                  </div>
+                  
+                  <span className="text-muted-foreground text-xl lg:text-2xl">—</span>
+                  
+                  {/* Away Team */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl lg:text-3xl font-bold text-away">{gameState.awayScore}</span>
+                    <span className="text-xs font-medium text-away truncate max-w-[60px]">{match.away_name}</span>
+                  </div>
+                </div>
+                
+                {/* Server indicator */}
+                <div className={cn(
+                  "px-3 py-1 text-center text-xs flex items-center justify-center gap-2",
+                  gameState.serveSide === 'CASA' ? "bg-home/10 text-home" : "bg-away/10 text-away"
+                )}>
+                  <span className="text-sm">🏐</span>
+                  <span className="font-medium">
+                    {gameState.serveSide === 'CASA' ? match.home_name : match.away_name} (R{gameState.serveRot})
                   </span>
-                )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Substitution Buttons & Cancel - Desktop only in left column */}
+            <div className="hidden lg:flex lg:flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 justify-start"
+                onClick={() => setSubModalSide('CASA')}
+              >
+                <Badge variant="secondary" className="bg-home/20 text-home">CASA</Badge>
+                Subs ({getSubstitutionsUsed(currentSet, 'CASA')}/6)
               </Button>
-            );
-          })}
-        </div>
-        
-        {/* UI Mode Toggle */}
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">
-            <Zap className={cn("h-4 w-4 transition-colors", useCompactUI ? "text-warning" : "text-muted-foreground")} />
-            <Switch
-              checked={useCompactUI}
-              onCheckedChange={setUseCompactUI}
-              className="h-5 w-9"
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 justify-start"
+                onClick={() => setSubModalSide('FORA')}
+              >
+                <Badge variant="secondary" className="bg-away/20 text-away">FORA</Badge>
+                Subs ({getSubstitutionsUsed(currentSet, 'FORA')}/6)
+              </Button>
+              
+              {/* Cancel/Undo Button */}
+              {(gameState.currentRally > 1 || registeredActions.length > 0) && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-destructive justify-start">
+                      <Undo2 className="h-3.5 w-3.5" />
+                      {registeredActions.length > 0 ? 'Cancelar Rally' : 'Anular Último Ponto'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {registeredActions.length > 0 ? 'Cancelar rally em curso?' : 'Anular último ponto?'}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {registeredActions.length > 0 
+                          ? 'Esta ação vai apagar todas as ações deste rally e voltar ao início.'
+                          : 'Esta ação vai apagar o último ponto registado.'}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Não</AlertDialogCancel>
+                      <AlertDialogAction onClick={registeredActions.length > 0 ? resetWizard : handleUndo}>
+                        Sim, {registeredActions.length > 0 ? 'cancelar' : 'anular'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+
+            {/* Rally Timeline - Desktop only in left column */}
+            <div className="hidden lg:block">
+              <RallyTimeline
+                actions={registeredActions}
+                players={getEffectivePlayers()}
+                onRemoveAction={handleRemoveAction}
+                onReorderActions={setRegisteredActions}
+                onUndo={handleUndoAction}
+                onEditAction={handleEditAction}
+                editingIndex={editingActionIndex}
+                homeName={match.home_name}
+                awayName={match.away_name}
+              />
+            </div>
+          </div>
+
+          {/* CENTER COLUMN: Court View (6 cols on desktop) */}
+          <div className="lg:col-span-6 flex flex-col justify-start">
+            <CourtView
+              currentSet={currentSet}
+              currentRally={gameState.currentRally}
+              serveSide={gameState.serveSide}
+              serveRotation={gameState.serveRot}
+              recvRotation={gameState.recvRot}
+              homeName={match.home_name}
+              awayName={match.away_name}
+              getPlayersOnCourt={getPlayersOnCourt}
+              getPlayerZone={getPlayerZone}
+              homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
+              homeLiberoId={liberoTrackingHome.activeLiberoPlayer?.id ?? null}
+              awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
+              awayLiberoId={liberoTrackingAway.activeLiberoPlayer?.id ?? null}
+              homeColor={teamColors.home.primary}
+              awayColor={teamColors.away.primary}
             />
-            <span className="text-xs text-muted-foreground min-w-[52px]">
-              {useCompactUI ? 'Rápida' : 'Clássica'}
-            </span>
+          </div>
+
+          {/* RIGHT COLUMN: Insights & History (3 cols on desktop) */}
+          <div className="lg:col-span-3 space-y-3 lg:space-y-4">
+            {/* Recent plays summary */}
+            <RecentPlays 
+              rallies={rallies} 
+              players={getEffectivePlayers()} 
+              homeName={match.home_name} 
+              awayName={match.away_name}
+              currentSet={currentSet}
+            />
+
+            {/* Legend for new users - Desktop in right column */}
+            <div className="hidden lg:block">
+              <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
+            </div>
           </div>
         </div>
 
-        {/* Match Sets Score - compact */}
-        {(() => {
-          const matchStatus = getMatchStatus();
-          return (
-            <div className="text-center text-xs text-muted-foreground">
-              Sets: <span className={matchStatus.setsHome > matchStatus.setsAway ? 'text-home font-semibold' : ''}>{matchStatus.setsHome}</span>
-              {' - '}
-              <span className={matchStatus.setsAway > matchStatus.setsHome ? 'text-away font-semibold' : ''}>{matchStatus.setsAway}</span>
-            </div>
-          );
-        })()}
-
-        {/* Compact Score Display */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-center py-2 px-3 gap-4">
-              {/* Home Team */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-home truncate max-w-[60px]">{match.home_name}</span>
-                <span className="text-3xl font-bold text-home">{gameState.homeScore}</span>
-              </div>
-              
-              {/* Divider with rally */}
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold text-muted-foreground">—</span>
-                <span className="text-[9px] text-muted-foreground">R{gameState.currentRally}</span>
-              </div>
-              
-              {/* Away Team */}
-              <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-away">{gameState.awayScore}</span>
-                <span className="text-xs font-medium text-away truncate max-w-[60px]">{match.away_name}</span>
-              </div>
-            </div>
+        {/* MOBILE ONLY: Subs & Timeline below court */}
+        <div className="lg:hidden space-y-3">
+          {/* Substitution Buttons & Cancel */}
+          <div className="flex gap-2 items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={() => setSubModalSide('CASA')}
+            >
+              <Badge variant="secondary" className="bg-home/20 text-home">CASA</Badge>
+              Subs ({getSubstitutionsUsed(currentSet, 'CASA')}/6)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={() => setSubModalSide('FORA')}
+            >
+              <Badge variant="secondary" className="bg-away/20 text-away">FORA</Badge>
+              Subs ({getSubstitutionsUsed(currentSet, 'FORA')}/6)
+            </Button>
             
-            {/* Server info bar */}
-            <div className="px-2 py-1 bg-muted/30 text-center text-[10px] text-muted-foreground border-t">
-              🏐 <span className={gameState.serveSide === 'CASA' ? 'text-home font-medium' : 'text-away font-medium'}>
-                {gameState.serveSide === 'CASA' ? match.home_name : match.away_name}
-              </span>
-              {' '}(R{gameState.serveRot})
-              {serverPlayer && <span className="font-medium"> • #{serverPlayer.jersey_number}</span>}
-            </div>
-          </CardContent>
-        </Card>
+            {/* Cancel/Undo Button */}
+            {(gameState.currentRally > 1 || registeredActions.length > 0) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-destructive px-2">
+                    <Undo2 className="h-3.5 w-3.5" />
+                    {registeredActions.length > 0 ? 'Cancelar' : 'Anular'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {registeredActions.length > 0 ? 'Cancelar rally em curso?' : 'Anular último ponto?'}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {registeredActions.length > 0 
+                        ? 'Esta ação vai apagar todas as ações deste rally e voltar ao início.'
+                        : 'Esta ação vai apagar o último ponto registado.'}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Não</AlertDialogCancel>
+                    <AlertDialogAction onClick={registeredActions.length > 0 ? resetWizard : handleUndo}>
+                      Sim, {registeredActions.length > 0 ? 'cancelar' : 'anular'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
 
-        {/* Real-time Court View */}
-        <CourtView
-          currentSet={currentSet}
-          currentRally={gameState.currentRally}
-          serveSide={gameState.serveSide}
-          serveRotation={gameState.serveRot}
-          recvRotation={gameState.recvRot}
-          homeName={match.home_name}
-          awayName={match.away_name}
-          getPlayersOnCourt={getPlayersOnCourt}
-          getPlayerZone={getPlayerZone}
-          homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
-          homeLiberoId={liberoTrackingHome.activeLiberoPlayer?.id ?? null}
-          awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
-          awayLiberoId={liberoTrackingAway.activeLiberoPlayer?.id ?? null}
-          homeColor={teamColors.home.primary}
-          awayColor={teamColors.away.primary}
-        />
-
-        {/* Substitution Buttons & Cancel */}
-        <div className="flex gap-2 items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-2"
-            onClick={() => setSubModalSide('CASA')}
-          >
-            <Badge variant="secondary" className="bg-home/20 text-home">CASA</Badge>
-            Subs ({getSubstitutionsUsed(currentSet, 'CASA')}/6)
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-2"
-            onClick={() => setSubModalSide('FORA')}
-          >
-            <Badge variant="secondary" className="bg-away/20 text-away">FORA</Badge>
-            Subs ({getSubstitutionsUsed(currentSet, 'FORA')}/6)
-          </Button>
-          
-          {/* Cancel/Undo Button */}
-          {(gameState.currentRally > 1 || registeredActions.length > 0) && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-destructive px-2">
-                  <Undo2 className="h-3.5 w-3.5" />
-                  {registeredActions.length > 0 ? 'Cancelar' : 'Anular'}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {registeredActions.length > 0 ? 'Cancelar rally em curso?' : 'Anular último ponto?'}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {registeredActions.length > 0 
-                      ? 'Esta ação vai apagar todas as ações deste rally e voltar ao início.'
-                      : 'Esta ação vai apagar o último ponto registado.'}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Não</AlertDialogCancel>
-                  <AlertDialogAction onClick={registeredActions.length > 0 ? resetWizard : handleUndo}>
-                    Sim, {registeredActions.length > 0 ? 'cancelar' : 'anular'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          {/* Rally Timeline - Mobile */}
+          <RallyTimeline
+            actions={registeredActions}
+            players={getEffectivePlayers()}
+            onRemoveAction={handleRemoveAction}
+            onReorderActions={setRegisteredActions}
+            onUndo={handleUndoAction}
+            onEditAction={handleEditAction}
+            editingIndex={editingActionIndex}
+            homeName={match.home_name}
+            awayName={match.away_name}
+          />
         </div>
 
-        {/* Recent plays summary */}
-        <RecentPlays 
-          rallies={rallies} 
-          players={getEffectivePlayers()} 
-          homeName={match.home_name} 
-          awayName={match.away_name}
-          currentSet={currentSet}
-        />
-
-        {/* Rally Timeline - always show when there are actions */}
-        <RallyTimeline
-          actions={registeredActions}
-          players={getEffectivePlayers()}
-          onRemoveAction={handleRemoveAction}
-          onReorderActions={setRegisteredActions}
-          onUndo={handleUndoAction}
-          onEditAction={handleEditAction}
-          editingIndex={editingActionIndex}
-          homeName={match.home_name}
-          awayName={match.away_name}
-        />
-
-        {/* Wizard Content */}
-        <div className="space-y-3">
+        {/* WIZARD CONTENT - Full width below grid */}
+        <div className="space-y-3 lg:mt-4">
           {/* SERVE PHASE */}
           {isServePhase && (
             <Card className={cn(
@@ -1823,8 +1908,10 @@ export default function Live() {
           )}
         </div>
 
-        {/* Legend for new users */}
-        <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
+        {/* Legend for new users - Mobile only */}
+        <div className="lg:hidden">
+          <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
+        </div>
       </div>
 
       {/* Substitution Modal */}
