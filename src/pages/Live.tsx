@@ -111,7 +111,9 @@ export default function Live() {
   const [useCompactUI, setUseCompactUI] = useState(true);
   
   // Delete confirmation modal state
-  const [deleteTarget, setDeleteTarget] = useState<'set' | 'match' | null>(null);
+  const [openDelSet, setOpenDelSet] = useState(false);
+  const [openDelMatch, setOpenDelMatch] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [matchNameInput, setMatchNameInput] = useState('');
   
   // Last attacker for ultra-rapid mode
@@ -1059,6 +1061,54 @@ export default function Live() {
     resetWizard();
   };
 
+  // Delete set handler (soft delete)
+  const handleDeleteSet = useCallback(async () => {
+    if (!matchId || !currentSet) return;
+    setDeleting(true);
+    const { error } = await supabase.rpc('soft_delete_set', {
+      p_match_id: matchId,
+      p_set_no: currentSet,
+    });
+    setDeleting(false);
+    setOpenDelSet(false);
+    if (error) {
+      toast({ title: 'Erro a apagar set', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({
+      title: `Set ${currentSet} apagado`,
+      description: 'Fica oculto e será eliminado definitivamente em 15 dias.',
+    });
+    await loadMatch();
+    resetWizard();
+  }, [matchId, currentSet, toast, loadMatch, resetWizard]);
+
+  // Delete match handler (soft delete)
+  const handleDeleteMatch = useCallback(async () => {
+    if (!matchId) return;
+    if (matchNameInput !== match?.title) {
+      toast({
+        title: 'Nome do jogo incorreto',
+        description: 'Por favor, digite o nome exato do jogo para confirmar.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    setDeleting(true);
+    const { error } = await supabase.rpc('soft_delete_match', { p_match_id: matchId });
+    setDeleting(false);
+    setOpenDelMatch(false);
+    if (error) {
+      toast({ title: 'Erro a apagar jogo', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({
+      title: 'Jogo apagado',
+      description: 'Fica oculto e será eliminado definitivamente em 15 dias.',
+    });
+    navigate('/games');
+  }, [matchId, match?.title, matchNameInput, toast, navigate]);
+
   // Determine current wizard stage
   const isServePhase = !serveCompleted;
   const isReceptionPhase = serveCompleted && !receptionCompleted && !autoOutcome;
@@ -1149,62 +1199,6 @@ export default function Live() {
       </div>
     );
   }
-  
-  // Delete set or match function (soft delete)
-  const doDelete = async () => {
-    if (!matchId) return;
-    
-    if (deleteTarget === 'set') {
-      if (currentSet === null || currentSet === undefined) return;
-      
-      const { error } = await supabase.rpc('soft_delete_set', { 
-        p_match_id: matchId, 
-        p_set_no: currentSet 
-      });
-      
-      if (error) {
-        toast({
-          title: 'Erro ao apagar set',
-          description: error.message,
-          variant: 'destructive'
-        });
-      } else {
-        toast({ title: `Set ${currentSet} removido. Será apagado definitivamente em 15 dias.` });
-        // Recarregar dados e encontrar próximo set disponível
-        await loadMatch();
-        // O estado será atualizado pelo useEffect que depende de lineups
-        resetWizard();
-      }
-    } else if (deleteTarget === 'match') {
-      // Extra safety check for match deletion
-      if (matchNameInput !== match?.title) {
-        toast({
-          title: 'Nome do jogo incorreto',
-          description: 'Por favor, digite o nome exato do jogo para confirmar.',
-          variant: 'destructive'
-        });
-        return;
-      }
-      
-      const { error } = await supabase.rpc('soft_delete_match', { 
-        p_match_id: matchId 
-      });
-      
-      if (error) {
-        toast({
-          title: 'Erro ao apagar jogo',
-          description: error.message,
-          variant: 'destructive'
-        });
-      } else {
-        toast({ title: 'Jogo removido. Será apagado definitivamente em 15 dias.' });
-        navigate('/jogos');
-      }
-    }
-    
-    setDeleteTarget(null);
-    setMatchNameInput('');
-  };
 
   return (
     <div className="min-h-screen bg-background safe-bottom">
@@ -1227,38 +1221,28 @@ export default function Live() {
             <BarChart2 className="h-5 w-5" />
           </Button>
           
-          {/* Delete Set Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={currentSet === null || currentSet === undefined}
-            onClick={() => setDeleteTarget('set')}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-5 w-5" />
-          </Button>
-          
           {/* More Options Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="Mais opções">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              <DropdownMenuItem 
-                onClick={() => setDeleteTarget('set')}
-                disabled={currentSet === null || currentSet === undefined}
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={(e) => { e.preventDefault(); setOpenDelSet(true); }}
                 className="text-destructive focus:text-destructive"
+                disabled={deleting}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 Apagar Set {currentSet}
               </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => setDeleteTarget('match')}
+              <DropdownMenuItem
+                onSelect={(e) => { e.preventDefault(); setOpenDelMatch(true); }}
                 className="text-destructive focus:text-destructive"
+                disabled={deleting}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 Apagar Jogo
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1972,36 +1956,54 @@ export default function Live() {
         </AlertDialogContent>
       </AlertDialog>
       
-      {/* Delete Confirmation Modal */}
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setMatchNameInput(''); } }}>
+      {/* Confirmar apagar Set */}
+      <AlertDialog open={openDelSet} onOpenChange={setOpenDelSet}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {deleteTarget === 'set' ? `Apagar Set ${currentSet}?` : 'Apagar Jogo?'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Apagar Set {currentSet}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget === 'set' 
-                ? `Esta ação é irreversível. Todos os rallies, substituições e lineup do Set ${currentSet} serão permanentemente apagados.`
-                : `Esta ação é irreversível. Digite o nome do jogo "${match?.title}" para confirmar.`
-              }
+              Este set vai desaparecer da UI e deixar de contar para os KPIs.
+              A eliminação definitiva é automática ao fim de 15 dias.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {deleteTarget === 'match' && (
-            <Input
-              placeholder={`Digite "${match?.title}"`}
-              value={matchNameInput}
-              onChange={(e) => setMatchNameInput(e.target.value)}
-              className="mt-2"
-            />
-          )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={doDelete}
-              disabled={deleteTarget === 'match' && matchNameInput !== match?.title}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteSet(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Apagar
+              {deleting ? 'A apagar...' : 'Apagar Set'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmar apagar Jogo */}
+      <AlertDialog open={openDelMatch} onOpenChange={(open) => { if (!open) setMatchNameInput(''); setOpenDelMatch(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar Jogo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este jogo vai desaparecer da UI e dos KPIs.
+              A eliminação definitiva é automática ao fim de 15 dias.
+              Digite o nome do jogo "{match?.title}" para confirmar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            placeholder={`Digite "${match?.title}"`}
+            value={matchNameInput}
+            onChange={(e) => setMatchNameInput(e.target.value)}
+            className="mt-2"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteMatch(); }}
+              disabled={deleting || matchNameInput !== match?.title}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'A apagar...' : 'Apagar Jogo'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
