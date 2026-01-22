@@ -1257,6 +1257,7 @@ export default function Live() {
           side={gameState!.recvSide}
           libero={activeLiberoTracking.availableLiberos[0]}
           eligiblePlayers={activeLiberoTracking.eligibleForLiberoEntry}
+          recommendedPlayer={activeLiberoTracking.recommendedPlayerForLibero}
           getZoneLabel={(id) => getZoneLabel(id, gameState!.recvSide)}
           onConfirm={handleLiberoEntry}
           onSkip={handleLiberoSkip}

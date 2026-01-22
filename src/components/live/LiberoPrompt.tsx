@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, UserRoundCheck, ArrowRightLeft } from 'lucide-react';
+import { X, UserRoundCheck, ArrowRightLeft, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { Player, MatchPlayer, Side } from '@/types/volleyball';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,7 @@ interface LiberoPromptProps {
   libero: Player | MatchPlayer;
   eligiblePlayers?: (Player | MatchPlayer)[]; // For entry
   playerToReturn?: Player | MatchPlayer | null; // For exit
+  recommendedPlayer?: Player | MatchPlayer | null; // Pre-selected MB
   getZoneLabel?: (playerId: string) => string;
   onConfirm: (playerId?: string) => void;
   onSkip?: () => void; // Only for entry (can skip)
@@ -25,6 +26,7 @@ export function LiberoPrompt({
   libero,
   eligiblePlayers = [],
   playerToReturn,
+  recommendedPlayer,
   getZoneLabel,
   onConfirm,
   onSkip,
@@ -32,6 +34,14 @@ export function LiberoPrompt({
   teamColor,
 }: LiberoPromptProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [showAllPlayers, setShowAllPlayers] = useState(false);
+  
+  // Pre-select recommended player when available
+  useEffect(() => {
+    if (recommendedPlayer && !selectedPlayer) {
+      setSelectedPlayer(recommendedPlayer.id);
+    }
+  }, [recommendedPlayer]);
   
   const handleConfirmEntry = () => {
     if (selectedPlayer) {
@@ -45,11 +55,17 @@ export function LiberoPrompt({
   
   const teamLabel = side === 'CASA' ? 'Casa' : 'Fora';
   
+  // Other eligible players (excluding recommended)
+  const otherPlayers = eligiblePlayers.filter(p => p.id !== recommendedPlayer?.id);
+  
   if (type === 'entry') {
+    const hasRecommended = !!recommendedPlayer;
+    const showQuickConfirm = hasRecommended && selectedPlayer === recommendedPlayer.id && !showAllPlayers;
+    
     return (
       <div className="fixed inset-x-0 top-16 z-50 px-4 animate-in slide-in-from-top-4 duration-300">
         <Card className="border-2 border-primary/50 shadow-lg max-w-md mx-auto bg-card/95 backdrop-blur-sm">
-          <CardContent className="p-4 space-y-4">
+          <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UserRoundCheck className="h-5 w-5 text-primary" />
@@ -74,52 +90,140 @@ export function LiberoPrompt({
               {' '}entra por:
             </div>
             
-            <div className="grid grid-cols-2 gap-2">
-              {eligiblePlayers.map(player => {
-                const zone = getZoneLabel?.(player.id) || '';
-                const isSelected = selectedPlayer === player.id;
-                
-                return (
-                  <Button
-                    key={player.id}
-                    variant={isSelected ? 'default' : 'outline'}
-                    className={cn(
-                      'h-auto py-3 flex flex-col gap-1',
-                      isSelected && 'ring-2 ring-primary ring-offset-2'
-                    )}
-                    onClick={() => setSelectedPlayer(player.id)}
-                    disabled={isLoading}
-                    style={{
-                      borderColor: !isSelected && teamColor ? teamColor : undefined,
-                    }}
-                  >
-                    <span className="text-lg font-bold">#{player.jersey_number}</span>
-                    <span className="text-xs truncate max-w-full">{player.name}</span>
-                    {zone && <Badge variant="secondary" className="text-[10px]">{zone}</Badge>}
-                  </Button>
-                );
-              })}
-            </div>
-            
-            <div className="flex gap-2">
-              {onSkip && (
+            {/* Quick confirm for recommended player (MB) */}
+            {hasRecommended && (
+              <div className="space-y-2">
                 <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={onSkip}
+                  variant={selectedPlayer === recommendedPlayer.id ? 'default' : 'outline'}
+                  className={cn(
+                    'w-full h-auto py-3 flex items-center justify-between gap-2',
+                    selectedPlayer === recommendedPlayer.id && 'ring-2 ring-primary ring-offset-2'
+                  )}
+                  onClick={() => setSelectedPlayer(recommendedPlayer.id)}
                   disabled={isLoading}
+                  style={{
+                    borderColor: selectedPlayer !== recommendedPlayer.id && teamColor ? teamColor : undefined,
+                  }}
                 >
-                  Não usar libero
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl font-bold">#{recommendedPlayer.jersey_number}</span>
+                    <div className="text-left">
+                      <div className="text-sm font-medium">{recommendedPlayer.name}</div>
+                      <div className="flex items-center gap-1">
+                        {getZoneLabel?.(recommendedPlayer.id) && (
+                          <Badge variant="secondary" className="text-[10px]">{getZoneLabel(recommendedPlayer.id)}</Badge>
+                        )}
+                        {recommendedPlayer.position && (
+                          <Badge variant="outline" className="text-[10px]">{recommendedPlayer.position}</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-primary">
+                    <Star className="h-3 w-3 fill-current" />
+                    <span>Recomendado</span>
+                  </div>
                 </Button>
-              )}
+                
+                {showQuickConfirm && (
+                  <Button
+                    className="w-full"
+                    onClick={handleConfirmEntry}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'A registar...' : `Confirmar por #${recommendedPlayer.jersey_number}`}
+                  </Button>
+                )}
+              </div>
+            )}
+            
+            {/* Toggle to show other players */}
+            {otherPlayers.length > 0 && (
               <Button
-                className="flex-1"
-                onClick={handleConfirmEntry}
-                disabled={!selectedPlayer || isLoading}
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                onClick={() => setShowAllPlayers(!showAllPlayers)}
               >
-                {isLoading ? 'A registar...' : 'Confirmar'}
+                {showAllPlayers ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Esconder outras opções
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Outras opções ({otherPlayers.length})
+                  </>
+                )}
               </Button>
-            </div>
+            )}
+            
+            {/* Other players grid */}
+            {showAllPlayers && otherPlayers.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {otherPlayers.map(player => {
+                  const zone = getZoneLabel?.(player.id) || '';
+                  const isSelected = selectedPlayer === player.id;
+                  
+                  return (
+                    <Button
+                      key={player.id}
+                      variant={isSelected ? 'default' : 'outline'}
+                      className={cn(
+                        'h-auto py-3 flex flex-col gap-1',
+                        isSelected && 'ring-2 ring-primary ring-offset-2'
+                      )}
+                      onClick={() => setSelectedPlayer(player.id)}
+                      disabled={isLoading}
+                      style={{
+                        borderColor: !isSelected && teamColor ? teamColor : undefined,
+                      }}
+                    >
+                      <span className="text-lg font-bold">#{player.jersey_number}</span>
+                      <span className="text-xs truncate max-w-full">{player.name}</span>
+                      {zone && <Badge variant="secondary" className="text-[10px]">{zone}</Badge>}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Action buttons when showing all or no recommended */}
+            {(showAllPlayers || !hasRecommended) && (
+              <div className="flex gap-2">
+                {onSkip && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={onSkip}
+                    disabled={isLoading}
+                  >
+                    Não usar libero
+                  </Button>
+                )}
+                <Button
+                  className="flex-1"
+                  onClick={handleConfirmEntry}
+                  disabled={!selectedPlayer || isLoading}
+                >
+                  {isLoading ? 'A registar...' : 'Confirmar'}
+                </Button>
+              </div>
+            )}
+            
+            {/* Skip button when quick confirm is shown */}
+            {showQuickConfirm && onSkip && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                onClick={onSkip}
+                disabled={isLoading}
+              >
+                Não usar libero neste rally
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
