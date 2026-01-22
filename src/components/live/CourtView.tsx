@@ -53,6 +53,7 @@ function CourtHalf({
   teamColor,
   isHome,
   rallies,
+  currentSet,
 }: {
   side: Side;
   teamName: string;
@@ -62,6 +63,7 @@ function CourtHalf({
   teamColor?: string;
   isHome: boolean;
   rallies: Rally[];
+  currentSet: number;
 }) {
   const getPlayerInZone = (zone: number): PlayerInZone | undefined => {
     return players.find(p => p.zone === zone);
@@ -117,6 +119,7 @@ function CourtHalf({
                       player={playerData.player} 
                       rallies={rallies}
                       isLibero={playerData.isLibero}
+                      currentSet={currentSet}
                     >
                       <button className="flex flex-col items-center cursor-pointer hover:bg-accent/50 rounded p-1 transition-colors">
                         {/* Jersey number */}
@@ -255,6 +258,7 @@ export function CourtView({
           teamColor={homeColor}
           isHome={true}
           rallies={rallies}
+          currentSet={currentSet}
         />
         
         {/* Net separator - vertical */}
@@ -276,6 +280,7 @@ export function CourtView({
           teamColor={awayColor}
           isHome={false}
           rallies={rallies}
+          currentSet={currentSet}
         />
       </div>
       
