@@ -67,11 +67,11 @@ function CourtHalf({
   const getFrontCol = () => isHome ? 1 : 0;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1 lg:gap-2">
       {/* Team header */}
       <div 
         className={cn(
-          "text-center py-2 px-3 rounded-t-lg font-semibold text-sm flex items-center justify-center gap-2",
+          "text-center py-1.5 lg:py-2 px-2 lg:px-3 rounded-t-lg font-semibold text-xs lg:text-sm flex items-center justify-center gap-1.5 lg:gap-2",
           side === 'CASA' ? 'bg-home/20 text-home' : 'bg-away/20 text-away'
         )}
         style={teamColor ? { 
@@ -79,8 +79,8 @@ function CourtHalf({
           color: teamColor 
         } : undefined}
       >
-        {isServing && <span className="text-lg animate-pulse">🏐</span>}
-        <span className="truncate max-w-[160px]">{teamName}</span>
+        {isServing && <span className="text-sm lg:text-lg animate-pulse">🏐</span>}
+        <span className="truncate max-w-[80px] lg:max-w-[120px] xl:max-w-[160px]">{teamName}</span>
       </div>
       
       {/* Court grid - 3 rows × 2 cols */}
@@ -95,14 +95,16 @@ function CourtHalf({
                 <div
                   key={zone}
                   className={cn(
-                    "relative flex flex-col items-center justify-center p-2 rounded min-h-[80px] min-w-[180px] transition-all",
+                    "relative flex flex-col items-center justify-center p-1.5 lg:p-2 rounded",
+                    "min-h-[48px] min-w-[70px] lg:min-h-[60px] lg:min-w-[100px] xl:min-h-[72px] xl:min-w-[120px]",
+                    "transition-all",
                     isFrontRow ? "bg-muted/40" : "bg-muted/60",
                     playerData?.isLibero && "bg-warning/30 ring-1 ring-warning/60",
                     playerData?.isServer && "ring-2 ring-primary"
                   )}
                 >
                   {/* Zone label */}
-                  <span className="absolute top-1 left-2 text-xs text-muted-foreground/60 font-medium">
+                  <span className="absolute top-0.5 left-1 lg:top-1 lg:left-2 text-[10px] lg:text-xs text-muted-foreground/60 font-medium">
                     Z{zone}
                   </span>
                   
@@ -110,7 +112,7 @@ function CourtHalf({
                     <>
                       {/* Jersey number */}
                       <span className={cn(
-                        "text-3xl font-bold leading-none",
+                        "text-lg lg:text-xl xl:text-2xl font-bold leading-none",
                         playerData.isLibero ? "text-warning" : "text-foreground"
                       )}>
                         #{playerData.player.jersey_number}
@@ -119,18 +121,18 @@ function CourtHalf({
                       {/* Position badge */}
                       <PositionBadge 
                         position={playerData.player.position} 
-                        className="mt-1 text-xs px-2 py-0.5"
+                        className="mt-0.5 lg:mt-1 text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5"
                       />
                       
                       {/* Server indicator */}
                       {playerData.isServer && (
-                        <span className="absolute bottom-1 right-1 text-lg animate-pulse">
+                        <span className="absolute bottom-0.5 right-0.5 lg:bottom-1 lg:right-1 text-sm lg:text-base animate-pulse">
                           🏐
                         </span>
                       )}
                     </>
                   ) : (
-                    <span className="text-muted-foreground/40 text-sm">—</span>
+                    <span className="text-muted-foreground/40 text-xs lg:text-sm">—</span>
                   )}
                 </div>
               );
@@ -139,8 +141,8 @@ function CourtHalf({
         ))}
       </div>
       
-      {/* Column labels */}
-      <div className="flex justify-between text-sm text-muted-foreground/50 px-2">
+      {/* Column labels - hidden on mobile, visible on larger screens */}
+      <div className="hidden lg:flex justify-between text-xs xl:text-sm text-muted-foreground/50 px-2">
         {isHome ? (
           <>
             <span>Fundo</span>
@@ -224,9 +226,9 @@ export function CourtView({
   );
 
   return (
-    <div className="bg-card/50 backdrop-blur-sm rounded-lg p-2 border border-border/50">
-      {/* Title */}
-      <div className="text-center text-xs text-muted-foreground mb-2 font-medium">
+    <div className="bg-card/50 backdrop-blur-sm rounded-lg p-1.5 lg:p-2 border border-border/50">
+      {/* Title - hidden on mobile */}
+      <div className="hidden lg:block text-center text-xs text-muted-foreground mb-2 font-medium">
         Campo em Tempo Real
       </div>
       
@@ -244,9 +246,9 @@ export function CourtView({
         />
         
         {/* Net separator - vertical */}
-        <div className="flex flex-col items-center justify-center px-1">
-          <div className="w-1 h-full bg-destructive/70 rounded-full relative flex items-center justify-center">
-            <span className="absolute bg-card px-0.5 py-2 text-[8px] font-bold text-destructive/80 writing-vertical">
+        <div className="flex flex-col items-center justify-center px-0.5 lg:px-1">
+          <div className="w-0.5 lg:w-1 h-full bg-destructive/70 rounded-full relative flex items-center justify-center">
+            <span className="absolute bg-card px-0.5 py-1 lg:py-2 text-[6px] lg:text-[8px] font-bold text-destructive/80 writing-vertical">
               REDE
             </span>
           </div>
@@ -264,14 +266,14 @@ export function CourtView({
         />
       </div>
       
-      {/* Legend */}
-      <div className="flex justify-center gap-6 mt-3 text-sm text-muted-foreground/70">
-        <span className="flex items-center gap-2">
-          <span className="w-4 h-4 rounded bg-warning/30 ring-1 ring-warning/60"></span>
+      {/* Legend - hidden on mobile */}
+      <div className="hidden lg:flex justify-center gap-4 xl:gap-6 mt-2 lg:mt-3 text-xs lg:text-sm text-muted-foreground/70">
+        <span className="flex items-center gap-1.5 lg:gap-2">
+          <span className="w-3 h-3 lg:w-4 lg:h-4 rounded bg-warning/30 ring-1 ring-warning/60"></span>
           Libero
         </span>
-        <span className="flex items-center gap-2">
-          <span className="text-lg">🏐</span>
+        <span className="flex items-center gap-1.5 lg:gap-2">
+          <span className="text-sm lg:text-lg">🏐</span>
           Servidor
         </span>
       </div>
