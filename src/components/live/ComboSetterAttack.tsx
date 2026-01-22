@@ -131,13 +131,14 @@ export function ComboSetterAttack({
   const teamColorHsl = side === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))';
 
   return (
-    <Card 
-      className="overflow-hidden"
-      style={{ 
-        borderLeftWidth: '4px',
-        borderLeftColor: teamColorHsl
-      }}
-    >
+    <Card className="overflow-hidden border relative">
+      {/* Gradient top border */}
+      <div 
+        className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
+        style={{
+          background: `linear-gradient(90deg, ${teamColorHsl} 0%, ${teamColorHsl}40 100%)`
+        }}
+      />
       {/* Header with gradient indicating combo */}
       <div 
         className="flex items-center gap-2 px-4 py-2 text-white"

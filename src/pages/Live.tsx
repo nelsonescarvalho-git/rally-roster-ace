@@ -1679,10 +1679,16 @@ export default function Live() {
         <div className="space-y-3 lg:mt-4">
           {/* SERVE PHASE */}
           {isServePhase && (
-            <Card className={cn(
-              "border-l-4 overflow-hidden",
-              gameState.serveSide === 'CASA' ? 'border-l-home' : 'border-l-away'
-            )}>
+            <Card className="overflow-hidden border relative">
+              {/* Gradient top border */}
+              <div 
+                className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
+                style={{
+                  background: gameState.serveSide === 'CASA'
+                    ? 'linear-gradient(90deg, hsl(var(--home)) 0%, hsl(var(--home)/0.3) 100%)'
+                    : 'linear-gradient(90deg, hsl(var(--away)) 0%, hsl(var(--away)/0.3) 100%)'
+                }}
+              />
               <div className={cn(
                 "flex items-center gap-2 px-4 py-2 text-white",
                 gameState.serveSide === 'CASA' ? 'bg-home' : 'bg-away'
@@ -1732,10 +1738,16 @@ export default function Live() {
 
           {/* RECEPTION PHASE */}
           {isReceptionPhase && (
-            <Card className={cn(
-              "border-l-4 overflow-hidden",
-              gameState.recvSide === 'CASA' ? 'border-l-home' : 'border-l-away'
-            )}>
+            <Card className="overflow-hidden border relative">
+              {/* Gradient top border */}
+              <div 
+                className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
+                style={{
+                  background: gameState.recvSide === 'CASA'
+                    ? 'linear-gradient(90deg, hsl(var(--home)) 0%, hsl(var(--home)/0.3) 100%)'
+                    : 'linear-gradient(90deg, hsl(var(--away)) 0%, hsl(var(--away)/0.3) 100%)'
+                }}
+              />
               <div className={cn(
                 "flex items-center gap-2 px-4 py-2 text-white",
                 gameState.recvSide === 'CASA' ? 'bg-home' : 'bg-away'
