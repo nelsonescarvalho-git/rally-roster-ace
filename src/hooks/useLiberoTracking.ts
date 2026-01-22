@@ -99,7 +99,7 @@ export function useLiberoTracking({
     };
   }, [liberoSubstitutions, currentRally, availableLiberos]);
   
-  // Get players eligible for libero substitution (back row: Z5, Z6 - not Z1 who will serve next)
+  // Get players eligible for libero substitution (back row: Z1, Z5, Z6)
   const eligibleForLiberoEntry = useMemo(() => {
     if (availableLiberos.length === 0) return [];
     if (currentLiberoState.isOnCourt) return []; // Already on court
@@ -107,11 +107,11 @@ export function useLiberoTracking({
     const onCourt = getPlayersOnCourt(currentSet, side, currentRally);
     const liberoIds = new Set(availableLiberos.map(l => l.id));
     
-    // Filter for back row players (Z5, Z6) - exclude Z1 (next server)
+    // Filter for back row players (Z1, Z5, Z6) - all eligible for libero replacement
     return onCourt.filter(player => {
       if (liberoIds.has(player.id)) return false; // Exclude liberos themselves
       const zone = getPlayerZone(currentSet, side, player.id, rotation, currentRally);
-      return zone !== null && [5, 6].includes(zone);
+      return zone !== null && [1, 5, 6].includes(zone);
     });
   }, [availableLiberos, currentLiberoState.isOnCourt, getPlayersOnCourt, currentSet, side, currentRally, getPlayerZone, rotation]);
   
@@ -186,6 +186,22 @@ export function useLiberoTracking({
     return availableLiberos.find(l => l.id === currentLiberoState.liberoId) || null;
   }, [currentLiberoState.liberoId, availableLiberos]);
   
+  // Get recommended player for libero entry (MB in back row has priority)
+  const recommendedPlayerForLibero = useMemo((): (Player | MatchPlayer) | null => {
+    if (eligibleForLiberoEntry.length === 0) return null;
+    
+    // Priority: Middle Blocker (MB/C/CENTRAL) in back row
+    const mb = eligibleForLiberoEntry.find(p => {
+      const pos = p.position?.toUpperCase() || '';
+      return ['MB', 'C', 'CENTRAL'].includes(pos);
+    });
+    
+    if (mb) return mb;
+    
+    // Fallback: first eligible player (usually Z1 after serving)
+    return eligibleForLiberoEntry[0];
+  }, [eligibleForLiberoEntry]);
+  
   return {
     // State
     isLiberoOnCourt: currentLiberoState.isOnCourt,
@@ -198,6 +214,7 @@ export function useLiberoTracking({
     
     // Eligibility
     eligibleForLiberoEntry,
+    recommendedPlayerForLibero,
     
     // Prompts
     shouldPromptLiberoEntry,
