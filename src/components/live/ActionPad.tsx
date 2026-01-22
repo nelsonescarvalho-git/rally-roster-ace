@@ -46,16 +46,17 @@ export function ActionPad({
   const config = ACTION_CONFIG[actionType];
   const Icon = config.icon;
 
-  // Dynamic team colors from CSS variables
-  const teamBorderStyle = {
-    borderLeftWidth: '4px',
-    borderLeftColor: teamSide === 'home' 
-      ? 'hsl(var(--home))' 
-      : 'hsl(var(--away))'
-  };
-
   return (
-    <Card className="overflow-hidden border-2" style={teamBorderStyle}>
+    <Card className="overflow-hidden border relative">
+      {/* Gradient top border for team identification */}
+      <div 
+        className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
+        style={{
+          background: teamSide === 'home'
+            ? 'linear-gradient(90deg, hsl(var(--home)) 0%, hsl(var(--home)/0.3) 100%)'
+            : 'linear-gradient(90deg, hsl(var(--away)) 0%, hsl(var(--away)/0.3) 100%)'
+        }}
+      />
       {/* Compact Header */}
       <CardHeader className="py-2.5 px-4 bg-muted/50 border-b">
         <div className="flex items-center justify-between">
