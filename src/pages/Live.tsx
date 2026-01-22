@@ -1586,6 +1586,7 @@ export default function Live() {
               awayLiberoId={liberoTrackingAway.activeLiberoPlayer?.id ?? null}
               homeColor={teamColors.home.primary}
               awayColor={teamColors.away.primary}
+              rallies={rallies}
             />
           </div>
 
