@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
-import { PositionBadge, getPositionConfig } from './PositionBadge';
-import { Player, MatchPlayer, Side } from '@/types/volleyball';
+import { PositionBadge } from './PositionBadge';
+import { PlayerStatsPopover } from './PlayerStatsPopover';
+import { Player, MatchPlayer, Side, Rally } from '@/types/volleyball';
 
 interface CourtViewProps {
   currentSet: number;
@@ -18,6 +19,7 @@ interface CourtViewProps {
   awayLiberoId: string | null;
   homeColor?: string;
   awayColor?: string;
+  rallies: Rally[];
 }
 
 // Zone layout: 3 rows × 2 cols - courts face each other with vertical net in center
@@ -50,6 +52,7 @@ function CourtHalf({
   isServing,
   teamColor,
   isHome,
+  rallies,
 }: {
   side: Side;
   teamName: string;
@@ -58,6 +61,7 @@ function CourtHalf({
   isServing: boolean;
   teamColor?: string;
   isHome: boolean;
+  rallies: Rally[];
 }) {
   const getPlayerInZone = (zone: number): PlayerInZone | undefined => {
     return players.find(p => p.zone === zone);
@@ -109,28 +113,34 @@ function CourtHalf({
                   </span>
                   
                   {playerData ? (
-                    <>
-                      {/* Jersey number */}
-                      <span className={cn(
-                        "text-lg lg:text-xl xl:text-2xl font-bold leading-none",
-                        playerData.isLibero ? "text-warning" : "text-foreground"
-                      )}>
-                        #{playerData.player.jersey_number}
-                      </span>
-                      
-                      {/* Position badge */}
-                      <PositionBadge 
-                        position={playerData.player.position} 
-                        className="mt-0.5 lg:mt-1 text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5"
-                      />
-                      
-                      {/* Server indicator */}
-                      {playerData.isServer && (
-                        <span className="absolute bottom-0.5 right-0.5 lg:bottom-1 lg:right-1 text-sm lg:text-base animate-pulse">
-                          🏐
+                    <PlayerStatsPopover 
+                      player={playerData.player} 
+                      rallies={rallies}
+                      isLibero={playerData.isLibero}
+                    >
+                      <button className="flex flex-col items-center cursor-pointer hover:bg-accent/50 rounded p-1 transition-colors">
+                        {/* Jersey number */}
+                        <span className={cn(
+                          "text-lg lg:text-xl xl:text-2xl font-bold leading-none",
+                          playerData.isLibero ? "text-warning" : "text-foreground"
+                        )}>
+                          #{playerData.player.jersey_number}
                         </span>
-                      )}
-                    </>
+                        
+                        {/* Position badge */}
+                        <PositionBadge 
+                          position={playerData.player.position} 
+                          className="mt-0.5 lg:mt-1 text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5"
+                        />
+                        
+                        {/* Server indicator */}
+                        {playerData.isServer && (
+                          <span className="absolute bottom-0.5 right-0.5 lg:bottom-1 lg:right-1 text-sm lg:text-base animate-pulse">
+                            🏐
+                          </span>
+                        )}
+                      </button>
+                    </PlayerStatsPopover>
                   ) : (
                     <span className="text-muted-foreground/40 text-xs lg:text-sm">—</span>
                   )}
@@ -175,6 +185,7 @@ export function CourtView({
   awayLiberoId,
   homeColor,
   awayColor,
+  rallies,
 }: CourtViewProps) {
   // Get players on court for each side
   const homePlayers = getPlayersOnCourt(currentSet, 'CASA', currentRally);
@@ -243,6 +254,7 @@ export function CourtView({
           isServing={serveSide === 'CASA'}
           teamColor={homeColor}
           isHome={true}
+          rallies={rallies}
         />
         
         {/* Net separator - vertical */}
@@ -263,6 +275,7 @@ export function CourtView({
           isServing={serveSide === 'FORA'}
           teamColor={awayColor}
           isHome={false}
+          rallies={rallies}
         />
       </div>
       
