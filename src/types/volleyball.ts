@@ -246,3 +246,107 @@ export interface RotationStats {
   breakPoints: number;
   breakPercent: number;
 }
+
+// Sanction types
+export type SanctionType = 
+  | 'WARNING' 
+  | 'PENALTY' 
+  | 'EXPULSION' 
+  | 'DISQUALIFICATION' 
+  | 'DELAY_WARNING' 
+  | 'DELAY_PENALTY';
+
+export interface Sanction {
+  id: string;
+  match_id: string;
+  set_no: number;
+  rally_no: number;
+  sanction_type: SanctionType;
+  side: Side;
+  player_id: string | null;
+  player_jersey: number | null;
+  player_name: string | null;
+  is_coach_staff: boolean;
+  coach_staff_name: string | null;
+  gives_point: boolean;
+  gives_serve: boolean;
+  removes_player: boolean;
+  removal_until: 'SET' | 'MATCH' | null;
+  serve_side: Side;
+  serve_rot: number;
+  home_score: number;
+  away_score: number;
+  court_snapshot: Array<{
+    player_id: string;
+    jersey: number;
+    position: string | null;
+    zone: number;
+  }> | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export const SANCTION_CONFIG: Record<SanctionType, {
+  label: string;
+  description: string;
+  color: string;
+  givesPoint: boolean;
+  givesServe: boolean;
+  removesPlayer: boolean;
+  removalUntil: 'SET' | 'MATCH' | null;
+}> = {
+  WARNING: {
+    label: 'Aviso',
+    description: 'Cartão amarelo',
+    color: 'bg-yellow-500',
+    givesPoint: false,
+    givesServe: false,
+    removesPlayer: false,
+    removalUntil: null,
+  },
+  PENALTY: {
+    label: 'Penalidade',
+    description: 'Cartão vermelho - ponto ao adversário',
+    color: 'bg-red-500',
+    givesPoint: true,
+    givesServe: true,
+    removesPlayer: false,
+    removalUntil: null,
+  },
+  EXPULSION: {
+    label: 'Expulsão',
+    description: 'Am+Ver - fora até fim do set',
+    color: 'bg-red-700',
+    givesPoint: false,
+    givesServe: false,
+    removesPlayer: true,
+    removalUntil: 'SET',
+  },
+  DISQUALIFICATION: {
+    label: 'Desqualificação',
+    description: 'Ver+Am - fora até fim do jogo',
+    color: 'bg-red-900',
+    givesPoint: false,
+    givesServe: false,
+    removesPlayer: true,
+    removalUntil: 'MATCH',
+  },
+  DELAY_WARNING: {
+    label: 'Atraso (Aviso)',
+    description: 'Atraso - sem efeito',
+    color: 'bg-orange-400',
+    givesPoint: false,
+    givesServe: false,
+    removesPlayer: false,
+    removalUntil: null,
+  },
+  DELAY_PENALTY: {
+    label: 'Atraso (Penalidade)',
+    description: 'Atraso - ponto ao adversário',
+    color: 'bg-orange-600',
+    givesPoint: true,
+    givesServe: true,
+    removesPlayer: false,
+    removalUntil: null,
+  },
+};
