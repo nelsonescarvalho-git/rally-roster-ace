@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight, Zap, MoreVertical, Trash2 } from 'lucide-react';
+import { ArrowLeft, BarChart2, Undo2, Settings, Trophy, Lock, Check, Swords, Home, AlertCircle, ChevronLeft, ChevronRight, Zap, MoreVertical, Trash2, Gavel } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +35,8 @@ import { PlayerGrid } from '@/components/live/PlayerGrid';
 import { QuickAttackBar } from '@/components/live/QuickAttackBar';
 import { LiberoPrompt } from '@/components/live/LiberoPrompt';
 import { CourtView } from '@/components/live/CourtView';
+import { RefereeModal } from '@/components/live/RefereeModal';
+import { MandatorySubstitutionModal } from '@/components/live/MandatorySubstitutionModal';
 import { useLiberoTracking } from '@/hooks/useLiberoTracking';
 import { 
   Side, 
@@ -45,7 +47,9 @@ import {
   PassDestination, 
   KillType,
   RallyAction,
-  RallyActionType 
+  RallyActionType,
+  Sanction,
+  MatchPlayer,
 } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -115,6 +119,16 @@ export default function Live() {
   const [openDelMatch, setOpenDelMatch] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [matchNameInput, setMatchNameInput] = useState('');
+  
+  // Referee modal state
+  const [refereeModalOpen, setRefereeModalOpen] = useState(false);
+  const [mandatorySubModal, setMandatorySubModal] = useState<{
+    open: boolean;
+    side: Side;
+    playerOut: Player | MatchPlayer;
+    validSubstitutes: (Player | MatchPlayer)[];
+    exceptionalSubstitutes: (Player | MatchPlayer)[];
+  } | null>(null);
   
   // Last attacker for ultra-rapid mode
   const [lastAttacker, setLastAttacker] = useState<{
@@ -1109,6 +1123,123 @@ export default function Live() {
     navigate('/games');
   }, [matchId, match?.title, matchNameInput, toast, navigate]);
 
+  // Sanction handler
+  const handleSanctionApplied = useCallback(async (sanction: Partial<Sanction>) => {
+    if (!matchId || !gameState) return;
+    
+    // 1. Save sanction to database
+    const { error } = await supabase
+      .from('sanctions')
+      .insert(sanction as any);
+    
+    if (error) {
+      toast({ 
+        title: 'Erro ao registar sanção', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+      return;
+    }
+    
+    // 2. If sanction gives point, create rally with OP reason
+    if (sanction.gives_point && sanction.side) {
+      const winnerSide: Side = sanction.side === 'CASA' ? 'FORA' : 'CASA';
+      const rallyData: Partial<Rally> = {
+        match_id: matchId,
+        set_no: currentSet,
+        rally_no: gameState.currentRally,
+        phase: 1,
+        serve_side: gameState.serveSide,
+        serve_rot: gameState.serveRot,
+        recv_side: gameState.recvSide,
+        recv_rot: gameState.recvRot,
+        point_won_by: winnerSide,
+        reason: 'OP' as Reason,
+      };
+      await saveRally(rallyData);
+    }
+    
+    // 3. If removes player and player is on court, trigger mandatory substitution
+    if (sanction.removes_player && sanction.player_id && sanction.side) {
+      const side = sanction.side as Side;
+      const courtPlayers = getPlayersOnCourt(currentSet, side, gameState.currentRally);
+      const isOnCourt = courtPlayers.some(p => p.id === sanction.player_id);
+      
+      if (isOnCourt) {
+        const playerOut = courtPlayers.find(p => p.id === sanction.player_id);
+        const benchPlayers = getPlayersOnBench(currentSet, side, gameState.currentRally);
+        
+        // Filter out liberos for exceptional substitutes
+        const exceptionalSubs = benchPlayers.filter(p => 
+          !['L', 'LIBERO'].includes(p.position?.toUpperCase() || '')
+        );
+        
+        if (playerOut) {
+          setMandatorySubModal({
+            open: true,
+            side,
+            playerOut,
+            validSubstitutes: benchPlayers,
+            exceptionalSubstitutes: exceptionalSubs,
+          });
+        }
+      }
+    }
+    
+    // 4. Toast confirmation
+    const sanctionLabel = {
+      WARNING: 'Aviso',
+      PENALTY: 'Penalidade',
+      EXPULSION: 'Expulsão',
+      DISQUALIFICATION: 'Desqualificação',
+      DELAY_WARNING: 'Atraso (Aviso)',
+      DELAY_PENALTY: 'Atraso (Penalidade)',
+    }[sanction.sanction_type || 'WARNING'];
+    
+    const effect = sanction.gives_point 
+      ? `Ponto para ${sanction.side === 'CASA' ? match?.away_name : match?.home_name}`
+      : sanction.removes_player 
+        ? `Jogador removido até fim do ${sanction.removal_until === 'SET' ? 'set' : 'jogo'}`
+        : 'Sem efeito no resultado';
+    
+    toast({
+      title: `Sanção aplicada: ${sanctionLabel}`,
+      description: effect,
+    });
+    
+    await loadMatch();
+    resetWizard();
+  }, [matchId, gameState, currentSet, match, toast, saveRally, loadMatch, resetWizard, getPlayersOnCourt, getPlayersOnBench]);
+
+  // Mandatory substitution handler (for expulsion/disqualification)
+  const handleMandatorySubstitution = useCallback(async (playerInId: string) => {
+    if (!mandatorySubModal) return;
+    
+    await makeSubstitution(
+      currentSet,
+      mandatorySubModal.side,
+      gameState!.currentRally,
+      mandatorySubModal.playerOut.id,
+      playerInId,
+      false
+    );
+    
+    setMandatorySubModal(null);
+    toast({ title: 'Substituição obrigatória efetuada' });
+    await loadMatch();
+  }, [mandatorySubModal, currentSet, gameState, makeSubstitution, toast, loadMatch]);
+
+  // Declare team incomplete (rule 6.4.3)
+  const handleDeclareIncomplete = useCallback(() => {
+    // TODO: Implement set termination due to incomplete team
+    setMandatorySubModal(null);
+    toast({ 
+      title: 'Equipa Incompleta', 
+      description: 'Set terminado - adversário vence.',
+      variant: 'destructive',
+    });
+  }, [toast]);
+
   // Determine current wizard stage
   const isServePhase = !serveCompleted;
   const isReceptionPhase = serveCompleted && !receptionCompleted && !autoOutcome;
@@ -1219,6 +1350,16 @@ export default function Live() {
           </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate(`/stats/${matchId}`)}>
             <BarChart2 className="h-5 w-5" />
+          </Button>
+          
+          {/* Referee Menu */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setRefereeModalOpen(true)}
+            title="Menu Árbitro"
+          >
+            <Gavel className="h-5 w-5" />
           </Button>
           
           {/* More Options Dropdown */}
@@ -2009,6 +2150,45 @@ export default function Live() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Referee Modal */}
+      <RefereeModal
+        open={refereeModalOpen}
+        onClose={() => setRefereeModalOpen(false)}
+        matchId={matchId!}
+        currentSet={currentSet}
+        currentRally={gameState?.currentRally || 1}
+        gameState={gameState!}
+        playersOnCourt={{
+          casa: getPlayersOnCourt(currentSet, 'CASA', gameState?.currentRally || 1),
+          fora: getPlayersOnCourt(currentSet, 'FORA', gameState?.currentRally || 1),
+        }}
+        playersOnBench={{
+          casa: getPlayersOnBench(currentSet, 'CASA', gameState?.currentRally || 1),
+          fora: getPlayersOnBench(currentSet, 'FORA', gameState?.currentRally || 1),
+        }}
+        homeName={match.home_name}
+        awayName={match.away_name}
+        homeColor={teamColors.home.primary}
+        awayColor={teamColors.away.primary}
+        onSanctionApplied={handleSanctionApplied}
+      />
+
+      {/* Mandatory Substitution Modal (Expulsion/Disqualification) */}
+      {mandatorySubModal && (
+        <MandatorySubstitutionModal
+          open={mandatorySubModal.open}
+          side={mandatorySubModal.side}
+          playerOut={mandatorySubModal.playerOut}
+          validSubstitutes={mandatorySubModal.validSubstitutes}
+          exceptionalSubstitutes={mandatorySubModal.exceptionalSubstitutes}
+          teamColor={mandatorySubModal.side === 'CASA' 
+            ? teamColors.home.primary 
+            : teamColors.away.primary}
+          onSubstitute={handleMandatorySubstitution}
+          onDeclareIncomplete={handleDeclareIncomplete}
+        />
+      )}
     </div>
   );
 }

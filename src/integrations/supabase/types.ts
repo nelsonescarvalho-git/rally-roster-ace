@@ -464,6 +464,87 @@ export type Database = {
           },
         ]
       }
+      sanctions: {
+        Row: {
+          away_score: number | null
+          coach_staff_name: string | null
+          court_snapshot: Json | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          gives_point: boolean
+          gives_serve: boolean
+          home_score: number | null
+          id: string
+          is_coach_staff: boolean
+          match_id: string
+          notes: string | null
+          player_id: string | null
+          player_jersey: number | null
+          player_name: string | null
+          rally_no: number
+          removal_until: string | null
+          removes_player: boolean
+          sanction_type: string
+          serve_rot: number | null
+          serve_side: string | null
+          set_no: number
+          side: string
+        }
+        Insert: {
+          away_score?: number | null
+          coach_staff_name?: string | null
+          court_snapshot?: Json | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          gives_point?: boolean
+          gives_serve?: boolean
+          home_score?: number | null
+          id?: string
+          is_coach_staff?: boolean
+          match_id: string
+          notes?: string | null
+          player_id?: string | null
+          player_jersey?: number | null
+          player_name?: string | null
+          rally_no: number
+          removal_until?: string | null
+          removes_player?: boolean
+          sanction_type: string
+          serve_rot?: number | null
+          serve_side?: string | null
+          set_no: number
+          side: string
+        }
+        Update: {
+          away_score?: number | null
+          coach_staff_name?: string | null
+          court_snapshot?: Json | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          gives_point?: boolean
+          gives_serve?: boolean
+          home_score?: number | null
+          id?: string
+          is_coach_staff?: boolean
+          match_id?: string
+          notes?: string | null
+          player_id?: string | null
+          player_jersey?: number | null
+          player_name?: string | null
+          rally_no?: number
+          removal_until?: string | null
+          removes_player?: boolean
+          sanction_type?: string
+          serve_rot?: number | null
+          serve_side?: string | null
+          set_no?: number
+          side?: string
+        }
+        Relationships: []
+      }
       substitutions: {
         Row: {
           created_at: string
