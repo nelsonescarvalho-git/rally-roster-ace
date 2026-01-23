@@ -1,7 +1,9 @@
 import { cn } from '@/lib/utils';
 import { PositionBadge } from './PositionBadge';
 import { PlayerStatsPopover } from './PlayerStatsPopover';
+import { Badge } from '@/components/ui/badge';
 import { Player, MatchPlayer, Side, Rally } from '@/types/volleyball';
+import { Timer } from 'lucide-react';
 
 interface CourtViewProps {
   currentSet: number;
@@ -20,6 +22,8 @@ interface CourtViewProps {
   homeColor?: string;
   awayColor?: string;
   rallies: Rally[];
+  homeTimeoutsUsed?: number;
+  awayTimeoutsUsed?: number;
 }
 
 // Zone layout: 3 rows × 2 cols - courts face each other with vertical net in center
@@ -54,6 +58,7 @@ function CourtHalf({
   isHome,
   rallies,
   currentSet,
+  timeoutsUsed,
 }: {
   side: Side;
   teamName: string;
@@ -64,6 +69,7 @@ function CourtHalf({
   isHome: boolean;
   rallies: Rally[];
   currentSet: number;
+  timeoutsUsed?: number;
 }) {
   const getPlayerInZone = (zone: number): PlayerInZone | undefined => {
     return players.find(p => p.zone === zone);
@@ -86,7 +92,22 @@ function CourtHalf({
         } : undefined}
       >
         {isServing && <span className="text-sm lg:text-lg animate-pulse">🏐</span>}
-        <span className="truncate max-w-[80px] lg:max-w-[120px] xl:max-w-[160px]">{teamName}</span>
+        <span className="truncate max-w-[60px] lg:max-w-[100px] xl:max-w-[140px]">{teamName}</span>
+        {/* Timeout badge */}
+        {typeof timeoutsUsed === 'number' && timeoutsUsed > 0 && (
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-[10px] px-1 py-0 h-4 gap-0.5 flex-shrink-0",
+              timeoutsUsed >= 2 
+                ? "bg-destructive/10 border-destructive/30 text-destructive" 
+                : "bg-muted/50 border-border"
+            )}
+          >
+            <Timer className="h-2.5 w-2.5" />
+            {timeoutsUsed}/2
+          </Badge>
+        )}
       </div>
       
       {/* Court grid - 3 rows × 2 cols */}
@@ -189,6 +210,8 @@ export function CourtView({
   homeColor,
   awayColor,
   rallies,
+  homeTimeoutsUsed,
+  awayTimeoutsUsed,
 }: CourtViewProps) {
   // Get players on court for each side
   const homePlayers = getPlayersOnCourt(currentSet, 'CASA', currentRally);
@@ -259,6 +282,7 @@ export function CourtView({
           isHome={true}
           rallies={rallies}
           currentSet={currentSet}
+          timeoutsUsed={homeTimeoutsUsed}
         />
         
         {/* Net separator - vertical */}
@@ -281,6 +305,7 @@ export function CourtView({
           isHome={false}
           rallies={rallies}
           currentSet={currentSet}
+          timeoutsUsed={awayTimeoutsUsed}
         />
       </div>
       

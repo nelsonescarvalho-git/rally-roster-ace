@@ -671,6 +671,54 @@ export type Database = {
         }
         Relationships: []
       }
+      timeouts: {
+        Row: {
+          away_score: number
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          home_score: number
+          id: string
+          match_id: string
+          notes: string | null
+          rally_no: number
+          serve_rot: number
+          serve_side: string
+          set_no: number
+          side: string
+        }
+        Insert: {
+          away_score: number
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          home_score: number
+          id?: string
+          match_id: string
+          notes?: string | null
+          rally_no: number
+          serve_rot: number
+          serve_side: string
+          set_no: number
+          side: string
+        }
+        Update: {
+          away_score?: number
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          home_score?: number
+          id?: string
+          match_id?: string
+          notes?: string | null
+          rally_no?: number
+          serve_rot?: number
+          serve_side?: string
+          set_no?: number
+          side?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

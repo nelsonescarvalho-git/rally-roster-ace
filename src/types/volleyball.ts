@@ -247,6 +247,21 @@ export interface RotationStats {
   breakPercent: number;
 }
 
+// Timeout interface
+export interface Timeout {
+  id: string;
+  match_id: string;
+  set_no: number;
+  rally_no: number;
+  side: Side;
+  home_score: number;
+  away_score: number;
+  serve_side: Side;
+  serve_rot: number;
+  notes: string | null;
+  created_at: string;
+}
+
 // Sanction types
 export type SanctionType = 
   | 'WARNING' 
