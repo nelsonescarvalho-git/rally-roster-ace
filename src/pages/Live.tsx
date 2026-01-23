@@ -37,6 +37,7 @@ import { LiberoPrompt } from '@/components/live/LiberoPrompt';
 import { CourtView } from '@/components/live/CourtView';
 import { RefereeModal } from '@/components/live/RefereeModal';
 import { MandatorySubstitutionModal } from '@/components/live/MandatorySubstitutionModal';
+import { TimeoutCard } from '@/components/live/TimeoutCard';
 import { useLiberoTracking } from '@/hooks/useLiberoTracking';
 import { 
   Side, 
@@ -50,6 +51,7 @@ import {
   RallyActionType,
   Sanction,
   MatchPlayer,
+  Timeout,
 } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -130,6 +132,8 @@ export default function Live() {
     exceptionalSubstitutes: (Player | MatchPlayer)[];
   } | null>(null);
   
+  // Timeout state
+  const [timeouts, setTimeouts] = useState<Timeout[]>([]);
   // Last attacker for ultra-rapid mode
   const [lastAttacker, setLastAttacker] = useState<{
     playerId: string;
@@ -222,6 +226,20 @@ export default function Live() {
     fetchTeamColors();
   }, [match?.home_team_id, match?.away_team_id]);
 
+  // Load timeouts when match loads
+  useEffect(() => {
+    async function loadTimeouts() {
+      if (!matchId) return;
+      const { data } = await supabase
+        .from('timeouts')
+        .select('*')
+        .eq('match_id', matchId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+      setTimeouts((data as Timeout[]) || []);
+    }
+    loadTimeouts();
+  }, [matchId, rallies.length]); // Reload when rallies change (new points)
   useEffect(() => {
     if (currentSet === 5 && needsFifthSetServeChoice(5)) {
       setShowSet5ServeModal(true);
@@ -1240,7 +1258,68 @@ export default function Live() {
     });
   }, [toast]);
 
-  // Determine current wizard stage
+  // Timeout handler
+  const handleTimeoutCalled = useCallback(async (side: Side, notes?: string) => {
+    if (!matchId || !gameState) return;
+    
+    // Check if team already used 2 timeouts this set
+    const usedCount = timeouts.filter(t => t.set_no === currentSet && t.side === side).length;
+    if (usedCount >= 2) {
+      toast({
+        title: 'Limite atingido',
+        description: 'Máximo 2 timeouts por set',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const { error } = await supabase.from('timeouts').insert({
+      match_id: matchId,
+      set_no: currentSet,
+      rally_no: gameState.currentRally,
+      side,
+      home_score: gameState.homeScore,
+      away_score: gameState.awayScore,
+      serve_side: gameState.serveSide,
+      serve_rot: gameState.serveRot,
+      notes: notes || null,
+    });
+    
+    if (error) {
+      toast({ 
+        title: 'Erro ao registar timeout', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+      return;
+    }
+    
+    // Reload timeouts
+    const { data } = await supabase
+      .from('timeouts')
+      .select('*')
+      .eq('match_id', matchId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+    setTimeouts((data as Timeout[]) || []);
+    
+    const teamName = side === 'CASA' ? match?.home_name : match?.away_name;
+    toast({
+      title: `Timeout ${teamName}`,
+      description: `(${usedCount + 1}/2)`,
+    });
+  }, [matchId, gameState, currentSet, timeouts, match, toast]);
+
+  // Compute timeout counts for current set
+  const homeTimeoutsUsed = useMemo(() => 
+    timeouts.filter(t => t.set_no === currentSet && t.side === 'CASA').length,
+    [timeouts, currentSet]
+  );
+  const awayTimeoutsUsed = useMemo(() => 
+    timeouts.filter(t => t.set_no === currentSet && t.side === 'FORA').length,
+    [timeouts, currentSet]
+  );
+
   const isServePhase = !serveCompleted;
   const isReceptionPhase = serveCompleted && !receptionCompleted && !autoOutcome;
   const isModularPhase = serveCompleted && receptionCompleted && !autoOutcome;
@@ -1713,6 +1792,8 @@ export default function Live() {
               homeColor={teamColors.home.primary}
               awayColor={teamColors.away.primary}
               rallies={rallies}
+              homeTimeoutsUsed={homeTimeoutsUsed}
+              awayTimeoutsUsed={awayTimeoutsUsed}
             />
           </div>
 
@@ -1725,6 +1806,20 @@ export default function Live() {
               homeName={match.home_name} 
               awayName={match.away_name}
               currentSet={currentSet}
+            />
+
+            {/* Timeouts Card */}
+            <TimeoutCard
+              matchId={matchId!}
+              currentSet={currentSet}
+              currentRally={gameState.currentRally}
+              gameState={gameState}
+              homeName={match.home_name}
+              awayName={match.away_name}
+              homeColor={teamColors.home.primary}
+              awayColor={teamColors.away.primary}
+              timeouts={timeouts.filter(t => t.set_no === currentSet)}
+              onTimeoutCalled={handleTimeoutCalled}
             />
 
             {/* Legend for new users - Desktop in right column */}
