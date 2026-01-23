@@ -1822,10 +1822,6 @@ export default function Live() {
               onTimeoutCalled={handleTimeoutCalled}
             />
 
-            {/* Legend for new users - Desktop in right column */}
-            <div className="hidden lg:block">
-              <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
-            </div>
           </div>
         </div>
 
@@ -2142,8 +2138,8 @@ export default function Live() {
           )}
         </div>
 
-        {/* Legend for new users - Mobile only */}
-        <div className="lg:hidden">
+        {/* Legend for all users - Below actions */}
+        <div className="mt-4">
           <WizardLegend homeName={match.home_name} awayName={match.away_name} kpis={currentSetKPIs} />
         </div>
       </div>
