@@ -130,10 +130,8 @@ export function ActionEditor({
   // Step tracking for multi-step actions
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Get available positions based on reception quality
-  const availablePositions = receptionCode !== null && receptionCode !== undefined
-    ? POSITIONS_BY_RECEPTION[receptionCode] || DESTINATIONS
-    : DESTINATIONS;
+  // Always show all positions - simplified UX
+  const availablePositions = DESTINATIONS;
 
   // Calculate total steps based on action type and selected code
   const totalSteps = useMemo(() => {
