@@ -1276,6 +1276,11 @@ export default function Live() {
     handleFinishPoint(winner, reason);
   }, [handleFinishPoint]);
 
+  // Chain action handler - auto-opens next logical action
+  const handleChainAction = useCallback((type: RallyActionType, actionSide: Side) => {
+    handleSelectAction(type, actionSide);
+  }, [handleSelectAction]);
+
   // Timeout handler
   const handleTimeoutCalled = useCallback(async (side: Side, notes?: string) => {
     if (!matchId || !gameState) return;
@@ -2137,6 +2142,7 @@ export default function Live() {
               onAttackPassQualityChange={(quality) => setPendingAction(prev => prev ? { ...prev, attackPassQuality: quality } : null)}
               onConfirm={handleConfirmAction}
               onAutoFinishPoint={handleAutoFinishPoint}
+              onChainAction={handleChainAction}
               onCancel={handleCancelAction}
               currentActionIndex={editingActionIndex ?? undefined}
               totalActions={registeredActions.length}

@@ -71,6 +71,8 @@ interface ActionEditorProps {
   onUndo?: () => void;
   // Auto-finish point for definitive actions (errors, kills, aces, etc.)
   onAutoFinishPoint?: (winner: Side, reason: Reason) => void;
+  // Auto-chain to next logical action (e.g., attack defended → defense)
+  onChainAction?: (type: RallyActionType, side: Side) => void;
   // Navigation between actions
   currentActionIndex?: number;
   totalActions?: number;
@@ -126,6 +128,7 @@ export function ActionEditor({
   onCancel,
   onUndo,
   onAutoFinishPoint,
+  onChainAction,
   currentActionIndex,
   totalActions,
   onNavigatePrev,
@@ -294,16 +297,19 @@ export function ActionEditor({
         return;
       }
       
-      // code 2 (defended) - auto-confirm, rally continues
+      // code 2 (defended) - auto-confirm, then chain to defense for opponent
       const player = players.find(p => p.id === selectedPlayer);
+      const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
       requestAnimationFrame(() => {
         setTimeout(() => {
           showConfirmToast(player?.jersey_number, code);
           onConfirm();
+          // Chain to defense action for opponent (they defended the attack)
+          onChainAction?.('defense', opponent);
         }, 0);
       });
     }
-  }, [actionType, selectedCode, selectedPlayer, players, side, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange, onAutoFinishPoint]);
+  }, [actionType, selectedCode, selectedPlayer, players, side, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange, onAutoFinishPoint, onChainAction]);
 
   // Handler for block result when a_code=1
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
@@ -327,11 +333,17 @@ export function ActionEditor({
           // Stuff block: blocker wins (opponent of attacker)
           const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
           onAutoFinishPoint?.(blockerSide, 'BLK');
+        } else if (bCode === 1) {
+          // Offensive block: ball playable in attacker's court → defense for attacker
+          onChainAction?.('defense', side);
+        } else if (bCode === 2) {
+          // Defensive block: ball playable in blocker's court → attack for blocker
+          const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+          onChainAction?.('attack', blockerSide);
         }
-        // bCode 1 or 2: rally continues, no auto-finish
       }, 0);
     });
-  }, [onBlockCodeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players]);
+  }, [onBlockCodeChange, onConfirm, onAutoFinishPoint, onChainAction, side, selectedPlayer, players]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
