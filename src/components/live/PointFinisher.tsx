@@ -123,23 +123,31 @@ export function PointFinisher({
                   {side === 'CASA' ? homeName : awayName}
                 </div>
                 <div className="grid grid-cols-2 gap-1">
-                  {REASON_OPTIONS.map((reason) => (
-                    <Button
-                      key={`${side}-${reason.value}`}
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        'text-xs h-9',
-                        side === 'CASA' 
-                          ? 'hover:bg-home/20 hover:border-home' 
-                          : 'hover:bg-away/20 hover:border-away'
-                      )}
-                      onClick={() => onFinishPoint(side, reason.value)}
-                    >
-                      <span className="mr-1">{reason.emoji}</span>
-                      {reason.label}
-                    </Button>
-                  ))}
+                  {REASON_OPTIONS.map((reason) => {
+                    // For errors (SE, AE, OP), the opponent wins; for positive actions, the team wins
+                    const isError = ['SE', 'AE', 'OP'].includes(reason.value);
+                    const winner: Side = isError 
+                      ? (side === 'CASA' ? 'FORA' : 'CASA')
+                      : side;
+                    
+                    return (
+                      <Button
+                        key={`${side}-${reason.value}`}
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          'text-xs h-9',
+                          side === 'CASA' 
+                            ? 'hover:bg-home/20 hover:border-home' 
+                            : 'hover:bg-away/20 hover:border-away'
+                        )}
+                        onClick={() => onFinishPoint(winner, reason.value)}
+                      >
+                        <span className="mr-1">{reason.emoji}</span>
+                        {reason.label}
+                      </Button>
+                    );
+                  })}
                 </div>
                 {/* Net Fault button - full width below the grid */}
                 <Button
