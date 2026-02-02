@@ -139,7 +139,13 @@ export function ActionEditor({
   const teamSide = side === 'CASA' ? 'home' : 'away';
 
   // Step tracking for multi-step actions
-  const [currentStep, setCurrentStep] = useState(1);
+  // For attack: start at step 2 if attackPassQuality is inherited from setter
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (actionType === 'attack' && attackPassQuality !== null) {
+      return 2;
+    }
+    return 1;
+  });
 
   // Always show all positions - simplified UX
   const availablePositions = DESTINATIONS;
@@ -581,6 +587,13 @@ export function ActionEditor({
               </>
             ) : currentStep === 2 ? (
               <div className="space-y-2">
+                {/* Show inherited quality indicator */}
+                {attackPassQuality !== null && (
+                  <div className="text-xs text-muted-foreground text-center mb-1 flex items-center justify-center gap-1">
+                    <span>Passe: {getQualityLabel(attackPassQuality)}</span>
+                    <span className="text-[10px] opacity-70">(via Distribuição)</span>
+                  </div>
+                )}
                 <div className="text-xs font-medium text-muted-foreground text-center">
                   Avaliação do Ataque
                 </div>
