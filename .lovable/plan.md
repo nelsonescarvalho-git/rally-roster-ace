@@ -1,94 +1,147 @@
 
 
-## Plano: Impedir Seleção Duplicada de Jogadores no Lineup
+## Plano: Eliminar Duplicação da Qualidade do Passe
 
-### Problema
-Atualmente, na página de Setup → Lineup, é possível selecionar o mesmo jogador em múltiplas posições de rotação (rot1-rot6). Isto causa erros na lógica de rotação durante o jogo.
+### Problema Identificado
+
+Atualmente, a "Qualidade do Passe" é pedida **duas vezes**:
+
+1. **Ação Distribuição** (Step 1): Selecionar distribuidor → Escolher qualidade do passe (`pass_code`) → Escolher destino
+2. **Ação Ataque** (Step 1): Selecionar atacante → Escolher qualidade do passe (`a_pass_quality`) → Avaliar resultado
+
+Ambos os campos representam **a mesma informação**: a dificuldade da bola que o atacante recebeu.
 
 ---
 
-### Solução
+### Solução Proposta: Herança Automática
 
-Filtrar a lista de jogadores disponíveis em cada Select, removendo os jogadores que já estão selecionados noutras posições.
+Quando o utilizador regista a **Distribuição** com uma qualidade, o **Ataque** subsequente deve herdar automaticamente essa qualidade e saltar o passo de seleção.
 
 ---
 
-### Implementação
+### Lógica de Sincronização
 
-**Ficheiro:** `src/pages/Setup.tsx` (linhas 504-510)
+| Cenário | Comportamento |
+|---------|---------------|
+| Distribuição registada antes do Ataque | Ataque herda `pass_code` → Salta Step 1 |
+| Ataque sem Distribuição prévia (contra-ataque) | Ataque pede qualidade normalmente |
+| Distribuição atualizada após Ataque | Não atualiza automaticamente (respeitam-se valores manuais) |
 
-**Antes:**
+---
+
+### Alterações Técnicas
+
+#### 1. `src/pages/Live.tsx` - `handleSelectAction`
+
+Quando o utilizador seleciona "Ataque", verificar se já existe uma ação de Distribuição registada e pré-preencher a qualidade:
+
 ```typescript
-<SelectContent>
-  {sidePlayers.map((p) => (
-    <SelectItem key={p.id} value={p.id}>
-      #{p.jersey_number} {p.name}
-    </SelectItem>
-  ))}
-</SelectContent>
+// Em handleSelectAction, quando type === 'attack'
+const setterAction = registeredActions.find(a => a.type === 'setter' && a.side === side);
+
+setPendingAction({
+  type,
+  side,
+  playerId: null,
+  code: null,
+  killType: null,
+  setterId: null,
+  passDestination: null,
+  passCode: null,
+  b1PlayerId: null,
+  b2PlayerId: null,
+  b3PlayerId: null,
+  attackPassQuality: setterAction?.passCode ?? null, // HERDA do setter
+  blockCode: null,
+});
 ```
 
-**Depois:**
+#### 2. `src/components/live/ActionEditor.tsx` - Auto-skip Step 1
+
+Quando o Ataque abre com `attackPassQuality` já preenchido, saltar diretamente para o Step 2:
+
 ```typescript
-<SelectContent>
-  {sidePlayers
-    .filter((p) => {
-      // Allow the current selection for this rotation
-      const currentValue = lineupSelections[`rot${rot}`];
-      if (p.id === currentValue) return true;
-      
-      // Exclude players already selected in other rotations
-      const selectedInOther = Object.entries(lineupSelections)
-        .filter(([key, value]) => key !== `rot${rot}` && value)
-        .map(([_, value]) => value);
-      return !selectedInOther.includes(p.id);
-    })
-    .map((p) => (
-      <SelectItem key={p.id} value={p.id}>
-        #{p.jersey_number} {p.name}
-      </SelectItem>
-    ))}
-</SelectContent>
+// Efeito para auto-avançar quando qualidade já vem preenchida
+useEffect(() => {
+  if (actionType === 'attack' && attackPassQuality !== null && currentStep === 1) {
+    setCurrentStep(2);
+  }
+}, [actionType, attackPassQuality, currentStep]);
+```
+
+#### 3. Indicador Visual (Opcional)
+
+Mostrar um badge ou indicação quando a qualidade foi herdada:
+
+```typescript
+// No Step 2 do Ataque, mostrar a qualidade herdada
+{attackPassQuality !== null && (
+  <div className="text-xs text-muted-foreground text-center mb-2">
+    Passe: {getQualityLabel(attackPassQuality)} (via Distribuição)
+  </div>
+)}
 ```
 
 ---
 
-### Lógica
+### Fluxo Visual Comparativo
 
-1. **Permitir o jogador atual**: Se o jogador já está selecionado nesta rotação, mantê-lo disponível
-2. **Excluir de outras rotações**: Remover jogadores que já estão em `rot1`-`rot6` (exceto a posição atual)
-3. **Lista dinâmica**: À medida que seleciona jogadores, as opções nas outras posições atualizam automaticamente
-
----
-
-### Exemplo Visual
-
+**Antes (6 cliques para D+A):**
 ```text
-┌─────────────────────────────────────────┐
-│ Lineup Set 1 - FORA                     │
-├─────────────────────────────────────────┤
-│ Rot 1: [#9 Filipe Ferreira      ▼]      │
-│ Rot 2: [#1 Gonçalo Mota         ▼]      │
-│ Rot 3: [Selecionar jogador      ▼]      │ ← Lista NÃO mostra #9 nem #1
-│ Rot 4: [Selecionar jogador      ▼]      │
-│ Rot 5: [Selecionar jogador      ▼]      │
-│ Rot 6: [Selecionar jogador      ▼]      │
-└─────────────────────────────────────────┘
+[Distribuição]
+1. Seleciona distribuidor
+2. Escolhe qualidade do passe ← DUPLICADO
+3. Escolhe destino
+
+[Ataque]
+4. Seleciona atacante
+5. Escolhe qualidade do passe ← DUPLICADO
+6. Avalia resultado
+```
+
+**Depois (4 cliques para D+A):**
+```text
+[Distribuição]
+1. Seleciona distribuidor
+2. Escolhe qualidade do passe
+3. Escolhe destino
+
+[Ataque]
+4. Seleciona atacante
+5. → (qualidade herdada automaticamente) → Avalia resultado
 ```
 
 ---
 
-### Ficheiro a Alterar
+### Garantia de Dados Consistentes
+
+Na função `handleFinishPoint`, ambos os campos são guardados:
+
+```typescript
+// pass_code vem da Distribuição
+pass_code: setterAction?.passCode || null,
+
+// a_pass_quality vem do Ataque (que herdou do setter)
+a_pass_quality: attackAction?.attackPassQuality ?? null,
+```
+
+Com a herança automática, ambos os valores serão idênticos quando há Distribuição, garantindo consistência estatística.
+
+---
+
+### Ficheiros a Alterar
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/pages/Setup.tsx` | Adicionar filtro ao mapeamento de `sidePlayers` no SelectContent |
+| `src/pages/Live.tsx` | `handleSelectAction`: pré-preencher `attackPassQuality` com `pass_code` do setter |
+| `src/components/live/ActionEditor.tsx` | Adicionar `useEffect` para auto-skip Step 1 quando `attackPassQuality` já existe |
 
 ---
 
 ### Benefícios
 
-1. **Previne erros**: Impossível ter o mesmo jogador em duas posições
-2. **UX clara**: Vês apenas os jogadores ainda disponíveis
-3. **Feedback visual**: Se um jogador desaparece da lista, sabes que já está atribuído
+1. **Menos 2 cliques** por cada jogada Distribuição + Ataque
+2. **Dados consistentes**: `pass_code` e `a_pass_quality` sempre sincronizados
+3. **Flexibilidade mantida**: Contra-ataques sem distribuição ainda pedem a qualidade
+4. **Estatísticas precisas**: Hooks existentes (`useAttackStats`, `useGlobalStats`) funcionam sem alterações
 
