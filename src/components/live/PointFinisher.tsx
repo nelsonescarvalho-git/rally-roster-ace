@@ -1,16 +1,19 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Side, Reason, RallyAction } from '@/types/volleyball';
+import { Side, Reason, RallyAction, Player, MatchPlayer } from '@/types/volleyball';
+import { PlayerSelectorPopup } from './PlayerSelectorPopup';
 
 interface PointFinisherProps {
   actions: RallyAction[];
   homeName: string;
   awayName: string;
-  onFinishPoint: (winner: Side, reason: Reason) => void;
+  onFinishPoint: (winner: Side, reason: Reason, faultPlayerId?: string | null) => void;
   suggestedOutcome?: { winner: Side; reason: Reason } | null;
+  playersOnCourt?: { casa: (Player | MatchPlayer)[]; fora: (Player | MatchPlayer)[] };
+  playersOnBench?: { casa: (Player | MatchPlayer)[]; fora: (Player | MatchPlayer)[] };
 }
 
 const REASON_OPTIONS: { value: Reason; label: string; emoji: string }[] = [
@@ -28,7 +31,39 @@ export function PointFinisher({
   awayName,
   onFinishPoint,
   suggestedOutcome,
+  playersOnCourt,
+  playersOnBench,
 }: PointFinisherProps) {
+  // State for net fault player selection
+  const [netFaultPending, setNetFaultPending] = useState<{ winner: Side; faultSide: Side } | null>(null);
+
+  const handleNetFaultClick = (faultSide: Side) => {
+    // The team that committed the fault loses, so the opponent wins
+    const winner: Side = faultSide === 'CASA' ? 'FORA' : 'CASA';
+    setNetFaultPending({ winner, faultSide });
+  };
+
+  const handlePlayerSelected = (player: Player | MatchPlayer) => {
+    if (netFaultPending) {
+      onFinishPoint(netFaultPending.winner, 'NET', player.id);
+      setNetFaultPending(null);
+    }
+  };
+
+  const handleClosePopup = () => {
+    setNetFaultPending(null);
+  };
+
+  // Get players for the fault side
+  const getFaultSidePlayers = () => {
+    if (!netFaultPending) return { court: [], bench: [] };
+    const side = netFaultPending.faultSide;
+    return {
+      court: side === 'CASA' ? (playersOnCourt?.casa || []) : (playersOnCourt?.fora || []),
+      bench: side === 'CASA' ? (playersOnBench?.casa || []) : (playersOnBench?.fora || []),
+    };
+  };
+
   // If we have a suggested outcome, show it prominently
   if (suggestedOutcome) {
     return (
@@ -66,47 +101,76 @@ export function PointFinisher({
     );
   }
 
+  const faultPlayers = getFaultSidePlayers();
+
   // Manual point finish UI
   return (
-    <Card className="border-2 border-dashed">
-      <CardContent className="p-4 space-y-3">
-        <div className="text-center">
-          <Trophy className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-          <span className="font-semibold">Terminar Ponto</span>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-2">
-          {(['CASA', 'FORA'] as Side[]).map((side) => (
-            <div key={side} className="space-y-2">
-              <div className={cn(
-                'text-sm font-medium text-center py-1 rounded',
-                side === 'CASA' ? 'bg-home/20 text-home' : 'bg-away/20 text-away'
-              )}>
-                {side === 'CASA' ? homeName : awayName}
+    <>
+      <Card className="border-2 border-dashed">
+        <CardContent className="p-4 space-y-3">
+          <div className="text-center">
+            <Trophy className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <span className="font-semibold">Terminar Ponto</span>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2">
+            {(['CASA', 'FORA'] as Side[]).map((side) => (
+              <div key={side} className="space-y-2">
+                <div className={cn(
+                  'text-sm font-medium text-center py-1 rounded',
+                  side === 'CASA' ? 'bg-home/20 text-home' : 'bg-away/20 text-away'
+                )}>
+                  {side === 'CASA' ? homeName : awayName}
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {REASON_OPTIONS.map((reason) => (
+                    <Button
+                      key={`${side}-${reason.value}`}
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        'text-xs h-9',
+                        side === 'CASA' 
+                          ? 'hover:bg-home/20 hover:border-home' 
+                          : 'hover:bg-away/20 hover:border-away'
+                      )}
+                      onClick={() => onFinishPoint(side, reason.value)}
+                    >
+                      <span className="mr-1">{reason.emoji}</span>
+                      {reason.label}
+                    </Button>
+                  ))}
+                </div>
+                {/* Net Fault button - full width below the grid */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'w-full text-xs h-9',
+                    side === 'CASA' 
+                      ? 'hover:bg-home/20 hover:border-home border-home/50' 
+                      : 'hover:bg-away/20 hover:border-away border-away/50'
+                  )}
+                  onClick={() => handleNetFaultClick(side)}
+                >
+                  <span className="mr-1">🕸️</span>
+                  Falta Rede
+                </Button>
               </div>
-              <div className="grid grid-cols-2 gap-1">
-                {REASON_OPTIONS.map((reason) => (
-                  <Button
-                    key={`${side}-${reason.value}`}
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      'text-xs h-9',
-                      side === 'CASA' 
-                        ? 'hover:bg-home/20 hover:border-home' 
-                        : 'hover:bg-away/20 hover:border-away'
-                    )}
-                    onClick={() => onFinishPoint(side, reason.value)}
-                  >
-                    <span className="mr-1">{reason.emoji}</span>
-                    {reason.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Player selector popup for net fault */}
+      <PlayerSelectorPopup
+        open={netFaultPending !== null}
+        onClose={handleClosePopup}
+        onSelectPlayer={handlePlayerSelected}
+        playersOnCourt={faultPlayers.court}
+        playersOnBench={faultPlayers.bench}
+        title={`Falta Rede - ${netFaultPending?.faultSide === 'CASA' ? homeName : awayName}`}
+      />
+    </>
   );
 }

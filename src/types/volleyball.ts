@@ -1,5 +1,5 @@
 export type Side = 'CASA' | 'FORA';
-export type Reason = 'ACE' | 'SE' | 'KILL' | 'AE' | 'BLK' | 'DEF' | 'OP';
+export type Reason = 'ACE' | 'SE' | 'KILL' | 'AE' | 'BLK' | 'DEF' | 'OP' | 'NET';
 export type KPhase = 'K1' | 'K2' | 'K3';
 export type KillType = 'FLOOR' | 'BLOCKOUT';
 
@@ -187,6 +187,8 @@ export interface Rally {
   pass_destination: PassDestination | null;
   pass_code: number | null;
   kill_type: KillType | null;
+  fault_player_id: string | null;
+  fault_no: number | null;
   created_at: string;
 }
 

@@ -1018,7 +1018,7 @@ export default function Live() {
   };
 
   // Finish point
-  const handleFinishPoint = async (winner: Side, reason: Reason) => {
+  const handleFinishPoint = async (winner: Side, reason: Reason, faultPlayerId?: string | null) => {
     if (!gameState) return;
     
     const effectivePlayers = getEffectivePlayers();
@@ -1079,11 +1079,16 @@ export default function Live() {
       d_player_id: defenseAction?.playerId || null,
       d_no: getPlayerNo(defenseAction?.playerId),
       d_code: defenseAction?.code ?? null,
+      // Net Fault
+      fault_player_id: reason === 'NET' ? faultPlayerId : null,
+      fault_no: reason === 'NET' ? getPlayerNo(faultPlayerId) : null,
     };
     
+    const faultPlayer = faultPlayerId ? effectivePlayers.find(p => p.id === faultPlayerId) : null;
     const success = await saveRally(rallyData);
     if (success) {
-      toast({ title: 'Ponto registado' });
+      const faultInfo = reason === 'NET' && faultPlayer ? ` (#${faultPlayer.jersey_number})` : '';
+      toast({ title: `Ponto registado${faultInfo}` });
       resetWizard();
     }
   };
@@ -2134,6 +2139,14 @@ export default function Live() {
               awayName={match.away_name}
               onFinishPoint={handleFinishPoint}
               suggestedOutcome={autoOutcome}
+              playersOnCourt={{
+                casa: getPlayersOnCourt(currentSet, 'CASA', gameState?.currentRally || 1),
+                fora: getPlayersOnCourt(currentSet, 'FORA', gameState?.currentRally || 1),
+              }}
+              playersOnBench={{
+                casa: getPlayersOnBench(currentSet, 'CASA', gameState?.currentRally || 1),
+                fora: getPlayersOnBench(currentSet, 'FORA', gameState?.currentRally || 1),
+              }}
             />
           )}
         </div>

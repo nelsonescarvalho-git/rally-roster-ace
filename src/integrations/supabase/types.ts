@@ -293,6 +293,8 @@ export type Database = {
           d_player_id: string | null
           deleted_at: string | null
           deleted_by: string | null
+          fault_no: number | null
+          fault_player_id: string | null
           id: string
           k_phase: string | null
           kill_type: string | null
@@ -334,6 +336,8 @@ export type Database = {
           d_player_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          fault_no?: number | null
+          fault_player_id?: string | null
           id?: string
           k_phase?: string | null
           kill_type?: string | null
@@ -375,6 +379,8 @@ export type Database = {
           d_player_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          fault_no?: number | null
+          fault_player_id?: string | null
           id?: string
           k_phase?: string | null
           kill_type?: string | null
@@ -430,6 +436,13 @@ export type Database = {
           {
             foreignKeyName: "rallies_d_player_id_fkey"
             columns: ["d_player_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rallies_fault_player_id_fkey"
+            columns: ["fault_player_id"]
             isOneToOne: false
             referencedRelation: "match_players"
             referencedColumns: ["id"]
