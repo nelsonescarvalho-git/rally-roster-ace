@@ -1271,6 +1271,11 @@ export default function Live() {
     });
   }, [toast]);
 
+  // Auto-finish point handler (reuses handleFinishPoint)
+  const handleAutoFinishPoint = useCallback((winner: Side, reason: Reason) => {
+    handleFinishPoint(winner, reason);
+  }, [handleFinishPoint]);
+
   // Timeout handler
   const handleTimeoutCalled = useCallback(async (side: Side, notes?: string) => {
     if (!matchId || !gameState) return;
@@ -2131,6 +2136,7 @@ export default function Live() {
               onBlockCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, blockCode: code } : null)}
               onAttackPassQualityChange={(quality) => setPendingAction(prev => prev ? { ...prev, attackPassQuality: quality } : null)}
               onConfirm={handleConfirmAction}
+              onAutoFinishPoint={handleAutoFinishPoint}
               onCancel={handleCancelAction}
               currentActionIndex={editingActionIndex ?? undefined}
               totalActions={registeredActions.length}
