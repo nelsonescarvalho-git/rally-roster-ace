@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
 import { useSetKPIs } from '@/hooks/useSetKPIs';
 import { useTeamColors } from '@/hooks/useTeamColors';
+import { useDestinationStats } from '@/hooks/useDestinationStats';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -389,6 +390,13 @@ export default function Live() {
     [rallies, currentSet]
   );
   const currentSetKPIs = useSetKPIs(rallies, currentSet, previousSetRalliesForKPI, matchPlayers);
+
+  // Calculate destination stats for real-time kill rate display
+  const destinationStats = useDestinationStats(
+    rallies, 
+    matchPlayers,
+    pendingAction?.side
+  );
 
   // Get players currently on court for a specific side
   const getPlayersForActionSide = (side: Side) => {
@@ -2110,6 +2118,7 @@ export default function Live() {
               receptionCode={getEffectiveReceptionCode()}
               attackPassQuality={pendingAction.attackPassQuality}
               getZoneLabel={getZoneLabel}
+              destinationStats={destinationStats}
               onPlayerChange={(id) => setPendingAction(prev => prev ? { ...prev, playerId: id } : null)}
               onCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, code } : null)}
               onKillTypeChange={(type) => setPendingAction(prev => prev ? { ...prev, killType: type } : null)}

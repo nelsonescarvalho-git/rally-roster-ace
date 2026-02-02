@@ -16,26 +16,13 @@ import {
   MatchPlayer,
   Player
 } from '@/types/volleyball';
+import { DestinationStats } from '@/hooks/useDestinationStats';
 
 // Accept both Player and MatchPlayer types
 type PlayerLike = (Player | MatchPlayer) & { id: string; jersey_number: number; position?: string | null };
 
 const CODES = [0, 1, 2, 3];
 const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK'];
-
-// Difficulty configuration for each attack destination
-const DESTINATION_DIFFICULTY: Partial<Record<PassDestination, {
-  emoji: string;
-  label: string;
-  colorClass: string;
-}>> = {
-  'P4': { emoji: '🟢', label: 'Fácil', colorClass: 'border-l-4 border-l-success' },
-  'OP': { emoji: '🟢', label: 'Fácil', colorClass: 'border-l-4 border-l-success' },
-  'P2': { emoji: '🟡', label: 'Médio', colorClass: 'border-l-4 border-l-warning' },
-  'PIPE': { emoji: '🟡', label: 'Médio', colorClass: 'border-l-4 border-l-warning' },
-  'P3': { emoji: '🔴', label: 'Difícil', colorClass: 'border-l-4 border-l-destructive' },
-  'BACK': { emoji: '🔴', label: 'Difícil', colorClass: 'border-l-4 border-l-destructive' },
-};
 
 interface ActionEditorProps {
   actionType: RallyActionType;
@@ -64,6 +51,8 @@ interface ActionEditorProps {
   getZoneLabel?: (playerId: string, side: Side) => string;
   // Last used player for quick re-selection
   lastUsedPlayerId?: string;
+  // Real-time destination stats from match data
+  destinationStats?: Record<PassDestination, DestinationStats>;
   // Callbacks
   onPlayerChange: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
@@ -118,6 +107,7 @@ export function ActionEditor({
   attackPassQuality,
   getZoneLabel,
   lastUsedPlayerId,
+  destinationStats,
   onPlayerChange,
   onCodeChange,
   onKillTypeChange,
@@ -417,22 +407,37 @@ export function ActionEditor({
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {availablePositions.map((dest) => {
-                    const difficulty = DESTINATION_DIFFICULTY[dest];
+                    const stats = destinationStats?.[dest];
+                    const hasData = stats && stats.attempts > 0;
+                    
+                    // Calculate dynamic difficulty based on real kill rate
+                    const killRate = hasData ? stats.killRate : null;
+                    const difficultyColor = killRate === null 
+                      ? 'border-l-muted-foreground/30'
+                      : killRate >= 0.45 
+                        ? 'border-l-success' 
+                        : killRate >= 0.30 
+                          ? 'border-l-warning'
+                          : 'border-l-destructive';
                     
                     return (
                       <Button
                         key={dest}
                         variant={selectedDestination === dest ? 'default' : 'outline'}
                         className={cn(
-                          'h-16 flex flex-col gap-1 text-base font-semibold transition-all',
+                          'h-16 flex flex-col gap-0.5 text-base font-semibold transition-all border-l-4',
                           selectedDestination === dest && 'ring-2 ring-offset-2',
-                          selectedDestination !== dest && difficulty?.colorClass
+                          selectedDestination !== dest && difficultyColor
                         )}
                         onClick={() => handleDestinationWithAutoConfirm(dest)}
                       >
                         <span>{dest}</span>
-                        {difficulty && (
-                          <span className="text-xs opacity-70">{difficulty.emoji}</span>
+                        {hasData ? (
+                          <span className="text-xs opacity-70">
+                            {Math.round(killRate! * 100)}% ({stats.kills}/{stats.attempts})
+                          </span>
+                        ) : (
+                          <span className="text-xs opacity-50">-</span>
                         )}
                       </Button>
                     );
