@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import {
   RallyActionType, 
   Side, 
+  Reason,
   PassDestination, 
   KillType,
   POSITIONS_BY_RECEPTION,
@@ -68,6 +69,8 @@ interface ActionEditorProps {
   onConfirm: () => void;
   onCancel: () => void;
   onUndo?: () => void;
+  // Auto-finish point for definitive actions (errors, kills, aces, etc.)
+  onAutoFinishPoint?: (winner: Side, reason: Reason) => void;
   // Navigation between actions
   currentActionIndex?: number;
   totalActions?: number;
@@ -122,6 +125,7 @@ export function ActionEditor({
   onConfirm,
   onCancel,
   onUndo,
+  onAutoFinishPoint,
   currentActionIndex,
   totalActions,
   onNavigatePrev,
@@ -209,8 +213,51 @@ export function ActionEditor({
       return;
     }
     
-    // Auto-confirm for Serve/Reception
-    if (actionType === 'serve' || actionType === 'reception') {
+    // Auto-confirm for Serve with auto-finish for ACE/Error
+    if (actionType === 'serve') {
+      if (!selectedPlayer) {
+        toast.warning('Selecione um jogador primeiro');
+        return;
+      }
+      const player = players.find(p => p.id === selectedPlayer);
+      
+      if (code === 3) {
+        // ACE: server wins
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            showConfirmToast(player?.jersey_number, code);
+            onConfirm();
+            onAutoFinishPoint?.(side, 'ACE');
+          }, 0);
+        });
+        return;
+      }
+      
+      if (code === 0) {
+        // Serve error: receiver wins
+        const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            showConfirmToast(player?.jersey_number, code);
+            onConfirm();
+            onAutoFinishPoint?.(opponent, 'SE');
+          }, 0);
+        });
+        return;
+      }
+      
+      // code 1 or 2: just confirm, continue to reception
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          showConfirmToast(player?.jersey_number, code);
+          onConfirm();
+        }, 0);
+      });
+      return;
+    }
+    
+    // Auto-confirm for Reception (no auto-finish, rally continues)
+    if (actionType === 'reception') {
       if (!selectedPlayer) {
         toast.warning('Selecione um jogador primeiro');
         return;
@@ -225,14 +272,29 @@ export function ActionEditor({
       return;
     }
     
-    // Attack: code 1 or 3 needs Step 3, code 0 or 2 auto-confirms
+    // Attack: code 1 or 3 needs Step 3, code 0 auto-finishes, code 2 continues
     if (actionType === 'attack') {
       if (code === 1 || code === 3) {
         // Go to Step 3 for block result (code 1) or kill type (code 3)
         setCurrentStep(3);
         return;
       }
-      // code 0 (error) or 2 (defended) - auto-confirm
+      
+      if (code === 0) {
+        // Attack error: opponent wins
+        const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+        const player = players.find(p => p.id === selectedPlayer);
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            showConfirmToast(player?.jersey_number, code);
+            onConfirm();
+            onAutoFinishPoint?.(opponent, 'AE');
+          }, 0);
+        });
+        return;
+      }
+      
+      // code 2 (defended) - auto-confirm, rally continues
       const player = players.find(p => p.id === selectedPlayer);
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -241,7 +303,7 @@ export function ActionEditor({
         }, 0);
       });
     }
-  }, [actionType, selectedCode, selectedPlayer, players, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange]);
+  }, [actionType, selectedCode, selectedPlayer, players, side, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange, onAutoFinishPoint]);
 
   // Handler for block result when a_code=1
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
@@ -256,9 +318,20 @@ export function ActionEditor({
           { duration: 2500 }
         );
         onConfirm();
+        
+        // Auto-finish point based on block result
+        if (bCode === 0) {
+          // Block fault: attacker wins (side is the attacker)
+          onAutoFinishPoint?.(side, 'BLK');
+        } else if (bCode === 3) {
+          // Stuff block: blocker wins (opponent of attacker)
+          const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+          onAutoFinishPoint?.(blockerSide, 'BLK');
+        }
+        // bCode 1 or 2: rally continues, no auto-finish
       }, 0);
     });
-  }, [onBlockCodeChange, onConfirm, selectedPlayer, players]);
+  }, [onBlockCodeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
@@ -266,8 +339,10 @@ export function ActionEditor({
     setTimeout(() => {
       showConfirmToast(player?.jersey_number, 3);
       onConfirm();
+      // Kill: attacking team wins
+      onAutoFinishPoint?.(side, 'KILL');
     }, 50);
-  }, [onKillTypeChange, onConfirm, selectedPlayer, players, showConfirmToast]);
+  }, [onKillTypeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players, showConfirmToast]);
 
   // Long press state for OUTROS
   const [outrosPressed, setOutrosPressed] = useState(false);
@@ -500,7 +575,12 @@ export function ActionEditor({
                 <QualityPad
                   selectedCode={selectedCode ?? null}
                   onSelect={handleCodeWithAutoConfirm}
-                  labels={{ 1: 'Bloco', 3: 'Kill' }}
+                  labels={{
+                    0: 'Erro',
+                    1: 'Bloco',
+                    2: 'Defendido',
+                    3: 'Kill',
+                  }}
                 />
               </div>
             ) : (
