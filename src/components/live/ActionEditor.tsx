@@ -340,12 +340,12 @@ export function ActionEditor({
           const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
           onAutoFinishPoint?.(blockerSide, 'BLK');
         } else if (bCode === 1) {
-          // Offensive block: ball playable in attacker's court → defense for attacker
-          onChainAction?.('defense', side);
-        } else if (bCode === 2) {
-          // Defensive block: ball playable in blocker's court → attack for blocker
+          // Bloco Ofensivo: bola jogável no campo do bloqueador → defesa para bloqueador
           const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
-          onChainAction?.('attack', blockerSide);
+          onChainAction?.('defense', blockerSide);
+        } else if (bCode === 2) {
+          // Bloco Defensivo: bola volta ao campo do atacante → defesa para atacante
+          onChainAction?.('defense', side);
         }
       }, 0);
     });
