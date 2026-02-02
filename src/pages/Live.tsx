@@ -655,6 +655,15 @@ export default function Live() {
       return;
     }
     
+    // For attack actions, inherit pass quality from setter if exists
+    let inheritedPassQuality: number | null = null;
+    if (type === 'attack') {
+      const setterAction = registeredActions.find(a => a.type === 'setter' && a.side === side);
+      if (setterAction?.passCode !== null && setterAction?.passCode !== undefined) {
+        inheritedPassQuality = setterAction.passCode;
+      }
+    }
+    
     setPendingAction({
       type,
       side,
@@ -667,7 +676,7 @@ export default function Live() {
       b1PlayerId: null,
       b2PlayerId: null,
       b3PlayerId: null,
-      attackPassQuality: null,
+      attackPassQuality: inheritedPassQuality,
       blockCode: null,
     });
   };
