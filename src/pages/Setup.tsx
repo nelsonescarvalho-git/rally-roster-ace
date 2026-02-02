@@ -502,11 +502,23 @@ export default function Setup() {
                             <SelectValue placeholder="Selecionar jogador" />
                           </SelectTrigger>
                           <SelectContent>
-                            {sidePlayers.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                #{p.jersey_number} {p.name}
-                              </SelectItem>
-                            ))}
+                            {sidePlayers
+                              .filter((p) => {
+                                // Allow the current selection for this rotation
+                                const currentValue = lineupSelections[`rot${rot}`];
+                                if (p.id === currentValue) return true;
+                                
+                                // Exclude players already selected in other rotations
+                                const selectedInOther = Object.entries(lineupSelections)
+                                  .filter(([key, value]) => key !== `rot${rot}` && value)
+                                  .map(([_, value]) => value);
+                                return !selectedInOther.includes(p.id);
+                              })
+                              .map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  #{p.jersey_number} {p.name}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>
