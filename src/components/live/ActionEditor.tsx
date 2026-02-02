@@ -23,6 +23,20 @@ type PlayerLike = (Player | MatchPlayer) & { id: string; jersey_number: number; 
 const CODES = [0, 1, 2, 3];
 const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK'];
 
+// Difficulty configuration for each attack destination
+const DESTINATION_DIFFICULTY: Partial<Record<PassDestination, {
+  emoji: string;
+  label: string;
+  colorClass: string;
+}>> = {
+  'P4': { emoji: '🟢', label: 'Fácil', colorClass: 'border-l-4 border-l-success' },
+  'OP': { emoji: '🟢', label: 'Fácil', colorClass: 'border-l-4 border-l-success' },
+  'P2': { emoji: '🟡', label: 'Médio', colorClass: 'border-l-4 border-l-warning' },
+  'PIPE': { emoji: '🟡', label: 'Médio', colorClass: 'border-l-4 border-l-warning' },
+  'P3': { emoji: '🔴', label: 'Difícil', colorClass: 'border-l-4 border-l-destructive' },
+  'BACK': { emoji: '🔴', label: 'Difícil', colorClass: 'border-l-4 border-l-destructive' },
+};
+
 interface ActionEditorProps {
   actionType: RallyActionType;
   side: Side;
@@ -402,19 +416,27 @@ export function ActionEditor({
                   Destino do Passe
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  {availablePositions.map((dest) => (
-                    <Button
-                      key={dest}
-                      variant={selectedDestination === dest ? 'default' : 'outline'}
-                      className={cn(
-                        'h-14 text-base font-semibold transition-all',
-                        selectedDestination === dest && 'ring-2 ring-offset-2'
-                      )}
-                      onClick={() => handleDestinationWithAutoConfirm(dest)}
-                    >
-                      {dest}
-                    </Button>
-                  ))}
+                  {availablePositions.map((dest) => {
+                    const difficulty = DESTINATION_DIFFICULTY[dest];
+                    
+                    return (
+                      <Button
+                        key={dest}
+                        variant={selectedDestination === dest ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1 text-base font-semibold transition-all',
+                          selectedDestination === dest && 'ring-2 ring-offset-2',
+                          selectedDestination !== dest && difficulty?.colorClass
+                        )}
+                        onClick={() => handleDestinationWithAutoConfirm(dest)}
+                      >
+                        <span>{dest}</span>
+                        {difficulty && (
+                          <span className="text-xs opacity-70">{difficulty.emoji}</span>
+                        )}
+                      </Button>
+                    );
+                  })}
                 </div>
                 {/* OUTROS with press-and-hold */}
                 <Button
