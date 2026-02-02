@@ -1,46 +1,44 @@
 
-## Plano: Auto-Finish Point para Ações Definitivas
+
+## Plano: Auto-Chain de Ações para Melhorar UX
 
 ### Objetivo
-Reduzir o número de cliques ao terminar pontos automaticamente quando uma ação é definitiva (resulta em ponto). Exceto "Falta na Rede" que continua a requerer seleção de jogador.
+Quando uma ação não termina o ponto mas define claramente a próxima ação lógica, abrir automaticamente essa ação em vez de voltar ao menu de seleção.
 
 ---
 
-### Ações que Terminam em Ponto Automático
+### Ações que Devem Encadear Automaticamente
 
-| Ação | Código | Significado | Quem ganha | Auto-finish? |
-|------|--------|-------------|------------|--------------|
-| Ataque | a_code=0 | **Erro** | Adversário | ✅ Sim |
-| Ataque | a_code=3 + killType | **Kill** | Atacante | ✅ Sim (após escolher tipo) |
-| Ataque→Bloco | b_code=0 | **Falta Bloco** | Atacante | ✅ Sim |
-| Ataque→Bloco | b_code=3 | **Bloco Ponto** | Bloqueador | ✅ Sim |
-| Serviço | s_code=3 | **ACE** | Servidor | ✅ Sim |
-| Serviço | s_code=0 | **Erro Serviço** | Recetor | ✅ Sim |
-| Bloco | b_code=3 | **Bloco Ponto** | Bloqueador | ✅ Sim |
-| Bloco | b_code=0 | **Falta Bloco** | Adversário | ✅ Sim |
+| Ação Atual | Resultado | Próxima Ação | Equipa |
+|------------|-----------|--------------|--------|
+| Ataque | `a_code=2` (Defendido) | **Defesa** | Adversário |
+| Bloco | `b_code=1` (Ofensivo) | **Defesa** | Atacante (bola vai para o lado do ataque) |
+| Bloco | `b_code=2` (Defensivo) | **Ataque** | Bloqueador (bola fica no lado do bloco) |
+| Serviço | `s_code=1,2` (não-terminal) | Receção | Já funciona |
+| Receção | qualquer código | Seleção | Já funciona |
 
 ---
 
 ### Arquitetura da Solução
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────┐
-│                      ActionEditor                                │
+│                      ActionEditor.tsx                            │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │  User selects a_code=0 (Erro)                              │ │
+│  │  User selects a_code=2 (Defendido)                         │ │
 │  │       ↓                                                    │ │
-│  │  1. onCodeChange(0)  ← registar código                     │ │
+│  │  1. onCodeChange(2)  ← registar código                     │ │
 │  │  2. onConfirm()      ← confirmar ação                      │ │
-│  │  3. onAutoFinishPoint(winner, reason) ← NOVO! fechar ponto │ │
+│  │  3. onChainAction('defense', opponentSide) ← NOVO!         │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
            ↓
 ┌──────────────────────────────────────────────────────────────────┐
 │                        Live.tsx                                  │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │  handleAutoFinishPoint(winner, reason)                     │ │
+│  │  handleChainAction(type, side)                             │ │
 │  │       ↓                                                    │ │
-│  │  handleFinishPoint(winner, reason)  ← reutiliza lógica     │ │
+│  │  handleSelectAction(type, side)  ← reutiliza lógica        │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -49,130 +47,42 @@ Reduzir o número de cliques ao terminar pontos automaticamente quando uma açã
 
 ### 1. Alterar `ActionEditor.tsx`
 
-**Adicionar nova prop e interface:**
+**Adicionar nova prop:**
 
 ```typescript
 interface ActionEditorProps {
   // ... existing props
   onAutoFinishPoint?: (winner: Side, reason: Reason) => void;
+  onChainAction?: (type: RallyActionType, side: Side) => void;  // NEW
 }
 ```
 
-**Atualizar `handleCodeWithAutoConfirm` para atacke (linhas ~228-243):**
+**Atualizar `handleCodeWithAutoConfirm` para ataque (a_code=2):**
 
 ```typescript
-// Attack: code 0 = error → auto-finish point for opponent
-if (actionType === 'attack') {
-  if (code === 0) {
-    // Error: opponent wins
-    onCodeChange(code);
-    const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        onConfirm();
-        onAutoFinishPoint?.(opponent, 'AE');
-      }, 0);
-    });
-    return;
-  }
-  
-  if (code === 1 || code === 3) {
-    // Go to Step 3 for block result (code 1) or kill type (code 3)
-    setCurrentStep(3);
-    return;
-  }
-  
-  // code 2 (defended) - just confirm, rally continues
-  // ... existing code
-}
-```
-
-**Atualizar `handleKillTypeWithAutoConfirm` (linhas ~263-270):**
-
-```typescript
-const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
-  onKillTypeChange?.(type);
-  const player = players.find(p => p.id === selectedPlayer);
+// code 2 (defended) - auto-confirm, then chain to defense
+const player = players.find(p => p.id === selectedPlayer);
+const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+requestAnimationFrame(() => {
   setTimeout(() => {
-    showConfirmToast(player?.jersey_number, 3);
+    showConfirmToast(player?.jersey_number, code);
     onConfirm();
-    // Kill: attacking team wins
-    onAutoFinishPoint?.(side, 'KILL');
-  }, 50);
-}, [onKillTypeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players, showConfirmToast]);
+    // Chain to defense action for opponent
+    onChainAction?.('defense', opponent);
+  }, 0);
+});
 ```
 
-**Atualizar `handleBlockCodeWithAutoConfirm` (linhas ~247-261):**
+**Atualizar `handleBlockCodeWithAutoConfirm` para bloco (b_code=1,2):**
 
 ```typescript
-const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
-  onBlockCodeChange?.(bCode);
-  const player = players.find(p => p.id === selectedPlayer);
-  const bCodeLabels = ['Falta', 'Ofensivo', 'Defensivo', 'Ponto'];
-  
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      toast.success(
-        `#${player?.jersey_number || '?'} · Ataque → Bloco ${bCodeLabels[bCode]}`,
-        { duration: 2500 }
-      );
-      onConfirm();
-      
-      // Auto-finish point based on block result
-      if (bCode === 0) {
-        // Block fault: attacker wins
-        onAutoFinishPoint?.(side, 'BLK'); // side is the attacker
-      } else if (bCode === 3) {
-        // Stuff block: blocker wins (opponent of attacker)
-        const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
-        onAutoFinishPoint?.(blockerSide, 'BLK');
-      }
-      // bCode 1 or 2: rally continues, no auto-finish
-    }, 0);
-  });
-}, [onBlockCodeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players]);
-```
-
-**Atualizar serviço/receção com auto-finish (serve):**
-
-```typescript
-// Serve: code 3 = ACE, code 0 = error
-if (actionType === 'serve') {
-  if (!selectedPlayer) {
-    toast.warning('Selecione um jogador primeiro');
-    return;
-  }
-  
-  onCodeChange(code);
-  const player = players.find(p => p.id === selectedPlayer);
-  
-  if (code === 3) {
-    // ACE: server wins
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        showConfirmToast(player?.jersey_number, code);
-        onConfirm();
-        onAutoFinishPoint?.(side, 'ACE');
-      }, 0);
-    });
-    return;
-  }
-  
-  if (code === 0) {
-    // Serve error: receiver wins
-    const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        showConfirmToast(player?.jersey_number, code);
-        onConfirm();
-        onAutoFinishPoint?.(opponent, 'SE');
-      }, 0);
-    });
-    return;
-  }
-  
-  // code 1 or 2: just confirm, continue to reception
-  // ... existing code
+if (bCode === 1) {
+  // Ofensivo: ball playable in attacker's court → defense for attacker
+  onChainAction?.('defense', side);
+} else if (bCode === 2) {
+  // Defensivo: ball playable in blocker's court → attack for blocker
+  const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+  onChainAction?.('attack', blockerSide);
 }
 ```
 
@@ -180,22 +90,22 @@ if (actionType === 'serve') {
 
 ### 2. Alterar `Live.tsx`
 
-**Criar handler para auto-finish (usar `handleFinishPoint` existente):**
+**Criar handler para chain action:**
 
 ```typescript
-// Auto-finish point handler (reuses handleFinishPoint)
-const handleAutoFinishPoint = useCallback((winner: Side, reason: Reason) => {
-  handleFinishPoint(winner, reason);
-}, [handleFinishPoint]);
+// Chain action handler (reuses handleSelectAction)
+const handleChainAction = useCallback((type: RallyActionType, side: Side) => {
+  handleSelectAction(type, side);
+}, [handleSelectAction]);
 ```
 
-**Passar prop para ActionEditor (linha ~2133):**
+**Passar prop para ActionEditor:**
 
 ```tsx
 <ActionEditor
   // ... existing props
-  onConfirm={handleConfirmAction}
-  onAutoFinishPoint={handleAutoFinishPoint}  // NEW
+  onAutoFinishPoint={handleAutoFinishPoint}
+  onChainAction={handleChainAction}  // NEW
   onCancel={handleCancelAction}
   // ...
 />
@@ -203,38 +113,38 @@ const handleAutoFinishPoint = useCallback((winner: Side, reason: Reason) => {
 
 ---
 
-### 3. Atualizar Labels no QualityPad para Ataque
+### Fluxo Visual Final
 
-Já discutimos anteriormente, vamos incluir:
+**Antes (3+ cliques para rally com defesa):**
+```text
+1. Seleciona atacante → registar ataque Defendido
+2. Volta ao menu de ações
+3. Clica em "Defesa" no menu
+4. Seleciona defensor → registar defesa
+```
 
-```typescript
-<QualityPad
-  selectedCode={selectedCode ?? null}
-  onSelect={handleCodeWithAutoConfirm}
-  labels={{
-    0: 'Erro',
-    1: 'Bloco',
-    2: 'Defendido',
-    3: 'Kill',
-  }}
-/>
+**Depois (fluxo contínuo):**
+```text
+1. Seleciona atacante → registar ataque Defendido
+   ↓ automático
+2. Abre imediatamente editor de Defesa (adversário)
+3. Seleciona defensor → registar defesa
 ```
 
 ---
 
-### Fluxo Visual Final
+### Lógica Completa de Encadeamento
 
-**Antes (3 cliques para erro de ataque):**
-```
-1. Seleciona "Erro" no QualityPad
-2. Confirma ação
-3. Clica "Erro Ataque" no PointFinisher
-```
-
-**Depois (1 clique):**
-```
-1. Seleciona "Erro" no QualityPad → Ponto fechado automaticamente ✓
-```
+| Ação | Código | Resultado | Próxima Ação | Equipa |
+|------|--------|-----------|--------------|--------|
+| Ataque | `a_code=0` | Erro | ~~Chain~~ Auto-finish | Adversário ganha |
+| Ataque | `a_code=1` | Bloco | Step 3 (b_code) | - |
+| Ataque | `a_code=2` | **Defendido** | **Defesa** | **Adversário** |
+| Ataque | `a_code=3` | Kill | ~~Chain~~ Auto-finish | Atacante ganha |
+| Bloco | `b_code=0` | Falta | ~~Chain~~ Auto-finish | Atacante ganha |
+| Bloco | `b_code=1` | **Ofensivo** | **Defesa** | **Atacante** |
+| Bloco | `b_code=2` | **Defensivo** | **Ataque** | **Bloqueador** |
+| Bloco | `b_code=3` | Ponto | ~~Chain~~ Auto-finish | Bloqueador ganha |
 
 ---
 
@@ -242,28 +152,15 @@ Já discutimos anteriormente, vamos incluir:
 
 | Ficheiro | Alteração | Descrição |
 |----------|-----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Props + handlers | Adicionar onAutoFinishPoint, atualizar handlers |
-| `src/pages/Live.tsx` | Handler + prop | Criar handleAutoFinishPoint, passar para ActionEditor |
-
----
-
-### Exceções (Sem Auto-Finish)
-
-| Cenário | Motivo |
-|---------|--------|
-| Ataque Defendido (a_code=2) | Rally continua |
-| Bloco Ofensivo (b_code=1) | Rally continua |
-| Bloco Defensivo (b_code=2) | Rally continua |
-| Falta na Rede (NET) | Requer seleção de jogador |
-| Receção (qualquer código) | Rally continua após receção |
-| Defesa (qualquer código) | Rally continua após defesa |
+| `src/components/live/ActionEditor.tsx` | Props + handlers | Adicionar onChainAction, atualizar handlers |
+| `src/pages/Live.tsx` | Handler + prop | Criar handleChainAction, passar para ActionEditor |
 
 ---
 
 ### Benefícios
 
-1. **Menos cliques**: 1 clique em vez de 3 para ações terminantes
-2. **UX mais rápida**: Fluxo natural sem passos redundantes
-3. **Consistência**: Mantém seleção de jogador para falta na rede
-4. **Feedback imediato**: Toast + ponto fechado instantaneamente
+1. **Menos cliques**: Fluxo contínuo sem voltar ao menu
+2. **UX natural**: Segue a lógica do jogo (ataque defendido → defesa)
+3. **Consistência**: Mesma abordagem para todas as ações que continuam o rally
+4. **Flexível**: O utilizador pode sempre cancelar e escolher outra ação se necessário
 
