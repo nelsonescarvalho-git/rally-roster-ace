@@ -671,7 +671,8 @@ export default function Live() {
       side: gameState!.recvSide,
       phase: 1,
       playerId: receptionData.playerId,
-      code: 0, // Still bad (code 0) but marked as overTheNet
+      code: 0,
+      overTheNet: true,
     };
     
     setRegisteredActions(prev => {
