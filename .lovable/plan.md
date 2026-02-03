@@ -1,149 +1,207 @@
 
 
-## Plano: Corrigir Fluxo do Ataque - Seleção do Atacante Obrigatória
+## Plano: Padronizar Fluxo de Todas as Ações - Seleção Jogador → Auto-Avanço
 
-### Problema
+### Análise do Estado Atual
 
-Quando `attackPassQuality` é herdada da Distribuição, o `ActionEditor` inicia no **Step 2** (linhas 143-148), saltando o **Step 1** onde deveria estar a seleção do jogador atacante.
-
-```typescript
-// Código problemático
-const [currentStep, setCurrentStep] = useState(() => {
-  if (actionType === 'attack' && attackPassQuality !== null) {
-    return 2;  // ← Salta seleção do jogador!
-  }
-  return 1;
-});
-```
+| Ação | Step 1 | Step 2 | Auto-Avanço após Jogador? |
+|------|--------|--------|---------------------------|
+| **Serve/Reception/Defense** | PlayerStrip + QualityPad juntos | — | ❌ Não (apenas 1 step) |
+| **Setter** | PlayerStrip + QualityPad | Destino | ❌ Avança após qualidade |
+| **Attack** | PlayerStrip + (QualityPad ou Badge) | Avaliação | ✅ Se qualidade herdada |
+| **Block** | 3 Bloqueadores + Pool | Avaliação | ❌ Botão "Continuar" |
 
 ---
 
-### Solução
+### Objetivo
 
-Manter **sempre** o Step 1 para seleção do atacante. Se a qualidade do passe já está herdada:
-- Step 1 mostra apenas `PlayerStrip` (sem `QualityPad`)
-- Após selecionar jogador → avança automaticamente para Step 2
-- Step 2 mostra a avaliação do ataque com indicador visual da qualidade herdada
-
----
-
-### Fluxo Corrigido
-
-**Cenário A: Com qualidade herdada**
-```text
-Step 1: [PlayerStrip] → Clica jogador → Auto-avança
-Step 2: [Indicador "Passe: X"] + [QualityPad avaliação ataque]
-```
-
-**Cenário B: Sem qualidade herdada (contra-ataque)**
-```text
-Step 1: [PlayerStrip] + [QualityPad qualidade passe] → Clica passe → Auto-avança
-Step 2: [QualityPad avaliação ataque]
-```
+Padronizar **todas** as ações para o fluxo:
+1. **Step 1**: Selecionar jogador(es)
+2. **Auto-avanço** para Step 2 após seleção
+3. **Step 2**: Avaliação/Destino → confirma automaticamente
 
 ---
 
-### Alterações Técnicas
+### Alterações por Ação
 
-**Ficheiro:** `src/components/live/ActionEditor.tsx`
+#### 1. Serve / Reception / Defense (linhas 444-462)
 
-#### 1. Remover auto-skip para Step 2 (linha 143-148)
+**Antes:** PlayerStrip e QualityPad no mesmo ecrã
 
-```typescript
-// DE:
-const [currentStep, setCurrentStep] = useState(() => {
-  if (actionType === 'attack' && attackPassQuality !== null) {
-    return 2;
-  }
-  return 1;
-});
-
-// PARA:
-const [currentStep, setCurrentStep] = useState(1);
-```
-
-#### 2. Modificar Step 1 do Ataque (linhas 564-587)
-
-O Step 1 do ataque passa a ter duas variantes:
+**Depois:** 
+- Step 1: PlayerStrip → ao clicar jogador, avança para Step 2
+- Step 2: QualityPad → confirma automaticamente
 
 ```typescript
-case 'attack':
+case 'serve':
+case 'reception':
+case 'defense':
   return (
     <div className="space-y-4">
       {currentStep === 1 ? (
-        <>
-          <PlayerStrip
-            players={players}
-            selectedPlayerId={selectedPlayer || null}
-            onSelect={(playerId) => {
-              onPlayerChange(playerId);
-              // Se qualidade já herdada, avançar automaticamente
-              if (attackPassQuality !== null) {
-                setCurrentStep(2);
-              }
-            }}
-            teamSide={teamSide}
-            lastUsedPlayerId={lastUsedPlayerId}
-            showZones={!!getZoneLabel}
-            getZoneLabel={getZoneLabelWrapper}
-          />
-          
-          {/* Só mostra QualityPad se qualidade NÃO está herdada */}
-          {attackPassQuality === null && (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground text-center">
-                Qualidade do Passe
-              </div>
-              <QualityPad
-                selectedCode={attackPassQuality ?? null}
-                onSelect={(code) => {
-                  if (!selectedPlayer) {
-                    toast.warning('Selecione um atacante primeiro');
-                    return;
-                  }
-                  onAttackPassQualityChange?.(code);
-                  setCurrentStep(2);
-                }}
-              />
-            </div>
-          )}
-          
-          {/* Indicador visual se qualidade está herdada */}
-          {attackPassQuality !== null && (
-            <div className="text-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
-              Passe: <span className="font-medium text-foreground">{getQualityLabel(attackPassQuality)}</span>
-              <span className="opacity-70"> (via Distribuição)</span>
-            </div>
-          )}
-        </>
+        <PlayerStrip
+          players={players}
+          selectedPlayerId={selectedPlayer || null}
+          onSelect={(playerId) => {
+            onPlayerChange(playerId);
+            setCurrentStep(2);
+          }}
+          teamSide={teamSide}
+          lastUsedPlayerId={lastUsedPlayerId}
+          showZones={!!getZoneLabel}
+          getZoneLabel={getZoneLabelWrapper}
+        />
+      ) : (
+        <QualityPad
+          selectedCode={selectedCode ?? null}
+          onSelect={handleCodeWithAutoConfirm}
+        />
+      )}
+    </div>
+  );
+```
+
+#### 2. Setter (linhas 465-553)
+
+**Antes:** Step 1 = PlayerStrip + QualityPad juntos, Step 2 = Destino
+
+**Depois:**
+- Step 1: PlayerStrip → ao clicar distribuidor, avança para Step 2
+- Step 2: QualityPad (Qualidade do Passe) → avança para Step 3
+- Step 3: Destino → confirma automaticamente
+
+```typescript
+case 'setter':
+  return (
+    <div className="space-y-4">
+      {currentStep === 1 ? (
+        <PlayerStrip
+          players={players}
+          selectedPlayerId={selectedSetter || null}
+          onSelect={(id) => {
+            onSetterChange?.(id);
+            setCurrentStep(2);
+          }}
+          teamSide={teamSide}
+          showZones={!!getZoneLabel}
+          getZoneLabel={getZoneLabelWrapper}
+        />
       ) : currentStep === 2 ? (
-        // ... resto sem alterações
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground text-center">
+            Qualidade do Passe
+          </div>
+          <QualityPad
+            selectedCode={selectedPassCode ?? null}
+            onSelect={(code) => {
+              onPassCodeChange?.(code);
+              setCurrentStep(3);
+            }}
+          />
+        </div>
+      ) : (
+        // Step 3: Destino (código existente)
+        <div className="space-y-3">...</div>
+      )}
+    </div>
+  );
+```
+
+**Nota:** `totalSteps` para setter passa de 2 para 3.
+
+#### 3. Block (linhas 743-845)
+
+**Antes:** Step 1 = Seleção de 3 bloqueadores + botão "Continuar", Step 2 = Avaliação
+
+**Depois:**
+- Step 1: Seleção de bloqueadores → auto-avança após 1º bloqueador (com opção de adicionar mais)
+- Alternativamente: manter UI atual mas auto-avançar após 1º bloqueador selecionado
+
+Para manter a flexibilidade de selecionar até 3 bloqueadores, a melhor abordagem é:
+- Auto-avançar 500ms após a última seleção de bloqueador
+- OU manter o botão "Continuar" mas torná-lo mais proeminente
+
+**Proposta:** Manter o fluxo atual do Block pois é diferente (múltiplos jogadores). O utilizador pode querer selecionar 1, 2 ou 3 bloqueadores antes de avaliar.
+
+---
+
+### Atualização de `totalSteps`
+
+```typescript
+const totalSteps = useMemo(() => {
+  switch (actionType) {
+    case 'serve': 
+    case 'reception': 
+    case 'defense': 
+      return 2;  // Era 1, agora são 2 steps
+    case 'setter': 
+      return 3;  // Era 2, agora são 3 steps
+    case 'attack': 
+      return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
+    case 'block': 
+      return 2;
+    default: 
+      return 1;
+  }
+}, [actionType, selectedCode]);
 ```
 
 ---
 
-### Lógica de Navegação
+### Atualização dos Atalhos de Teclado (linhas 409-427)
 
-| Cenário | Step 1 | Ação do Utilizador | Resultado |
-|---------|--------|-------------------|-----------|
-| Qualidade herdada | PlayerStrip + Badge | Clica jogador | Avança auto para Step 2 |
-| Sem qualidade | PlayerStrip + QualityPad | Clica jogador + qualidade | Avança após qualidade |
+Os atalhos 0-3 só devem funcionar no Step de avaliação (não no Step 1 de seleção de jogador):
+
+```typescript
+useKeyboardShortcuts({
+  enabled: true,
+  onQualitySelect: (code) => {
+    // Só permite atalhos de qualidade se não estiver no Step 1 (seleção de jogador)
+    if (currentStep === 1) return;
+    
+    if (actionType === 'setter' && currentStep === 2) {
+      onPassCodeChange?.(code);
+      setCurrentStep(3);
+    } else if (actionType === 'attack' && currentStep === 2) {
+      handleCodeWithAutoConfirm(code);
+    } else if (currentStep === 2) {
+      handleCodeWithAutoConfirm(code);
+    }
+  },
+  // ...
+});
+```
 
 ---
 
-### Ficheiros a Alterar
+### Resumo das Alterações
 
-| Ficheiro | Alteração |
-|----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Linha 143-148: Sempre iniciar em Step 1 |
-| `src/components/live/ActionEditor.tsx` | Linhas 564-587: Condicionar QualityPad e auto-avanço no onSelect do PlayerStrip |
+| Ficheiro | Linhas | Alteração |
+|----------|--------|-----------|
+| `ActionEditor.tsx` | 149-161 | Atualizar `totalSteps` para refletir novos steps |
+| `ActionEditor.tsx` | 409-427 | Bloquear atalhos 0-3 no Step 1 |
+| `ActionEditor.tsx` | 444-462 | Refatorar Serve/Reception/Defense para 2 steps |
+| `ActionEditor.tsx` | 465-553 | Refatorar Setter para 3 steps |
+
+---
+
+### Fluxo Final
+
+| Ação | Step 1 | Step 2 | Step 3 |
+|------|--------|--------|--------|
+| **Serve** | Jogador → auto | Avaliação → confirma | — |
+| **Reception** | Jogador → auto | Avaliação → confirma | — |
+| **Defense** | Jogador → auto | Avaliação → confirma | — |
+| **Setter** | Jogador → auto | Qualidade → auto | Destino → confirma |
+| **Attack** | Jogador → auto | Avaliação → (auto ou step3) | Kill Type / Block Result |
+| **Block** | Bloqueadores → botão | Avaliação → confirma | — |
 
 ---
 
 ### Benefícios
 
-1. **Atacante sempre identificado** antes de prosseguir
-2. **Fluxo automático** sem botão "Continuar" extra
-3. **UX simplificada** - menos cliques quando qualidade é herdada
-4. **Mantém flexibilidade** para contra-ataques sem distribuição prévia
+1. **Consistência**: Todas as ações seguem o padrão Jogador → Avaliação
+2. **Menos fricção**: Auto-avanço elimina cliques desnecessários
+3. **Foco visual**: Cada step mostra apenas o input relevante
+4. **Prevenção de erros**: Não é possível avaliar sem selecionar jogador
 
