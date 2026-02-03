@@ -91,7 +91,12 @@ function CourtHalf({
           color: teamColor 
         } : undefined}
       >
-        {isServing && <span className="text-sm lg:text-lg animate-pulse">🏐</span>}
+        <span className={cn(
+          "text-sm lg:text-lg",
+          isServing ? "animate-pulse" : "opacity-0"
+        )}>
+          🏐
+        </span>
         <span className="truncate max-w-[60px] lg:max-w-[100px] xl:max-w-[140px]">{teamName}</span>
         {/* Timeout badge */}
         {typeof timeoutsUsed === 'number' && timeoutsUsed > 0 && (
