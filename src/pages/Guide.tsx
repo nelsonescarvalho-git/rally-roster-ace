@@ -31,10 +31,14 @@ const ACTION_DEFINITIONS = {
     icon: '🏐',
     label: 'Receção',
     codes: [
-      { code: 0, label: 'Erro de receção', description: 'Ponto perdido ou bola incontrolável' },
+      { code: 0, label: 'Receção má', description: 'Ver tipos abaixo: ACE ou Bola de Graça' },
       { code: 1, label: 'Receção fraca', description: 'Opções de ataque muito limitadas' },
       { code: 2, label: 'Receção boa', description: 'Algumas opções de ataque disponíveis' },
       { code: 3, label: 'Receção perfeita', description: 'Todas as opções de ataque disponíveis' },
+    ],
+    badReceptionTypes: [
+      { type: 'ACE', emoji: '🎯', label: 'ACE', description: 'Bola toca no chão da equipa receptora → ponto direto para o servidor' },
+      { type: 'OVER_NET', emoji: '↗️', label: 'Passou Rede', description: 'Bola vai diretamente para o campo adversário → adversário ataca (bola de graça)' },
     ]
   },
   pass: {
@@ -273,6 +277,46 @@ export default function Guide() {
                       ))}
                     </TableBody>
                   </Table>
+                  {/* Show Bad Reception Types subsection for reception */}
+                  {key === 'reception' && 'badReceptionTypes' in action && (
+                    <div className="mt-4 pt-4 border-t border-border/50">
+                      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                        <span>⚠️</span> Tipos de Receção Má (código 0)
+                      </h4>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Quando a receção é má, existem dois resultados possíveis que levam a desfechos diferentes:
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {(action as typeof ACTION_DEFINITIONS.reception).badReceptionTypes?.map((rt) => (
+                          <div 
+                            key={rt.type} 
+                            className={cn(
+                              "p-3 rounded-lg border",
+                              rt.type === 'ACE' 
+                                ? "bg-destructive/10 border-destructive/30" 
+                                : "bg-warning/10 border-warning/30"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xl">{rt.emoji}</span>
+                              <Badge className={cn(
+                                rt.type === 'ACE' 
+                                  ? "bg-destructive text-destructive-foreground" 
+                                  : "bg-warning text-warning-foreground"
+                              )}>
+                                {rt.label}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">{rt.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                        <strong>🎁 Bola de Graça:</strong> Quando a receção "passa a rede", o adversário recebe uma situação fácil 
+                        para atacar sem precisar de distribuição prévia. O sistema encadeia automaticamente para o ataque adversário.
+                      </div>
+                    </div>
+                  )}
                   {/* Show Kill Types subsection for attack */}
                   {key === 'attack' && 'killTypes' in action && (
                     <div className="mt-4 pt-4 border-t border-border/50">
