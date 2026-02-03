@@ -157,6 +157,7 @@ export default function Live() {
   const [receptionCompleted, setReceptionCompleted] = useState(false);
   const [serveData, setServeData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
   const [receptionData, setReceptionData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
+  const [receptionStep, setReceptionStep] = useState(1);
   
   // Load UI preference from localStorage
   useEffect(() => {
@@ -351,6 +352,7 @@ export default function Live() {
     setReceptionCompleted(false);
     setServeData({ playerId: serverPlayer?.id || null, code: null });
     setReceptionData({ playerId: null, code: null });
+    setReceptionStep(1);
     // Don't reset lastAttacker - keep it for quick attacks across rallies
   }, [serverPlayer?.id]);
   
@@ -1358,6 +1360,13 @@ export default function Live() {
   const isTerminalServe = serveData.code === 3 || serveData.code === 0;
   const isTerminalReception = receptionData.code === 0;
 
+  // Reset reception step when entering reception phase
+  useEffect(() => {
+    if (isReceptionPhase) {
+      setReceptionStep(1);
+    }
+  }, [isReceptionPhase]);
+
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center">A carregar...</div>;
   }
@@ -2004,7 +2013,9 @@ export default function Live() {
               )}>
                 <span className="font-semibold">Receção</span>
                 <span className="text-xs opacity-80">(opcional)</span>
-                <div className="flex-1" />
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 ml-auto bg-white/20 text-white border-0">
+                  {receptionStep}/2
+                </Badge>
                 <span className="text-xs opacity-80">
                   {gameState.recvSide === 'CASA' ? match.home_name : match.away_name}
                 </span>
@@ -2017,37 +2028,58 @@ export default function Live() {
                       Sem jogadores disponíveis — verifique o lineup/substituições
                     </span>
                   </div>
-                ) : (
+                ) : receptionStep === 1 ? (
+                  /* ===== STEP 1: SELEÇÃO DE JOGADOR ===== */
                   <PlayerGrid
                     players={recvPlayers}
                     selectedPlayer={receptionData.playerId}
-                    onSelect={(id) => setReceptionData(prev => ({ ...prev, playerId: id }))}
+                    onSelect={(id) => {
+                      setReceptionData(prev => ({ ...prev, playerId: id }));
+                      setReceptionStep(2);
+                    }}
                     onDeselect={() => setReceptionData(prev => ({ ...prev, playerId: null }))}
                     side={gameState.recvSide}
                     getZoneLabel={(id) => getZoneLabel(id, gameState.recvSide)}
                     columns={6}
                     size="sm"
                   />
+                ) : (
+                  /* ===== STEP 2: AVALIAÇÃO ===== */
+                  <div className="space-y-3">
+                    {/* Indicador do jogador selecionado */}
+                    <div className="text-center p-2 rounded bg-muted/30 text-sm">
+                      Jogador: <span className="font-semibold">
+                        #{recvPlayers.find(p => p.id === receptionData.playerId)?.jersey_number}
+                      </span>
+                    </div>
+                    
+                    {/* Grid de qualidade */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {[0, 1, 2, 3].map((code) => (
+                        <ColoredRatingButton
+                          key={code}
+                          code={code}
+                          selected={receptionData.code === code}
+                          onClick={() => handleReceptionCodeSelect(code)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 )}
-                {/* Code selection - clicking auto-confirms */}
-                <div className="grid grid-cols-4 gap-2">
-                  {[0, 1, 2, 3].map((code) => (
-                    <ColoredRatingButton
-                      key={code}
-                      code={code}
-                      selected={receptionData.code === code}
-                      onClick={() => handleReceptionCodeSelect(code)}
-                    />
-                  ))}
-                </div>
                 
-                {/* Navigation footer - consistent with all phases */}
+                {/* Navigation footer - ajustado */}
                 <div className="flex justify-between pt-3 border-t mt-3">
                   <Button 
                     variant="ghost" 
                     size="sm"
                     className="gap-1 text-muted-foreground hover:text-foreground" 
-                    onClick={() => setServeCompleted(false)}
+                    onClick={() => {
+                      if (receptionStep === 2) {
+                        setReceptionStep(1);
+                      } else {
+                        setServeCompleted(false);
+                      }
+                    }}
                   >
                     <ChevronLeft className="h-3 w-3" />
                     Voltar
