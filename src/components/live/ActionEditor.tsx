@@ -702,6 +702,20 @@ export function ActionEditor({
                         <span className="text-[10px] text-muted-foreground leading-tight">Stuff block</span>
                       </Button>
                     </div>
+                    
+                    {/* Botão para continuar sem detalhar bloco */}
+                    <Button
+                      variant="outline"
+                      className="w-full h-12 mt-1 text-sm text-muted-foreground hover:text-foreground border-dashed"
+                      onClick={() => {
+                        // Confirma sem b_code e encadeia para defesa do oponente
+                        onConfirm();
+                        const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                        onChainAction?.('defense', opponent);
+                      }}
+                    >
+                      ➡️ Continua Rally (sem detalhar bloco)
+                    </Button>
                   </div>
                 )}
               </div>
