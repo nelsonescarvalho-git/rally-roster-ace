@@ -48,6 +48,8 @@ interface ActionEditorProps {
   receptionCode?: number | null;
   // Attack pass quality (distribution quality for attack)
   attackPassQuality?: number | null;
+  // Freeball attack (from reception over the net - skip pass quality step)
+  isFreeballAttack?: boolean;
   // Zone getter for player zones
   getZoneLabel?: (playerId: string, side: Side) => string;
   // Last used player for quick re-selection
@@ -110,6 +112,7 @@ export function ActionEditor({
   selectedBlockCode,
   receptionCode,
   attackPassQuality,
+  isFreeballAttack = false,
   getZoneLabel,
   lastUsedPlayerId,
   destinationStats,
@@ -584,8 +587,8 @@ export function ActionEditor({
                   selectedPlayerId={selectedPlayer || null}
                   onSelect={(playerId) => {
                     onPlayerChange(playerId);
-                    // Se qualidade já herdada, avançar automaticamente para Step 2
-                    if (attackPassQuality !== null) {
+                    // Se qualidade já herdada OU é freeball → avançar automaticamente para Step 2
+                    if (attackPassQuality !== null || isFreeballAttack) {
                       setCurrentStep(2);
                     }
                   }}
@@ -595,8 +598,8 @@ export function ActionEditor({
                   getZoneLabel={getZoneLabelWrapper}
                 />
                 
-                {/* Só mostra QualityPad se qualidade NÃO está herdada */}
-                {attackPassQuality === null && (
+                {/* Só mostra QualityPad se qualidade NÃO está herdada E NÃO é freeball */}
+                {attackPassQuality === null && !isFreeballAttack && (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground text-center">
                       Qualidade do Passe
@@ -620,6 +623,13 @@ export function ActionEditor({
                   <div className="text-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
                     Passe: <span className="font-medium text-foreground">{getQualityLabel(attackPassQuality)}</span>
                     <span className="opacity-70"> (via Distribuição)</span>
+                  </div>
+                )}
+                
+                {/* Indicador para freeball */}
+                {isFreeballAttack && attackPassQuality === null && (
+                  <div className="text-center p-2 rounded bg-warning/10 border border-warning/30 text-xs text-warning">
+                    🎁 Bola de Graça — Qualidade de passe N/A
                   </div>
                 )}
               </>
