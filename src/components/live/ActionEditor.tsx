@@ -142,6 +142,11 @@ export function ActionEditor({
   // Always start at step 1 to ensure player selection
   const [currentStep, setCurrentStep] = useState(1);
 
+  // Reset step when action type or side changes (for chained actions)
+  useEffect(() => {
+    setCurrentStep(1);
+  }, [actionType, side]);
+
   // Always show all positions - simplified UX
   const availablePositions = DESTINATIONS;
 
