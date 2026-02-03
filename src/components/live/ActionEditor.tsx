@@ -148,10 +148,10 @@ export function ActionEditor({
   // Calculate total steps based on action type and selected code
   const totalSteps = useMemo(() => {
     switch (actionType) {
-      case 'serve': return 1;
-      case 'reception': return 1;
-      case 'defense': return 1;
-      case 'setter': return 2; // Setter + Quality → Destination
+      case 'serve': return 2;      // Player → Quality
+      case 'reception': return 2;  // Player → Quality
+      case 'defense': return 2;    // Player → Quality
+      case 'setter': return 3;     // Player → Quality → Destination
       case 'attack': 
         // Step 3 for a_code=1 (block result) or a_code=3 (kill type)
         return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
@@ -405,23 +405,26 @@ export function ActionEditor({
     }, 50);
   }, [selectedDestination, selectedSetter, selectedPassCode, players, onDestinationChange, onConfirm, showConfirmToast]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts - block 0-3 in Step 1 (player selection)
   useKeyboardShortcuts({
     enabled: true,
     onQualitySelect: (code) => {
-      if (actionType === 'setter' && currentStep === 1) {
+      // Block shortcuts in Step 1 (player selection step)
+      if (currentStep === 1) return;
+      
+      if (actionType === 'setter' && currentStep === 2) {
         onPassCodeChange?.(code);
-        setCurrentStep(2);
-      } else if (actionType === 'attack' && currentStep === 1) {
-        onAttackPassQualityChange?.(code);
-        setCurrentStep(2);
-      } else {
+        setCurrentStep(3);
+      } else if (actionType === 'attack' && currentStep === 2) {
+        handleCodeWithAutoConfirm(code);
+      } else if (currentStep === 2) {
+        // For serve/reception/defense in Step 2
         handleCodeWithAutoConfirm(code);
       }
     },
     onUndo: onUndo,
     onCancel: onCancel,
-    onDestinationSelect: actionType === 'setter' && currentStep === 2 ? (dest) => {
+    onDestinationSelect: actionType === 'setter' && currentStep === 3 ? (dest) => {
       handleDestinationWithAutoConfirm(dest as PassDestination);
     } : undefined,
   });
@@ -433,7 +436,10 @@ export function ActionEditor({
 
   // Get shortcut hints based on action type and step
   const getShortcutHints = () => {
-    if (actionType === 'setter' && currentStep === 2) {
+    if (currentStep === 1) {
+      return '←/→ Navegar • Enter Selecionar';
+    }
+    if (actionType === 'setter' && currentStep === 3) {
       return '2/3/4 Posição • O OP • I PIPE • B BACK • U Undo';
     }
     return '0-3 Qualidade • U Undo • Esc Cancelar';
@@ -446,19 +452,25 @@ export function ActionEditor({
       case 'defense':
         return (
           <div className="space-y-4">
-            <PlayerStrip
-              players={players}
-              selectedPlayerId={selectedPlayer || null}
-              onSelect={onPlayerChange}
-              teamSide={teamSide}
-              lastUsedPlayerId={lastUsedPlayerId}
-              showZones={!!getZoneLabel}
-              getZoneLabel={getZoneLabelWrapper}
-            />
-            <QualityPad
-              selectedCode={selectedCode ?? null}
-              onSelect={handleCodeWithAutoConfirm}
-            />
+            {currentStep === 1 ? (
+              <PlayerStrip
+                players={players}
+                selectedPlayerId={selectedPlayer || null}
+                onSelect={(playerId) => {
+                  onPlayerChange(playerId);
+                  setCurrentStep(2);
+                }}
+                teamSide={teamSide}
+                lastUsedPlayerId={lastUsedPlayerId}
+                showZones={!!getZoneLabel}
+                getZoneLabel={getZoneLabelWrapper}
+              />
+            ) : (
+              <QualityPad
+                selectedCode={selectedCode ?? null}
+                onSelect={handleCodeWithAutoConfirm}
+              />
+            )}
           </div>
         );
 
@@ -466,28 +478,30 @@ export function ActionEditor({
         return (
           <div className="space-y-4">
             {currentStep === 1 ? (
-              <>
-                <PlayerStrip
-                  players={players}
-                  selectedPlayerId={selectedSetter || null}
-                  onSelect={(id) => onSetterChange?.(id)}
-                  teamSide={teamSide}
-                  showZones={!!getZoneLabel}
-                  getZoneLabel={getZoneLabelWrapper}
-                />
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground text-center">
-                    Qualidade do Passe
-                  </div>
-                  <QualityPad
-                    selectedCode={selectedPassCode ?? null}
-                    onSelect={(code) => {
-                      onPassCodeChange?.(code);
-                      setCurrentStep(2);
-                    }}
-                  />
+              <PlayerStrip
+                players={players}
+                selectedPlayerId={selectedSetter || null}
+                onSelect={(id) => {
+                  onSetterChange?.(id);
+                  setCurrentStep(2);
+                }}
+                teamSide={teamSide}
+                showZones={!!getZoneLabel}
+                getZoneLabel={getZoneLabelWrapper}
+              />
+            ) : currentStep === 2 ? (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Qualidade do Passe
                 </div>
-              </>
+                <QualityPad
+                  selectedCode={selectedPassCode ?? null}
+                  onSelect={(code) => {
+                    onPassCodeChange?.(code);
+                    setCurrentStep(3);
+                  }}
+                />
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="text-xs font-medium text-muted-foreground text-center">
