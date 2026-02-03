@@ -139,13 +139,8 @@ export function ActionEditor({
   const teamSide = side === 'CASA' ? 'home' : 'away';
 
   // Step tracking for multi-step actions
-  // For attack: start at step 2 if attackPassQuality is inherited from setter
-  const [currentStep, setCurrentStep] = useState(() => {
-    if (actionType === 'attack' && attackPassQuality !== null) {
-      return 2;
-    }
-    return 1;
-  });
+  // Always start at step 1 to ensure player selection
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Always show all positions - simplified UX
   const availablePositions = DESTINATIONS;
@@ -566,24 +561,46 @@ export function ActionEditor({
                 <PlayerStrip
                   players={players}
                   selectedPlayerId={selectedPlayer || null}
-                  onSelect={onPlayerChange}
+                  onSelect={(playerId) => {
+                    onPlayerChange(playerId);
+                    // Se qualidade já herdada, avançar automaticamente para Step 2
+                    if (attackPassQuality !== null) {
+                      setCurrentStep(2);
+                    }
+                  }}
                   teamSide={teamSide}
                   lastUsedPlayerId={lastUsedPlayerId}
                   showZones={!!getZoneLabel}
                   getZoneLabel={getZoneLabelWrapper}
                 />
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground text-center">
-                    Qualidade do Passe
+                
+                {/* Só mostra QualityPad se qualidade NÃO está herdada */}
+                {attackPassQuality === null && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground text-center">
+                      Qualidade do Passe
+                    </div>
+                    <QualityPad
+                      selectedCode={attackPassQuality ?? null}
+                      onSelect={(code) => {
+                        if (!selectedPlayer) {
+                          toast.warning('Selecione um atacante primeiro');
+                          return;
+                        }
+                        onAttackPassQualityChange?.(code);
+                        setCurrentStep(2);
+                      }}
+                    />
                   </div>
-                  <QualityPad
-                    selectedCode={attackPassQuality ?? null}
-                    onSelect={(code) => {
-                      onAttackPassQualityChange?.(code);
-                      setCurrentStep(2);
-                    }}
-                  />
-                </div>
+                )}
+                
+                {/* Indicador visual se qualidade está herdada */}
+                {attackPassQuality !== null && (
+                  <div className="text-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
+                    Passe: <span className="font-medium text-foreground">{getQualityLabel(attackPassQuality)}</span>
+                    <span className="opacity-70"> (via Distribuição)</span>
+                  </div>
+                )}
               </>
             ) : currentStep === 2 ? (
               <div className="space-y-2">
