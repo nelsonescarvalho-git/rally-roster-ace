@@ -587,36 +587,13 @@ export function ActionEditor({
                   selectedPlayerId={selectedPlayer || null}
                   onSelect={(playerId) => {
                     onPlayerChange(playerId);
-                    // Se qualidade já herdada OU é freeball → avançar automaticamente para Step 2
-                    if (attackPassQuality !== null || isFreeballAttack) {
-                      setCurrentStep(2);
-                    }
+                    setCurrentStep(2); // Avançar sempre para Step 2 (avaliação)
                   }}
                   teamSide={teamSide}
                   lastUsedPlayerId={lastUsedPlayerId}
                   showZones={!!getZoneLabel}
                   getZoneLabel={getZoneLabelWrapper}
                 />
-                
-                {/* Só mostra QualityPad se qualidade NÃO está herdada E NÃO é freeball */}
-                {attackPassQuality === null && !isFreeballAttack && (
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground text-center">
-                      Qualidade do Passe
-                    </div>
-                    <QualityPad
-                      selectedCode={attackPassQuality ?? null}
-                      onSelect={(code) => {
-                        if (!selectedPlayer) {
-                          toast.warning('Selecione um atacante primeiro');
-                          return;
-                        }
-                        onAttackPassQualityChange?.(code);
-                        setCurrentStep(2);
-                      }}
-                    />
-                  </div>
-                )}
                 
                 {/* Indicador visual se qualidade está herdada */}
                 {attackPassQuality !== null && (
