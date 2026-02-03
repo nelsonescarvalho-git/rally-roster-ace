@@ -1,212 +1,177 @@
 
 
-## Plano: Tratar Receção que Passa a Rede (Bola de Graça)
+## Plano: Saltar Qualidade do Passe em Ataques de Bola de Graça
 
 ### Problema Identificado
 
-Atualmente, quando a receção é avaliada como **código 0 (Má)**, o sistema assume automaticamente que é um **ACE** e termina o rally:
+Quando a receção "passa a rede" (bola de graça), o sistema encadeia para o **Ataque do adversário**. Porém, o fluxo atual do `ActionEditor` mostra:
 
-```typescript
-// Live.tsx - linha 471-472
-if (receptionData.code === 0) {
-  return { winner: gameState.serveSide, reason: 'ACE' };
-}
+```
+Step 1: Jogador + Qualidade do Passe  ← NÃO FAZ SENTIDO (não houve distribuição)
+Step 2: Avaliação do Ataque
 ```
 
-**Isto não cobre o cenário real onde:**
-- A receção é má mas a bola **passa a rede** e vai para o campo adversário
-- O adversário pode então **Atacar** (situação mais comum - "bola de graça") ou **Defender**
+Na bola de graça, não existe distribuição prévia, então pedir "Qualidade do Passe" é desnecessário e confuso.
 
-### Análise de UX
+---
 
-Há duas situações distintas quando a receção é má (código 0):
+### Solução
 
-| Situação | Descrição | Resultado |
-|----------|-----------|-----------|
-| **ACE Real** | A bola toca no chão da equipa receptora | Ponto para o servidor (ACE) |
-| **Bola Passa a Rede** | A bola vai diretamente para o campo adversário | Rally continua - adversário ataca |
-
-### Solução Proposta
-
-Substituir o botão de código 0 (Má) na receção por **duas opções claras**:
-
-1. **"ACE" (🎯)** - Bola tocou no chão → termina rally como ACE
-2. **"Passou Rede" (↗️)** - Bola foi para o adversário → encadeia para Ataque do adversário
+Adicionar uma flag `isFreeballAttack` que indica se o ataque é proveniente de uma bola de graça. Quando esta flag estiver ativa:
+- Step 1 mostra **apenas** a seleção de jogador
+- Ao selecionar jogador, avança **automaticamente** para Step 2 (Avaliação do Ataque)
+- A qualidade do passe NÃO é registada (valor `null`)
 
 ---
 
 ### Alterações Técnicas
 
-#### Ficheiro: `src/pages/Live.tsx`
+#### 1. `src/pages/Live.tsx` - Marcar ataque como "freeball"
 
-##### 1. Modificar a UI da Receção (Step 2)
-
-Substituir o grid de 4 colunas por:
-- Linha 1: Qualidades positivas (1, 2, 3)
-- Linha 2: Opções negativas (ACE e Passou Rede)
+Modificar `handleReceptionOverTheNet` para passar uma flag indicando que é ataque de bola de graça:
 
 ```typescript
-{/* ===== STEP 2: AVALIAÇÃO ===== */}
-<div className="space-y-3">
-  {/* Indicador do jogador selecionado */}
-  <div className="text-center p-2 rounded bg-muted/30 text-sm">
-    Jogador: <span className="font-semibold">
-      #{recvPlayers.find(p => p.id === receptionData.playerId)?.jersey_number}
-    </span>
-  </div>
-  
-  {/* Qualidades positivas (rally continua na nossa equipa) */}
-  <div className="grid grid-cols-3 gap-2">
-    {[1, 2, 3].map((code) => (
-      <ColoredRatingButton
-        key={code}
-        code={code}
-        selected={receptionData.code === code}
-        onClick={() => handleReceptionCodeSelect(code)}
-      />
-    ))}
-  </div>
-  
-  {/* Separador */}
-  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-    <div className="flex-1 h-px bg-border" />
-    <span>Receção má</span>
-    <div className="flex-1 h-px bg-border" />
-  </div>
-  
-  {/* Opções negativas */}
-  <div className="grid grid-cols-2 gap-2">
-    {/* ACE - bola tocou no chão */}
-    <Button
-      variant={receptionData.code === 0 && !receptionData.overTheNet ? "destructive" : "outline"}
-      className="h-12 flex flex-col items-center justify-center gap-0.5"
-      onClick={() => handleReceptionAce()}
-    >
-      <span className="text-lg">🎯</span>
-      <span className="text-xs">ACE</span>
-    </Button>
-    
-    {/* Passou Rede - bola foi para o adversário */}
-    <Button
-      variant={receptionData.overTheNet ? "default" : "outline"}
-      className="h-12 flex flex-col items-center justify-center gap-0.5 border-warning/50"
-      onClick={() => handleReceptionOverTheNet()}
-    >
-      <span className="text-lg">↗️</span>
-      <span className="text-xs">Passou Rede</span>
-    </Button>
-  </div>
-</div>
-```
-
-##### 2. Atualizar o estado `receptionData`
-
-```typescript
-// Linha ~159 - adicionar campo overTheNet
-const [receptionData, setReceptionData] = useState<{ 
-  playerId: string | null; 
-  code: number | null;
-  overTheNet: boolean;
-}>({ playerId: null, code: null, overTheNet: false });
-```
-
-##### 3. Adicionar função `handleReceptionAce`
-
-```typescript
-const handleReceptionAce = () => {
-  if (!receptionData.playerId) {
-    toast({
-      title: 'Seleciona o recetor',
-      description: 'Escolhe o jogador que recebeu antes de confirmar',
-      variant: 'destructive'
-    });
-    return;
-  }
-  
-  const recAction: RallyAction = {
-    type: 'reception',
-    side: gameState!.recvSide,
-    phase: 1,
-    playerId: receptionData.playerId,
-    code: 0, // Má
-  };
-  
-  setRegisteredActions(prev => {
-    const existingIndex = prev.findIndex(a => a.type === 'reception');
-    if (existingIndex >= 0) {
-      const updated = [...prev];
-      updated[existingIndex] = recAction;
-      return updated;
-    }
-    return [...prev, recAction];
-  });
-  
-  // Marcar como NÃO passou a rede (ACE real)
-  setReceptionData(prev => ({ ...prev, code: 0, overTheNet: false }));
-  setReceptionCompleted(true);
-  // autoOutcome vai tratar como ACE automaticamente
-};
-```
-
-##### 4. Adicionar função `handleReceptionOverTheNet`
-
-```typescript
+// Linha ~690 - handleReceptionOverTheNet
 const handleReceptionOverTheNet = () => {
-  if (!receptionData.playerId) {
-    toast({
-      title: 'Seleciona o recetor',
-      description: 'Escolhe o jogador que recebeu antes de confirmar',
-      variant: 'destructive'
-    });
-    return;
-  }
+  // ... código existente ...
   
-  const recAction: RallyAction = {
-    type: 'reception',
-    side: gameState!.recvSide,
-    phase: 1,
-    playerId: receptionData.playerId,
-    code: 1, // Registar como "Fraca" (1) - não 0, para evitar ACE automático
-  };
-  
-  setRegisteredActions(prev => {
-    const existingIndex = prev.findIndex(a => a.type === 'reception');
-    if (existingIndex >= 0) {
-      const updated = [...prev];
-      updated[existingIndex] = recAction;
-      return updated;
-    }
-    return [...prev, recAction];
-  });
-  
-  setReceptionData(prev => ({ ...prev, code: 1, overTheNet: true }));
+  setReceptionData(prev => ({ ...prev, code: 0, overTheNet: true }));
   setReceptionCompleted(true);
   
-  // Encadear para Ataque do ADVERSÁRIO
+  // Chain to opponent Attack - mark as freeball attack
   const opponentSide: Side = gameState!.recvSide === 'CASA' ? 'FORA' : 'CASA';
-  handleSelectAction('attack', opponentSide);
+  
+  // Criar pendingAction diretamente com flag isFreeballAttack
+  setPendingAction({
+    type: 'attack',
+    side: opponentSide,
+    playerId: null,
+    code: null,
+    killType: null,
+    setterId: null,
+    passDestination: null,
+    passCode: null,
+    b1PlayerId: null,
+    b2PlayerId: null,
+    b3PlayerId: null,
+    attackPassQuality: null,
+    blockCode: null,
+    isFreeballAttack: true, // NOVA FLAG
+  });
 };
 ```
 
-##### 5. Atualizar `resetWizard` 
+#### 2. `src/pages/Live.tsx` - Adicionar campo ao tipo PendingAction
 
 ```typescript
-const resetWizard = useCallback(() => {
-  // ... código existente ...
-  setReceptionData({ playerId: null, code: null, overTheNet: false });
+// Linha ~105 (interface PendingAction)
+interface PendingAction {
+  type: RallyActionType;
+  side: Side;
+  playerId: string | null;
+  // ... campos existentes ...
+  isFreeballAttack?: boolean; // NOVO
+}
+```
+
+#### 3. `src/pages/Live.tsx` - Passar prop para ActionEditor
+
+```typescript
+// Linha ~2260 (ActionEditor JSX)
+<ActionEditor
+  // ... props existentes ...
+  attackPassQuality={pendingAction.attackPassQuality}
+  isFreeballAttack={pendingAction.isFreeballAttack ?? false} // NOVO
   // ...
-}, [serverPlayer?.id]);
+/>
+```
+
+#### 4. `src/components/live/ActionEditor.tsx` - Adicionar prop
+
+```typescript
+// Linha ~28 (interface ActionEditorProps)
+interface ActionEditorProps {
+  // ... props existentes ...
+  attackPassQuality?: number | null;
+  isFreeballAttack?: boolean; // NOVO
+  // ...
+}
+```
+
+#### 5. `src/components/live/ActionEditor.tsx` - Modificar lógica do Step 1 para Ataque
+
+```typescript
+// Linha ~577-626 (case 'attack' render)
+case 'attack':
+  return (
+    <div className="space-y-4">
+      {currentStep === 1 ? (
+        <>
+          <PlayerStrip
+            players={players}
+            selectedPlayerId={selectedPlayer || null}
+            onSelect={(playerId) => {
+              onPlayerChange(playerId);
+              // Se qualidade já herdada OU é freeball → avançar para Step 2
+              if (attackPassQuality !== null || isFreeballAttack) {
+                setCurrentStep(2);
+              }
+            }}
+            teamSide={teamSide}
+            lastUsedPlayerId={lastUsedPlayerId}
+            showZones={!!getZoneLabel}
+            getZoneLabel={getZoneLabelWrapper}
+          />
+          
+          {/* Só mostra QualityPad se qualidade NÃO está herdada E NÃO é freeball */}
+          {attackPassQuality === null && !isFreeballAttack && (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground text-center">
+                Qualidade do Passe
+              </div>
+              <QualityPad
+                selectedCode={attackPassQuality ?? null}
+                onSelect={(code) => {
+                  if (!selectedPlayer) {
+                    toast.warning('Selecione um atacante primeiro');
+                    return;
+                  }
+                  onAttackPassQualityChange?.(code);
+                  setCurrentStep(2);
+                }}
+              />
+            </div>
+          )}
+          
+          {/* Indicador para qualidade herdada */}
+          {attackPassQuality !== null && (
+            <div className="text-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
+              Passe: <span className="font-medium text-foreground">{getQualityLabel(attackPassQuality)}</span>
+              <span className="opacity-70"> (via Distribuição)</span>
+            </div>
+          )}
+          
+          {/* Indicador para freeball */}
+          {isFreeballAttack && attackPassQuality === null && (
+            <div className="text-center p-2 rounded bg-warning/10 border border-warning/30 text-xs text-warning">
+              🎁 Bola de Graça — Qualidade de passe N/A
+            </div>
+          )}
+        </>
+      ) : // ... resto do código Step 2/3
+    </div>
+  );
 ```
 
 ---
 
-### Fluxo Final
+### Fluxo Resultante
 
-| Situação | Passos | Resultado |
-|----------|--------|-----------|
-| **ACE** | Serviço → Receção (Jogador) → 🎯 ACE | Ponto servidor |
-| **Bola Passa Rede** | Serviço → Receção (Jogador) → ↗️ Passou Rede | **Abre Ataque do adversário** |
-| **Receção OK** | Serviço → Receção (Jogador) → Qualidade 1/2/3 | Continua com Distribuição |
+| Cenário | Step 1 | Step 2 | Step 3 |
+|---------|--------|--------|--------|
+| **Ataque Normal** | Jogador + Qualidade Passe | Avaliação Ataque | Kill Type / Bloco |
+| **Ataque com Distribuição** | Jogador (qualidade herdada) | Avaliação Ataque | Kill Type / Bloco |
+| **Ataque Bola de Graça** | Jogador (sem qualidade) | Avaliação Ataque | Kill Type / Bloco |
 
 ---
 
@@ -214,17 +179,18 @@ const resetWizard = useCallback(() => {
 
 | Ficheiro | Localização | Alteração |
 |----------|-------------|-----------|
-| `src/pages/Live.tsx` | Estado (~159) | Adicionar `overTheNet: boolean` a `receptionData` |
-| `src/pages/Live.tsx` | `resetWizard` | Reset `overTheNet` |
-| `src/pages/Live.tsx` | Novas funções | `handleReceptionAce()` e `handleReceptionOverTheNet()` |
-| `src/pages/Live.tsx` | UI Receção Step 2 | Substituir grid 4 colunas por layout com opções ACE/Passou Rede |
+| `src/pages/Live.tsx` | Interface `PendingAction` | Adicionar `isFreeballAttack?: boolean` |
+| `src/pages/Live.tsx` | `handleReceptionOverTheNet` | Criar `pendingAction` com `isFreeballAttack: true` |
+| `src/pages/Live.tsx` | `<ActionEditor>` JSX | Passar `isFreeballAttack` prop |
+| `src/components/live/ActionEditor.tsx` | Props | Adicionar `isFreeballAttack?: boolean` |
+| `src/components/live/ActionEditor.tsx` | Attack Step 1 | Condicionar QualityPad e auto-avançar |
 
 ---
 
 ### Benefícios
 
-1. **Clareza visual**: Duas opções distintas para cenários diferentes
-2. **Encadeamento lógico**: "Passou Rede" abre automaticamente Ataque do adversário
-3. **Dados precisos**: Distingue ACE real de bola de graça para estatísticas
-4. **UX intuitiva**: Iconografia clara (🎯 vs ↗️) para decisão rápida
+1. **UX correta**: Não pede qualidade de passe quando não se aplica
+2. **Fluxo mais rápido**: 2 cliques em vez de 3 para bola de graça
+3. **Dados precisos**: Qualidade de passe fica `null` para freeballs
+4. **Feedback visual**: Badge indica claramente que é bola de graça
 
