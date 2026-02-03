@@ -156,7 +156,7 @@ export default function Live() {
   const [serveCompleted, setServeCompleted] = useState(false);
   const [receptionCompleted, setReceptionCompleted] = useState(false);
   const [serveData, setServeData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
-  const [receptionData, setReceptionData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
+  const [receptionData, setReceptionData] = useState<{ playerId: string | null; code: number | null; overTheNet: boolean }>({ playerId: null, code: null, overTheNet: false });
   const [receptionStep, setReceptionStep] = useState(1);
   
   // Load UI preference from localStorage
@@ -351,7 +351,7 @@ export default function Live() {
     setServeCompleted(false);
     setReceptionCompleted(false);
     setServeData({ playerId: serverPlayer?.id || null, code: null });
-    setReceptionData({ playerId: null, code: null });
+    setReceptionData({ playerId: null, code: null, overTheNet: false });
     setReceptionStep(1);
     // Don't reset lastAttacker - keep it for quick attacks across rallies
   }, [serverPlayer?.id]);
@@ -468,7 +468,8 @@ export default function Live() {
     if (serveData.code === 0) {
       return { winner: gameState.recvSide, reason: 'SE' };
     }
-    if (receptionData.code === 0) {
+    // Only trigger ACE if code is 0 AND it's NOT a ball that went over the net
+    if (receptionData.code === 0 && !receptionData.overTheNet) {
       return { winner: gameState.serveSide, reason: 'ACE' };
     }
 
@@ -617,6 +618,78 @@ export default function Live() {
     }
   };
 
+  // Handle ACE - ball touched ground (real ACE)
+  const handleReceptionAce = () => {
+    if (!receptionData.playerId) {
+      toast({
+        title: 'Seleciona o recetor',
+        description: 'Escolhe o jogador que recebeu antes de confirmar',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const recAction: RallyAction = {
+      type: 'reception',
+      side: gameState!.recvSide,
+      phase: 1,
+      playerId: receptionData.playerId,
+      code: 0, // Bad
+    };
+    
+    setRegisteredActions(prev => {
+      const existingIndex = prev.findIndex(a => a.type === 'reception');
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = recAction;
+        return updated;
+      }
+      return [...prev, recAction];
+    });
+    
+    // Mark as NOT over the net (real ACE)
+    setReceptionData(prev => ({ ...prev, code: 0, overTheNet: false }));
+    setReceptionCompleted(true);
+    // autoOutcome will handle as ACE automatically
+  };
+
+  // Handle reception that goes over the net - chains to opponent attack
+  const handleReceptionOverTheNet = () => {
+    if (!receptionData.playerId) {
+      toast({
+        title: 'Seleciona o recetor',
+        description: 'Escolhe o jogador que recebeu antes de confirmar',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const recAction: RallyAction = {
+      type: 'reception',
+      side: gameState!.recvSide,
+      phase: 1,
+      playerId: receptionData.playerId,
+      code: 0, // Still bad (code 0) but marked as overTheNet
+    };
+    
+    setRegisteredActions(prev => {
+      const existingIndex = prev.findIndex(a => a.type === 'reception');
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = recAction;
+        return updated;
+      }
+      return [...prev, recAction];
+    });
+    
+    setReceptionData(prev => ({ ...prev, code: 0, overTheNet: true }));
+    setReceptionCompleted(true);
+    
+    // Chain to opponent Attack
+    const opponentSide: Side = gameState!.recvSide === 'CASA' ? 'FORA' : 'CASA';
+    handleSelectAction('attack', opponentSide);
+  };
+
   // Handle reception skip (continue without reception data)
   const handleReceptionSkip = () => {
     // Still register a reception action but with null values
@@ -649,7 +722,8 @@ export default function Live() {
         // Pre-fill with existing data
         setReceptionData({ 
           playerId: existingReception.playerId || null, 
-          code: existingReception.code ?? null 
+          code: existingReception.code ?? null,
+          overTheNet: false
         });
       }
       // Reset reception completed so the phase shows
@@ -1004,13 +1078,13 @@ export default function Live() {
     }
     if (action.type === 'reception') {
       setReceptionCompleted(false);
-      setReceptionData({ playerId: null, code: null });
+      setReceptionData({ playerId: null, code: null, overTheNet: false });
     }
     if (action.type === 'serve') {
       setServeCompleted(false);
       setReceptionCompleted(false);
       setServeData({ playerId: serverPlayer?.id || null, code: null });
-      setReceptionData({ playerId: null, code: null });
+      setReceptionData({ playerId: null, code: null, overTheNet: false });
     }
     setRegisteredActions(prev => prev.filter((_, i) => i !== index));
   };
@@ -1024,12 +1098,12 @@ export default function Live() {
     // Reset state based on what's being undone
     if (lastAction.type === 'reception') {
       setReceptionCompleted(false);
-      setReceptionData({ playerId: null, code: null });
+      setReceptionData({ playerId: null, code: null, overTheNet: false });
     } else if (lastAction.type === 'serve') {
       setServeCompleted(false);
       setReceptionCompleted(false);
       setServeData({ playerId: serverPlayer?.id || null, code: null });
-      setReceptionData({ playerId: null, code: null });
+      setReceptionData({ playerId: null, code: null, overTheNet: false });
     }
     
     // Remove last action
@@ -2053,9 +2127,9 @@ export default function Live() {
                       </span>
                     </div>
                     
-                    {/* Grid de qualidade */}
-                    <div className="grid grid-cols-4 gap-2">
-                      {[0, 1, 2, 3].map((code) => (
+                    {/* Qualidades positivas (rally continua na nossa equipa) */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((code) => (
                         <ColoredRatingButton
                           key={code}
                           code={code}
@@ -2063,6 +2137,39 @@ export default function Live() {
                           onClick={() => handleReceptionCodeSelect(code)}
                         />
                       ))}
+                    </div>
+                    
+                    {/* Separador */}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex-1 h-px bg-border" />
+                      <span>Receção má</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    
+                    {/* Opções negativas */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* ACE - bola tocou no chão */}
+                      <Button
+                        variant={receptionData.code === 0 && !receptionData.overTheNet ? "destructive" : "outline"}
+                        className="h-12 flex flex-col items-center justify-center gap-0.5"
+                        onClick={() => handleReceptionAce()}
+                      >
+                        <span className="text-lg">🎯</span>
+                        <span className="text-xs">ACE</span>
+                      </Button>
+                      
+                      {/* Passou Rede - bola foi para o adversário */}
+                      <Button
+                        variant={receptionData.overTheNet ? "default" : "outline"}
+                        className={cn(
+                          "h-12 flex flex-col items-center justify-center gap-0.5",
+                          !receptionData.overTheNet && "border-warning/50 hover:bg-warning/10"
+                        )}
+                        onClick={() => handleReceptionOverTheNet()}
+                      >
+                        <span className="text-lg">↗️</span>
+                        <span className="text-xs">Passou Rede</span>
+                      </Button>
                     </div>
                   </div>
                 )}
