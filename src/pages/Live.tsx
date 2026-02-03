@@ -687,24 +687,7 @@ export default function Live() {
     setReceptionData(prev => ({ ...prev, code: 0, overTheNet: true }));
     setReceptionCompleted(true);
     
-    // Chain to opponent Attack - mark as freeball attack (skip pass quality step)
-    const opponentSide: Side = gameState!.recvSide === 'CASA' ? 'FORA' : 'CASA';
-    setPendingAction({
-      type: 'attack',
-      side: opponentSide,
-      playerId: null,
-      code: null,
-      killType: null,
-      setterId: null,
-      passDestination: null,
-      passCode: null,
-      b1PlayerId: null,
-      b2PlayerId: null,
-      b3PlayerId: null,
-      attackPassQuality: null,
-      blockCode: null,
-      isFreeballAttack: true,
-    });
+    // Don't force attack - let ActionSelector appear so user can choose Attack OR Defense
   };
 
   // Handle reception skip (continue without reception data)
@@ -750,10 +733,18 @@ export default function Live() {
     
     // For attack actions, inherit pass quality from setter if exists
     let inheritedPassQuality: number | null = null;
+    let isFreeballAttackFlag = false;
+    
     if (type === 'attack') {
       const setterAction = registeredActions.find(a => a.type === 'setter' && a.side === side);
       if (setterAction?.passCode !== null && setterAction?.passCode !== undefined) {
         inheritedPassQuality = setterAction.passCode;
+      }
+      
+      // Check if this is an attack after an "over the net" reception
+      const lastAction = registeredActions[registeredActions.length - 1];
+      if (lastAction?.type === 'reception' && lastAction.overTheNet) {
+        isFreeballAttackFlag = true;
       }
     }
     
@@ -771,6 +762,7 @@ export default function Live() {
       b3PlayerId: null,
       attackPassQuality: inheritedPassQuality,
       blockCode: null,
+      isFreeballAttack: isFreeballAttackFlag,
     });
   };
 

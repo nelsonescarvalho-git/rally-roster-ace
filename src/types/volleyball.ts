@@ -27,6 +27,8 @@ export interface RallyAction {
   attackPassQuality?: number | null;
   // Block result when a_code=1 (touched block)
   blockCode?: number | null;
+  // Reception that went over the net to opponent
+  overTheNet?: boolean;
 }
 
 // Persistent team (reusable across matches)

@@ -47,6 +47,16 @@ export function ActionSelector({
       return recvSide;
     }
     
+    // Reception that went over the net → opponent plays next
+    if (lastAction.type === 'reception' && lastAction.overTheNet) {
+      return lastAction.side === 'CASA' ? 'FORA' : 'CASA';
+    }
+    
+    // Normal reception → same team continues
+    if (lastAction.type === 'reception') {
+      return lastAction.side;
+    }
+    
     // After attack → opponent side (block/defense)
     if (lastAction.type === 'attack') {
       return lastAction.side === 'CASA' ? 'FORA' : 'CASA';
