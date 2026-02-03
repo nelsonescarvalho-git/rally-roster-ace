@@ -1,60 +1,45 @@
 
 
-## Plano: Adicionar Opção "Sem Bloco" no Menu de Resultado do Bloco
+## Plano: Corrigir Fluxo do Ataque - Seleção do Atacante Obrigatória
 
-### Problema Identificado
+### Problema
 
-Quando o utilizador seleciona **a_code = 1 ("Tocou Bloco")** no Step 2 do Ataque, o sistema força a seleção de um "Resultado do Bloco" (b_code 0-3). No entanto:
+Quando `attackPassQuality` é herdada da Distribuição, o `ActionEditor` inicia no **Step 2** (linhas 143-148), saltando o **Step 1** onde deveria estar a seleção do jogador atacante.
 
-- Nem todos os ataques com código 1 têm um bloco real que precise de ser detalhado
-- O utilizador pode querer apenas marcar que a bola foi "interceptada" sem especificar o tipo de bloco
-- O fluxo atual torna-se bloqueante e lento
-
----
-
-### Solução Proposta
-
-Adicionar uma **5ª opção no Step 3**: **"Continua Rally"** (ou "Sem Bloco Detalhado") que confirma a ação e encadeia para a próxima ação lógica sem exigir `b_code`.
-
----
-
-### Fluxo Visual Proposto
-
-**Step 3 - Resultado do Bloco** (quando `a_code = 1`):
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│              Resultado do Bloco *                       │
-├─────────────────────────────────────────────────────────┤
-│  ┌────────────────┐  ┌────────────────┐                 │
-│  │ 🎯 Falta       │  │ ⚔️ Bloco       │                 │
-│  │ Ponto Atacante │  │ Ofensivo       │                 │
-│  └────────────────┘  └────────────────┘                 │
-│  ┌────────────────┐  ┌────────────────┐                 │
-│  │ 🛡️ Bloco       │  │ 🧱 Bloco       │                 │
-│  │ Defensivo      │  │ Ponto          │                 │
-│  └────────────────┘  └────────────────┘                 │
-├─────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────┐│
-│  │         ➡️ Continua (sem detalhar bloco)            ││
-│  │         Rally continua → abre Defesa                ││
-│  └─────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────┘
+```typescript
+// Código problemático
+const [currentStep, setCurrentStep] = useState(() => {
+  if (actionType === 'attack' && attackPassQuality !== null) {
+    return 2;  // ← Salta seleção do jogador!
+  }
+  return 1;
+});
 ```
 
 ---
 
-### Lógica de Encadeamento
+### Solução
 
-| Opção | Ação |
-|-------|------|
-| **Falta (0)** | Ponto para atacante (side) |
-| **Ofensivo (1)** | Defesa para equipa bloqueadora (oponente) |
-| **Defensivo (2)** | Defesa para equipa atacante (side) |
-| **Ponto (3)** | Ponto para bloqueador (oponente) |
-| **Continua** (NOVO) | Confirma ação → Defesa para equipa bloqueadora (oponente) |
+Manter **sempre** o Step 1 para seleção do atacante. Se a qualidade do passe já está herdada:
+- Step 1 mostra apenas `PlayerStrip` (sem `QualityPad`)
+- Após selecionar jogador → avança automaticamente para Step 2
+- Step 2 mostra a avaliação do ataque com indicador visual da qualidade herdada
 
-A opção "Continua" assume que o bloco foi tocado mas o rally prossegue, encadeando para a defesa do adversário (equipa que bloqueou).
+---
+
+### Fluxo Corrigido
+
+**Cenário A: Com qualidade herdada**
+```text
+Step 1: [PlayerStrip] → Clica jogador → Auto-avança
+Step 2: [Indicador "Passe: X"] + [QualityPad avaliação ataque]
+```
+
+**Cenário B: Sem qualidade herdada (contra-ataque)**
+```text
+Step 1: [PlayerStrip] + [QualityPad qualidade passe] → Clica passe → Auto-avança
+Step 2: [QualityPad avaliação ataque]
+```
 
 ---
 
@@ -62,31 +47,87 @@ A opção "Continua" assume que o bloco foi tocado mas o rally prossegue, encade
 
 **Ficheiro:** `src/components/live/ActionEditor.tsx`
 
-#### 1. Adicionar Botão "Continua Rally" (linhas 646-706)
-
-Após o grid 2x2 dos 4 resultados de bloco, adicionar:
+#### 1. Remover auto-skip para Step 2 (linha 143-148)
 
 ```typescript
-{/* Botão para continuar sem detalhar bloco */}
-<Button
-  variant="outline"
-  className="w-full h-12 mt-3 text-sm text-muted-foreground hover:text-foreground"
-  onClick={() => {
-    // Confirma sem b_code e encadeia para defesa do oponente
-    onConfirm();
-    const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
-    onChainAction?.('defense', opponent);
-  }}
->
-  ➡️ Continua Rally (sem detalhar bloco)
-</Button>
+// DE:
+const [currentStep, setCurrentStep] = useState(() => {
+  if (actionType === 'attack' && attackPassQuality !== null) {
+    return 2;
+  }
+  return 1;
+});
+
+// PARA:
+const [currentStep, setCurrentStep] = useState(1);
+```
+
+#### 2. Modificar Step 1 do Ataque (linhas 564-587)
+
+O Step 1 do ataque passa a ter duas variantes:
+
+```typescript
+case 'attack':
+  return (
+    <div className="space-y-4">
+      {currentStep === 1 ? (
+        <>
+          <PlayerStrip
+            players={players}
+            selectedPlayerId={selectedPlayer || null}
+            onSelect={(playerId) => {
+              onPlayerChange(playerId);
+              // Se qualidade já herdada, avançar automaticamente
+              if (attackPassQuality !== null) {
+                setCurrentStep(2);
+              }
+            }}
+            teamSide={teamSide}
+            lastUsedPlayerId={lastUsedPlayerId}
+            showZones={!!getZoneLabel}
+            getZoneLabel={getZoneLabelWrapper}
+          />
+          
+          {/* Só mostra QualityPad se qualidade NÃO está herdada */}
+          {attackPassQuality === null && (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground text-center">
+                Qualidade do Passe
+              </div>
+              <QualityPad
+                selectedCode={attackPassQuality ?? null}
+                onSelect={(code) => {
+                  if (!selectedPlayer) {
+                    toast.warning('Selecione um atacante primeiro');
+                    return;
+                  }
+                  onAttackPassQualityChange?.(code);
+                  setCurrentStep(2);
+                }}
+              />
+            </div>
+          )}
+          
+          {/* Indicador visual se qualidade está herdada */}
+          {attackPassQuality !== null && (
+            <div className="text-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
+              Passe: <span className="font-medium text-foreground">{getQualityLabel(attackPassQuality)}</span>
+              <span className="opacity-70"> (via Distribuição)</span>
+            </div>
+          )}
+        </>
+      ) : currentStep === 2 ? (
+        // ... resto sem alterações
 ```
 
 ---
 
-### Alternativa Considerada
+### Lógica de Navegação
 
-Alterar a label de `a_code = 1` de "Bloco" para "Interceptado" e não pedir `b_code`, mas isto removeria a capacidade de rastrear estatísticas detalhadas de bloco quando desejado. A solução proposta **mantém** a flexibilidade para quem quer detalhar, enquanto oferece um atalho rápido.
+| Cenário | Step 1 | Ação do Utilizador | Resultado |
+|---------|--------|-------------------|-----------|
+| Qualidade herdada | PlayerStrip + Badge | Clica jogador | Avança auto para Step 2 |
+| Sem qualidade | PlayerStrip + QualityPad | Clica jogador + qualidade | Avança após qualidade |
 
 ---
 
@@ -94,14 +135,15 @@ Alterar a label de `a_code = 1` de "Bloco" para "Interceptado" e não pedir `b_c
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Adicionar botão "Continua Rally" no Step 3 do Ataque (após grid de `b_code`) |
+| `src/components/live/ActionEditor.tsx` | Linha 143-148: Sempre iniciar em Step 1 |
+| `src/components/live/ActionEditor.tsx` | Linhas 564-587: Condicionar QualityPad e auto-avanço no onSelect do PlayerStrip |
 
 ---
 
 ### Benefícios
 
-1. **Menos fricção**: Utilizadores que não querem detalhar o bloco podem avançar rapidamente
-2. **Estatísticas opcionais**: Quem quer registar `b_code` continua a poder fazê-lo
-3. **Fluxo natural**: O rally continua logicamente para a defesa do adversário
-4. **Retro-compatível**: Não altera a estrutura de dados existente
+1. **Atacante sempre identificado** antes de prosseguir
+2. **Fluxo automático** sem botão "Continuar" extra
+3. **UX simplificada** - menos cliques quando qualidade é herdada
+4. **Mantém flexibilidade** para contra-ataques sem distribuição prévia
 
