@@ -407,8 +407,10 @@ export function ActionEditor({
     setTimeout(() => {
       showConfirmToast(player?.jersey_number, selectedPassCode ?? 2);
       onConfirm();
+      // Chain to Attack action for the same team
+      onChainAction?.('attack', side);
     }, 50);
-  }, [selectedDestination, selectedSetter, selectedPassCode, players, onDestinationChange, onConfirm, showConfirmToast]);
+  }, [selectedDestination, selectedSetter, selectedPassCode, players, onDestinationChange, onConfirm, showConfirmToast, onChainAction, side]);
 
   // Keyboard shortcuts - block 0-3 in Step 1 (player selection)
   useKeyboardShortcuts({
