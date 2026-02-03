@@ -86,6 +86,8 @@ interface PendingAction {
   attackPassQuality: number | null;
   // Block result when a_code=1
   blockCode: number | null;
+  // Freeball attack (from reception over the net)
+  isFreeballAttack?: boolean;
 }
 
 export default function Live() {
@@ -685,9 +687,24 @@ export default function Live() {
     setReceptionData(prev => ({ ...prev, code: 0, overTheNet: true }));
     setReceptionCompleted(true);
     
-    // Chain to opponent Attack
+    // Chain to opponent Attack - mark as freeball attack (skip pass quality step)
     const opponentSide: Side = gameState!.recvSide === 'CASA' ? 'FORA' : 'CASA';
-    handleSelectAction('attack', opponentSide);
+    setPendingAction({
+      type: 'attack',
+      side: opponentSide,
+      playerId: null,
+      code: null,
+      killType: null,
+      setterId: null,
+      passDestination: null,
+      passCode: null,
+      b1PlayerId: null,
+      b2PlayerId: null,
+      b3PlayerId: null,
+      attackPassQuality: null,
+      blockCode: null,
+      isFreeballAttack: true,
+    });
   };
 
   // Handle reception skip (continue without reception data)
@@ -2275,6 +2292,7 @@ export default function Live() {
               selectedBlockCode={pendingAction.blockCode}
               receptionCode={getEffectiveReceptionCode()}
               attackPassQuality={pendingAction.attackPassQuality}
+              isFreeballAttack={pendingAction.isFreeballAttack ?? false}
               getZoneLabel={getZoneLabel}
               destinationStats={destinationStats}
               onPlayerChange={(id) => setPendingAction(prev => prev ? { ...prev, playerId: id } : null)}
