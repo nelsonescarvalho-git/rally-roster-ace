@@ -1,75 +1,196 @@
 
 
-## Plano: Corrigir Reset do Step ao Encadear Ações
+## Plano: Aplicar Fluxo Step 1/Step 2 na Receção do Wizard
 
 ### Problema Identificado
 
-Quando uma ação é encadeada (ex: Ataque "Defendido" → Defesa), o componente `ActionEditor` **não reseta o `currentStep` para 1**. Isto acontece porque:
+A fase de **Receção** no wizard principal (`Live.tsx`) tem uma implementação inline separada que **não segue** o fluxo padronizado de Step 1 (seleção de jogador) → Step 2 (avaliação).
 
-1. O `currentStep` é inicializado com `useState(1)` (linha 143)
-2. Durante a ação anterior (Ataque), o `currentStep` avança para 2 ou 3
-3. Quando a ação Defesa é encadeada via `onChainAction`, o React pode reutilizar a instância do componente
-4. O `useState(1)` **não é re-executado** em re-renders, mantendo o valor antigo
+**Localização:** `src/pages/Live.tsx` linhas 1990-2066
+
+**Código atual:** Mostra `PlayerGrid` e `ColoredRatingButton` simultaneamente:
 
 ```typescript
-// Código actual - NÃO reseta quando props mudam
-const [currentStep, setCurrentStep] = useState(1);
+{isReceptionPhase && (
+  <CardContent className="p-4 space-y-3">
+    <PlayerGrid ... />              {/* Jogador */}
+    <div className="grid grid-cols-4 gap-2">
+      {[0, 1, 2, 3].map((code) => (
+        <ColoredRatingButton ... /> {/* Avaliação - junto! */}
+      ))}
+    </div>
+  </CardContent>
+)}
 ```
 
 ---
 
 ### Solução
 
-Adicionar um `useEffect` que reseta `currentStep` para 1 sempre que `actionType` ou `side` mudam:
-
-```typescript
-const [currentStep, setCurrentStep] = useState(1);
-
-// Resetar step quando a ação ou equipa mudam (encadeamento)
-useEffect(() => {
-  setCurrentStep(1);
-}, [actionType, side]);
-```
+Adicionar um estado `receptionStep` e dividir a UI em dois passos:
+- **Step 1**: Apenas `PlayerGrid` → ao selecionar jogador, avança para Step 2
+- **Step 2**: Apenas `ColoredRatingButton` (avaliação) → confirma automaticamente
 
 ---
 
 ### Alterações Técnicas
 
-**Ficheiro:** `src/components/live/ActionEditor.tsx`
-
-#### Após linha 143, adicionar:
+#### 1. Adicionar estado de step (linha ~159)
 
 ```typescript
-// Reset step when action type or side changes (for chained actions)
+const [receptionData, setReceptionData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
+const [receptionStep, setReceptionStep] = useState(1); // NOVO
+```
+
+#### 2. Atualizar `resetWizard` (linha 345)
+
+```typescript
+const resetWizard = useCallback(() => {
+  setRegisteredActions([]);
+  setPendingAction(null);
+  setEditingActionIndex(null);
+  setComboMode({ active: false, side: null });
+  setServeCompleted(false);
+  setReceptionCompleted(false);
+  setServeData({ playerId: serverPlayer?.id || null, code: null });
+  setReceptionData({ playerId: null, code: null });
+  setReceptionStep(1); // NOVO - reset do step
+}, [serverPlayer?.id]);
+```
+
+#### 3. Reset do step ao entrar na fase de receção
+
+Adicionar efeito para resetar o step quando a receção é iniciada:
+
+```typescript
+// Reset reception step when entering reception phase
 useEffect(() => {
-  setCurrentStep(1);
-}, [actionType, side]);
+  if (isReceptionPhase) {
+    setReceptionStep(1);
+  }
+}, [isReceptionPhase]);
+```
+
+#### 4. Refatorar UI da Receção (linhas 1990-2066)
+
+```typescript
+{isReceptionPhase && (
+  <Card className="overflow-hidden border relative">
+    {/* Gradient top border - mantém */}
+    <div className="absolute top-0 left-0 right-0 h-1 rounded-t-lg" ... />
+    
+    {/* Header com indicador de step */}
+    <div className={cn("flex items-center gap-2 px-4 py-2 text-white", ...)}>
+      <span className="font-semibold">Receção</span>
+      <span className="text-xs opacity-80">(opcional)</span>
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 ml-auto">
+        {receptionStep}/2
+      </Badge>
+      <span className="text-xs opacity-80">
+        {gameState.recvSide === 'CASA' ? match.home_name : match.away_name}
+      </span>
+    </div>
+    
+    <CardContent className="p-4 space-y-3">
+      {recvPlayers.length === 0 ? (
+        /* Erro de jogadores - mantém */
+      ) : receptionStep === 1 ? (
+        /* ===== STEP 1: SELEÇÃO DE JOGADOR ===== */
+        <PlayerGrid
+          players={recvPlayers}
+          selectedPlayer={receptionData.playerId}
+          onSelect={(id) => {
+            setReceptionData(prev => ({ ...prev, playerId: id }));
+            setReceptionStep(2); // Auto-avança para step 2
+          }}
+          onDeselect={() => setReceptionData(prev => ({ ...prev, playerId: null }))}
+          side={gameState!.recvSide}
+          getZoneLabel={(id) => getZoneLabel(id, gameState!.recvSide)}
+          columns={6}
+          size="sm"
+        />
+      ) : (
+        /* ===== STEP 2: AVALIAÇÃO ===== */
+        <div className="space-y-3">
+          {/* Indicador do jogador selecionado */}
+          <div className="text-center p-2 rounded bg-muted/30 text-sm">
+            Jogador: <span className="font-semibold">
+              #{recvPlayers.find(p => p.id === receptionData.playerId)?.jersey_number}
+            </span>
+          </div>
+          
+          {/* Grid de qualidade */}
+          <div className="grid grid-cols-4 gap-2">
+            {[0, 1, 2, 3].map((code) => (
+              <ColoredRatingButton
+                key={code}
+                code={code}
+                selected={receptionData.code === code}
+                onClick={() => handleReceptionCodeSelect(code)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Navigation footer - ajustado */}
+      <div className="flex justify-between pt-3 border-t mt-3">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          className="gap-1 text-muted-foreground hover:text-foreground" 
+          onClick={() => {
+            if (receptionStep === 2) {
+              setReceptionStep(1); // Voltar ao step 1
+            } else {
+              setServeCompleted(false); // Voltar ao serviço
+            }
+          }}
+        >
+          <ChevronLeft className="h-3 w-3" />
+          Voltar
+        </Button>
+        <Button 
+          variant="ghost" 
+          size="sm"
+          className="gap-1 text-muted-foreground hover:text-foreground" 
+          onClick={handleReceptionSkip}
+        >
+          Avançar
+          <ChevronRight className="h-3 w-3" />
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+)}
 ```
 
 ---
 
-### Fluxo Corrigido
+### Resumo das Alterações
 
-| Situação | Antes | Depois |
-|----------|-------|--------|
-| Ataque (Step 2) → Encadeia Defesa | Defesa inicia no Step 2 ❌ | Defesa inicia no Step 1 ✅ |
-| Receção → Encadeia Distribuição | Distribuição pode iniciar errado | Sempre Step 1 ✅ |
-| Qualquer encadeamento | Step herdado | Reset automático ✅ |
+| Ficheiro | Localização | Alteração |
+|----------|-------------|-----------|
+| `src/pages/Live.tsx` | Linha ~159 | Adicionar estado `receptionStep` |
+| `src/pages/Live.tsx` | `resetWizard` (~345) | Reset `receptionStep` para 1 |
+| `src/pages/Live.tsx` | Novo useEffect | Reset step ao entrar em `isReceptionPhase` |
+| `src/pages/Live.tsx` | Linhas 1990-2066 | Dividir UI em Step 1 (PlayerGrid) e Step 2 (avaliação) |
 
 ---
 
-### Ficheiros a Alterar
+### Fluxo Final
 
-| Ficheiro | Alteração |
-|----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Adicionar `useEffect` para resetar `currentStep` após linha 143 |
+| Step | UI | Ação do Utilizador | Resultado |
+|------|----|--------------------|-----------|
+| **1** | PlayerGrid | Clica no jogador | Auto-avança para Step 2 |
+| **2** | Badge jogador + ColoredRatingButton | Clica na avaliação | Confirma e avança |
 
 ---
 
 ### Benefícios
 
-1. **Fluxo consistente**: Todas as ações encadeadas iniciam no Step 1
-2. **Seleção do jogador garantida**: O utilizador sempre escolhe o jogador primeiro
-3. **Fix simples**: Apenas 3 linhas de código
-4. **Sem efeitos colaterais**: O reset só ocorre quando `actionType` ou `side` mudam
+1. **Consistência**: Receção segue o mesmo padrão de todas as outras ações
+2. **Foco visual**: Cada step mostra apenas o input relevante
+3. **Menos erros**: Não é possível avaliar sem selecionar jogador primeiro
+4. **Navegação clara**: Botão "Voltar" funciona entre steps
 
