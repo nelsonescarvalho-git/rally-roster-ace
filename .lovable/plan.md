@@ -1,65 +1,131 @@
 
-## Plano: Corrigir Registo de `overTheNet` na Receção
+
+## Plano: Remover Completamente "Qualidade do Passe" da Ação Ataque
 
 ### Problema Identificado
 
-Na função `handleReceptionOverTheNet` (linha 669-675), a ação de receção é criada **sem** a propriedade `overTheNet: true`:
+Na imagem, ao editar/criar um Ataque (após a cadeia automática Distribuição→Ataque), a UI mostra **"Qualidade do Passe"** no Step 1 — algo que **nunca** deveria aparecer na ação Ataque.
 
-```typescript
-const recAction: RallyAction = {
-  type: 'reception',
-  side: gameState!.recvSide,
-  phase: 1,
-  playerId: receptionData.playerId,
-  code: 0, // Comentário menciona overTheNet, mas NÃO é incluído no objeto!
-};
+**Código atual em `ActionEditor.tsx` (linhas 601-619):**
+```tsx
+{/* Só mostra QualityPad se qualidade NÃO está herdada E NÃO é freeball */}
+{attackPassQuality === null && !isFreeballAttack && (
+  <div className="space-y-2">
+    <div className="text-xs font-medium text-muted-foreground text-center">
+      Qualidade do Passe
+    </div>
+    <QualityPad ... />
+  </div>
+)}
 ```
 
-Posteriormente, em `handleSelectAction` (linha 746), o sistema verifica:
-```typescript
-if (lastAction?.type === 'reception' && lastAction.overTheNet) {
-```
-
-Como `overTheNet` nunca foi definido na receção, a condição é `false` e `isFreeballAttack` nunca é ativado, fazendo com que a "Qualidade do Passe" apareça incorretamente.
+Este bloco aparece quando `attackPassQuality === null` E `isFreeballAttack === false` — o que acontece sempre que a herança da Distribuição falha por uma race condition no React.
 
 ---
 
 ### Solução
 
-Adicionar `overTheNet: true` ao objeto `recAction` em `handleReceptionOverTheNet`.
+**Remover completamente** o bloco "Qualidade do Passe" do caso `attack` no `ActionEditor`. O Ataque nunca pede qualidade de passe diretamente — ou herda da Distribuição, ou é freeball, ou simplesmente não regista essa métrica.
 
 ---
 
-### Alteração Técnica
+### Alterações Técnicas
 
-**Ficheiro:** `src/pages/Live.tsx`
+**Ficheiro:** `src/components/live/ActionEditor.tsx`
 
-**Linha 669-675** - Modificar a criação da `recAction`:
+#### 1. Remover bloco "Qualidade do Passe" (linhas 601-619)
 
-```typescript
-const recAction: RallyAction = {
-  type: 'reception',
-  side: gameState!.recvSide,
-  phase: 1,
-  playerId: receptionData.playerId,
-  code: 0,
-  overTheNet: true, // ← ADICIONAR ESTA LINHA
-};
+Eliminar completamente este JSX:
+```tsx
+{/* Só mostra QualityPad se qualidade NÃO está herdada E NÃO é freeball */}
+{attackPassQuality === null && !isFreeballAttack && (
+  <div className="space-y-2">
+    <div className="text-xs font-medium text-muted-foreground text-center">
+      Qualidade do Passe
+    </div>
+    <QualityPad
+      selectedCode={attackPassQuality ?? null}
+      onSelect={(code) => {
+        if (!selectedPlayer) {
+          toast.warning('Selecione um atacante primeiro');
+          return;
+        }
+        onAttackPassQualityChange?.(code);
+        setCurrentStep(2);
+      }}
+    />
+  </div>
+)}
+```
+
+#### 2. Ajustar lógica de avanço automático após seleção de jogador (linha 591)
+
+Atualmente:
+```tsx
+onSelect={(playerId) => {
+  onPlayerChange(playerId);
+  // Se qualidade já herdada OU é freeball → avançar automaticamente para Step 2
+  if (attackPassQuality !== null || isFreeballAttack) {
+    setCurrentStep(2);
+  }
+}}
+```
+
+**Mudar para avançar SEMPRE para Step 2** (uma vez que já não existe mais nada no Step 1):
+```tsx
+onSelect={(playerId) => {
+  onPlayerChange(playerId);
+  setCurrentStep(2); // Avançar sempre
+}}
+```
+
+#### 3. Manter indicadores informativos (opcional mas recomendado)
+
+Manter os indicadores visuais que informam sobre a qualidade herdada/freeball (linhas 621-634), pois são úteis para o utilizador entender o contexto:
+
+```tsx
+{/* Indicador visual se qualidade está herdada */}
+{attackPassQuality !== null && (
+  <div className="text-center p-2 rounded bg-muted/30 text-xs text-muted-foreground">
+    Passe: <span className="font-medium text-foreground">{getQualityLabel(attackPassQuality)}</span>
+    <span className="opacity-70"> (via Distribuição)</span>
+  </div>
+)}
+
+{/* Indicador para freeball */}
+{isFreeballAttack && attackPassQuality === null && (
+  <div className="text-center p-2 rounded bg-warning/10 border border-warning/30 text-xs text-warning">
+    🎁 Bola de Graça — Qualidade de passe N/A
+  </div>
+)}
 ```
 
 ---
 
-### Resumo
+### Fluxo Resultante
 
-| Ficheiro | Linha | Alteração |
-|----------|-------|-----------|
-| `src/pages/Live.tsx` | 669-675 | Adicionar `overTheNet: true` ao objeto `recAction` |
+| Cenário | Step 1 (Antes) | Step 1 (Depois) |
+|---------|----------------|-----------------|
+| Ataque normal | Jogador + QualityPad | Apenas Jogador |
+| Ataque via Distribuição | Jogador + indicador herdado | Jogador + indicador herdado → auto-avança |
+| Ataque freeball | Jogador + indicador freeball | Jogador + indicador freeball → auto-avança |
+
+**O avanço para Step 2 (Avaliação do Ataque) é sempre automático após selecionar o atacante.**
 
 ---
 
-### Resultado Esperado
+### Resumo das Alterações
 
-1. Receção "Passou Rede" é registada com `overTheNet: true`
-2. `handleSelectAction` deteta corretamente que é um ataque pós-freeball
-3. `isFreeballAttack: true` é passado ao `ActionEditor`
-4. "Qualidade do Passe" não aparece, e o indicador "🎁 Bola de Graça" é mostrado
+| Ficheiro | Linhas | Alteração |
+|----------|--------|-----------|
+| `src/components/live/ActionEditor.tsx` | 591 | Remover condição — avançar sempre para Step 2 |
+| `src/components/live/ActionEditor.tsx` | 601-619 | **Eliminar** bloco QualityPad do caso 'attack' |
+
+---
+
+### Benefícios
+
+1. **Simplicidade**: Ataque tem fluxo limpo — Jogador → Avaliação → (Kill Type/Block Result se aplicável)
+2. **Sem race conditions**: Não depende mais de herança de props assíncronas
+3. **UX consistente**: A qualidade do passe pertence à Distribuição, não ao Ataque
+
