@@ -1,149 +1,63 @@
 
-# Plano: Corrigir Exibição de Estatísticas por Zona de Ataque
+## Correção: Contagem de Sets Ganhos no Dashboard
 
-## Diagnóstico
-
-Após análise da base de dados e código, identifiquei as seguintes causas:
-
-### Estado Atual da Base de Dados
-| Total Ataques | Com pass_destination | Com a_code | Com Ambos |
-|---------------|---------------------|------------|-----------|
-| 8             | 2                   | 4          | 2         |
-
-**Problema:** 75% dos ataques não têm `pass_destination` definido, por isso não aparecem nas estatísticas por zona.
-
-### Causa Técnica
-O hook `useDestinationStats.ts` (linha 54-58) filtra apenas rallies com **ambos** campos:
+### Problema Identificado
+O cálculo atual em `useDashboardStats.ts` conta qualquer set onde uma equipa lidera como "ganho":
 ```typescript
-if (!rally.pass_destination || rally.a_code === null) {
-  return false; // Rally ignorado
-}
+const homeSetsWon = lastMatchScores.filter(s => s.home_score > s.away_score).length;
 ```
 
-### Fluxo de Dados Atual
-1. Utilizador regista setter → seleciona distribuidor (Step 1) → qualidade (Step 2) → **destino (Step 3)**
-2. Se o utilizador salta o Step 3 ou regista ataque diretamente, `pass_destination` fica `null`
-3. Estatísticas só aparecem para rallies completos (P4/FORA porque foram os únicos com fluxo completo)
+Isto resulta em mostrar 0-1 quando o set ainda está 5-7 (em curso).
 
----
+### Regras do Voleibol para Set Ganho
+| Set | Pontos Mínimos | Diferença Mínima |
+|-----|----------------|------------------|
+| 1-4 | 25 | 2 |
+| 5 | 15 | 2 |
 
-## Soluções Propostas
+### Solução
 
-### Solução 1: Tornar Destino Obrigatório (Recomendado)
-Impedir que a ação de setter seja confirmada sem destino selecionado.
+**Ficheiro:** `src/hooks/useDashboardStats.ts`
 
-**Alterações:**
-- `ActionEditor.tsx`: Bloquear confirmação automática até destino ser selecionado
-- Adicionar feedback visual "Selecione destino para continuar"
-
-### Solução 2: Inferência de Destino Baseado no Atacante
-Quando falta `pass_destination`, inferir baseado na posição do atacante:
-- Z4 → P4, Z2 → P2, Z3 → P3, Z6 → PIPE/BACK
-
-**Alterações:**
-- `useDestinationStats.ts`: Lógica de fallback para calcular destino inferido
-- Badge "Destino inferido" nas estatísticas
-
-### Solução 3: Ferramenta de Correção em Massa
-Permitir ao utilizador preencher destinos em falta após o jogo.
-
-**Alterações:**
-- `RallyHistory.tsx`: Filtro "Sem destino" + edição rápida em lote
-- Botão "Preencher destinos em falta" na tab Stats
-
----
-
-## Plano de Implementação
-
-### Fase 1: Corrigir Fluxo de Dados (Prioridade Alta)
-
-#### 1.1 Tornar Destino Obrigatório no Fluxo Setter
-**Ficheiro:** `src/components/live/ActionEditor.tsx`
-
-Alteração na função `handleDestinationWithAutoConfirm`:
-- Remover timeout de auto-confirm quando `selectedDestination` é null
-- Mostrar mensagem "Selecione destino" se tentar avançar sem seleção
-
-#### 1.2 Validação Adicional ao Gravar Rally
-**Ficheiro:** `src/pages/Live.tsx`
-
-Na função `handleFinishPoint`:
-- Se existe `setterAction` com `setterId` mas sem `passDestination`, mostrar warning
-- Sugerir ao utilizador completar o destino
-
-### Fase 2: Correção de Dados Existentes
-
-#### 2.1 Ferramenta de Edição em Lote
-**Ficheiro:** `src/pages/RallyHistory.tsx`
-
-- Adicionar filtro "Destino em falta"
-- Quick-edit inline para `pass_destination`
-- Botão "Auto-preencher" baseado na posição do atacante
-
-### Fase 3: Estatísticas Mais Resilientes
-
-#### 3.1 Mostrar Estatísticas Parciais
-**Ficheiro:** `src/hooks/useDestinationStats.ts`
-
-Opção A: Incluir rallies sem destino num grupo "OUTROS"
-```typescript
-const dest = rally.pass_destination || 'OUTROS';
-```
-
-Opção B: Criar estatísticas separadas para "Com destino" vs "Total"
-
----
-
-## Sequência de Implementação
-
-1. **Fase 1.1** - Tornar destino obrigatório no setter flow
-2. **Fase 1.2** - Adicionar warning ao gravar sem destino
-3. **Fase 2.1** - Ferramenta de edição em lote
-4. **Fase 3.1** - Estatísticas parciais para dados legados
-
----
-
-## Detalhes Técnicos
-
-### Alteração Principal em ActionEditor.tsx
+Adicionar função para verificar se um set está terminado:
 
 ```typescript
-// ANTES: Auto-confirma imediatamente após selecionar passe quality
-onPassCodeChange?.(code);
-setCurrentStep(3); // Avança para destino mas não obriga
-
-// DEPOIS: Não permite confirmar setter sem destino
-// Step 3 é obrigatório - confirmação só acontece ao clicar destino
-```
-
-### Validação em Live.tsx
-
-```typescript
-const handleFinishPoint = () => {
-  const setterAction = registeredActions.find(a => a.type === 'setter');
+const isSetWon = (setNo: number, homeScore: number, awayScore: number): 'home' | 'away' | null => {
+  const minPoints = setNo === 5 ? 15 : 25;
+  const maxScore = Math.max(homeScore, awayScore);
+  const diff = Math.abs(homeScore - awayScore);
   
-  // Warning se setter existe mas destino está em falta
-  if (setterAction?.setterId && !setterAction?.passDestination) {
-    toast.warning('Distribuição sem destino - estatísticas incompletas');
+  // Set terminado: atingiu pontos mínimos E tem 2+ de diferença
+  if (maxScore >= minPoints && diff >= 2) {
+    return homeScore > awayScore ? 'home' : 'away';
   }
   
-  // Continua com gravação...
-}
+  return null; // Set ainda em curso
+};
 ```
 
-### Hook Resiliente
+Alterar cálculo de sets ganhos:
 
 ```typescript
-// useDestinationStats.ts - fallback para OUTROS
-const dest = rally.pass_destination as PassDestination || 'OUTROS';
-stats[dest].attempts++;
+// ANTES (incorreto)
+const homeSetsWon = lastMatchScores.filter(s => s.home_score > s.away_score).length;
+const awaySetsWon = lastMatchScores.filter(s => s.away_score > s.home_score).length;
+
+// DEPOIS (correto)
+const homeSetsWon = lastMatchScores.filter(s => 
+  isSetWon(s.set_no, s.home_score, s.away_score) === 'home'
+).length;
+const awaySetsWon = lastMatchScores.filter(s => 
+  isSetWon(s.set_no, s.home_score, s.away_score) === 'away'
+).length;
 ```
 
----
+### Resultado Esperado
+Com Set 1 a 5-7:
+- **Antes:** 0-1 (incorreto)
+- **Depois:** 0-0 (correto - set em curso)
 
-## Critérios de Sucesso
-
-1. ✅ Novos rallies sempre têm `pass_destination` quando há setter
-2. ✅ Estatísticas mostram todas as zonas com dados
-3. ✅ Dados antigos podem ser corrigidos via RallyHistory
-4. ✅ Warning visual quando dados estão incompletos
+### Ficheiros a Alterar
+| Ficheiro | Alteração |
+|----------|-----------|
+| `src/hooks/useDashboardStats.ts` | Adicionar função `isSetWon` e corrigir cálculos |
