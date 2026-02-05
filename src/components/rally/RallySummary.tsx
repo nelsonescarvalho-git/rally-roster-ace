@@ -12,6 +12,7 @@ interface RallySummaryProps {
   scoreAfter?: { home: number; away: number };
   hasIssue?: boolean;
   hasBlockInconsistency?: boolean;
+  hasPartialData?: boolean;
   isExpanded?: boolean;
 }
 
@@ -24,6 +25,7 @@ export function RallySummary({
   scoreAfter,
   hasIssue = false,
   hasBlockInconsistency = false,
+  hasPartialData = false,
   isExpanded = false
 }: RallySummaryProps) {
   const finalPhase = phases[phases.length - 1];
@@ -39,7 +41,8 @@ export function RallySummary({
   return (
     <div className={cn(
       'flex items-center gap-3 p-3 rounded-lg transition-all',
-      hasIssue ? 'bg-destructive/5 border border-destructive/20' : 'hover:bg-muted/50',
+      hasIssue ? 'bg-destructive/5 border border-destructive/20' : 
+        hasPartialData ? 'bg-warning/5 border border-warning/20' : 'hover:bg-muted/50',
       isExpanded && 'bg-muted/30'
     )}>
       {/* Rally Number */}
@@ -94,6 +97,14 @@ export function RallySummary({
         <Badge variant="outline" className="text-[10px] gap-1 flex-shrink-0 border-warning text-warning">
           <AlertTriangle className="h-3 w-3" />
           <span className="hidden sm:inline">b_code</span>
+        </Badge>
+      )}
+      
+      {/* Partial Data Warning */}
+      {hasPartialData && !hasIssue && !hasBlockInconsistency && (
+        <Badge variant="outline" className="text-[10px] gap-1 flex-shrink-0 border-warning text-warning">
+          <AlertTriangle className="h-3 w-3" />
+          <span className="hidden sm:inline">Parcial</span>
         </Badge>
       )}
       

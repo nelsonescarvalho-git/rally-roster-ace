@@ -15,6 +15,10 @@ interface TimelineItemProps {
   isLast?: boolean;
   highlight?: boolean;
   warning?: string;
+  /** Indicates partial data (e.g., player without code, code without player) */
+  isPartial?: boolean;
+  /** Message to display when isPartial is true */
+  partialMessage?: string;
 }
 
 export function TimelineItem({
@@ -28,7 +32,9 @@ export function TimelineItem({
   extra,
   isLast = false,
   highlight = false,
-  warning
+  warning,
+  isPartial = false,
+  partialMessage
 }: TimelineItemProps) {
   const teamColorClass = teamColor === 'home' 
     ? 'bg-home/10 text-home border-home/30' 
@@ -73,6 +79,11 @@ export function TimelineItem({
           )}
           {warning && (
             <Badge variant="outline" className="text-[10px] border-warning text-warning">{warning}</Badge>
+          )}
+          {isPartial && (
+            <Badge variant="outline" className="text-[10px] border-warning text-warning">
+              ⚠️ {partialMessage || 'Incompleto'}
+            </Badge>
           )}
         </div>
       </div>

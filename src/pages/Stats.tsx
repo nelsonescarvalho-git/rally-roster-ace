@@ -367,10 +367,20 @@ export default function Stats() {
                       </Collapsible>
 
                       {(() => {
+                        // Get rallies with issues (KILL without attacker, setter without destination, block touched without result)
                         const killsWithoutAttacker = filteredRallies.filter(r => r.reason === 'KILL' && !r.a_player_id).length;
                         const setterWithoutDest = filteredRallies.filter(r => r.setter_player_id && !r.pass_destination).length;
                         const blockWithoutResult = filteredRallies.filter(r => r.a_code === 1 && r.b_code === null).length;
-                        const totalIssues = killsWithoutAttacker + setterWithoutDest + blockWithoutResult;
+                        
+                        // NEW: Partial data counters
+                        const defenseWithoutCode = filteredRallies.filter(r => 
+                          r.d_player_id && r.d_code === null
+                        ).length;
+                        const blockWithoutPlayer = filteredRallies.filter(r => 
+                          r.b_code !== null && !r.b1_player_id
+                        ).length;
+                        
+                        const totalIssues = killsWithoutAttacker + setterWithoutDest + blockWithoutResult + defenseWithoutCode + blockWithoutPlayer;
                         
                         if (totalIssues === 0) return null;
                         
@@ -378,6 +388,8 @@ export default function Stats() {
                         if (killsWithoutAttacker > 0) messages.push(`${killsWithoutAttacker} kill(s) sem atacante`);
                         if (setterWithoutDest > 0) messages.push(`${setterWithoutDest} passe(s) sem destino`);
                         if (blockWithoutResult > 0) messages.push(`${blockWithoutResult} bloco(s) sem resultado (b_code)`);
+                        if (defenseWithoutCode > 0) messages.push(`${defenseWithoutCode} defesa(s) sem código`);
+                        if (blockWithoutPlayer > 0) messages.push(`${blockWithoutPlayer} bloco(s) sem jogador`);
                         
                         return (
                           <div className="p-3 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2">
@@ -408,6 +420,8 @@ export default function Stats() {
                             const hasIssue = (r.reason === 'KILL' && !r.a_player_id) ||
                               (r.setter_player_id && !r.pass_destination) ||
                               (r.a_code === 1 && r.b_code === null);
+                            const hasPartialData = (r.d_player_id && r.d_code === null) ||
+                              (r.b_code !== null && !r.b1_player_id);
                             const sPlayer = effectivePlayers.find(p => p.id === r.s_player_id);
                             const rPlayer = effectivePlayers.find(p => p.id === r.r_player_id);
                             const aPlayer = effectivePlayers.find(p => p.id === r.a_player_id);
@@ -421,7 +435,7 @@ export default function Stats() {
                             return (
                               <TableRow 
                                 key={r.id} 
-                                className={hasIssue ? 'bg-destructive/5' : ''}
+                                className={hasIssue ? 'bg-destructive/5' : hasPartialData ? 'bg-warning/5' : ''}
                               >
                                 <TableCell className="font-mono text-xs">S{r.set_no}</TableCell>
                                 <TableCell className="font-mono text-xs">#{r.rally_no}</TableCell>
