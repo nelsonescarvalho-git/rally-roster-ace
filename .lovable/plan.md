@@ -1,119 +1,76 @@
 
 
-# Plano: Corrigir Atacante Não Gravado no Fluxo Distribuição→Ataque
+# Plano: Corrigir Visualização de Dados e Mensagens de Aviso em Stats/RallyHistory
 
 ## Problema Identificado
 
-No fluxo **Distribuição → Ataque** encadeado:
-1. Utilizador seleciona destino (ex: P4)
-2. Sistema confirma setter e abre automaticamente o editor de Ataque
-3. Utilizador seleciona jogador atacante e código de ataque
-4. **BUG:** O `a_player_id` não é gravado na base de dados
+Após análise detalhada da base de dados e do código, identifiquei que:
 
-### Causa Raiz
+1. **Os dados do rally #14 estão corretos na BD:**
+   - `a_player_id`: preenchido (7a69b6eb... = #12 Rafael Esperanço)
+   - `a_no`: 12
+   - `a_code`: 1 (tocou bloco)
+   - `b_code`: null
+   - `reason`: BLK
 
-Quando o ataque é encadeado automaticamente, existem dois problemas:
+2. **O atacante aparece corretamente na tabela de Stats** (coluna "Atq" mostra `#12 1`)
 
-1. **O `pendingAction` para o ataque não está a herdar o `playerId`** quando é criado pelo `handleSelectAction`
-2. **O atacante selecionado no Step 1 pode não estar a ser propagado** para o `registeredActions` antes do ponto ser fechado
+3. **O warning "9 rally(s) com dados em falta (KILL sem atacante)" é misleading** porque:
+   - A condição inclui rallies com `a_code === 1 && b_code === null` (bloco tocado sem resultado)
+   - Mas o texto só menciona "KILL sem atacante"
 
-Analisando o código em `Live.tsx`:
-- `handleConfirmAction` recebe o `pendingAction.playerId` e cria o `RallyAction`
-- O problema pode estar em **timing** - o ataque pode estar a ser confirmado com `playerId: null`
-
----
-
-## Diagnóstico Técnico
-
-### Fluxo Atual
-
-```text
-[ActionEditor: Setter]
-   ↓ handleDestinationWithAutoConfirm()
-   ↓ onConfirm({ passDestination, passCode, setterId })
-   ↓ onChainAction('attack', side, { passDestination })
-      ↓ handleChainAction()
-         ↓ handleSelectAction('attack', side)
-            ↓ setPendingAction({ playerId: null, ... })
-
-[ActionEditor: Attack]
-   ↓ Utilizador seleciona jogador → onPlayerChange(id)
-   ↓ Utilizador seleciona código → handleCodeWithAutoConfirm()
-      ↓ onConfirm() ← pendingAction.playerId pode ainda não estar atualizado!
-```
-
-### O Bug
-
-O `handleCodeWithAutoConfirm` no `ActionEditor` usa `setTimeout(..., 0)` dentro de `requestAnimationFrame`, mas:
-- Para **kills** (código 3), o fluxo vai para Step 3 → kill type → outro timeout
-- A confirmação pode acontecer **antes** do React atualizar `pendingAction.playerId` no componente pai
+4. **Possível problema de cache**: Quando o utilizador edita um rally e guarda, o `loadMatch()` é chamado mas pode haver um delay na propagação do estado para a UI.
 
 ---
 
-## Solução Proposta
+## Soluções Propostas
 
-### Abordagem: Passar `playerId` Diretamente no `onConfirm()`
+### 1. Corrigir Texto do Warning em Stats.tsx
 
-Similar ao que já fazemos com `passDestination`, devemos passar o `playerId` diretamente como override para evitar race conditions.
-
-### Alterações
-
-#### 1. Atualizar interface `onConfirm` no ActionEditor
-
-**Ficheiro:** `src/components/live/ActionEditor.tsx`
-
-Expandir os overrides suportados:
+Atualizar o texto do alerta para refletir todas as condições verificadas:
 
 ```typescript
-onConfirm: (overrides?: {
-  passDestination?: PassDestination | null;
-  passCode?: number | null;
-  setterId?: string | null;
-  playerId?: string | null;  // NOVO
-  code?: number | null;      // NOVO
-  killType?: KillType | null; // NOVO
-}) => void;
+// Antes:
+{ralliesWithIssues.length} rally(s) com dados em falta (KILL sem atacante)
+
+// Depois - mostrar texto mais específico:
+const killsWithoutAttacker = filteredRallies.filter(r => r.reason === 'KILL' && !r.a_player_id).length;
+const setterWithoutDest = filteredRallies.filter(r => r.setter_player_id && !r.pass_destination).length;
+const blockWithoutResult = filteredRallies.filter(r => r.a_code === 1 && r.b_code === null).length;
+
+// Mostrar mensagens separadas ou combinadas:
+{killsWithoutAttacker > 0 && `${killsWithoutAttacker} kill(s) sem atacante`}
+{setterWithoutDest > 0 && `${setterWithoutDest} passe(s) sem destino`}
+{blockWithoutResult > 0 && `${blockWithoutResult} bloco(s) sem resultado (b_code)`}
 ```
 
-#### 2. Passar `playerId` em todas as confirmações de Ataque
+### 2. Forçar Refresh de Cache Após Edição
 
-No `handleCodeWithAutoConfirm` e `handleKillTypeWithAutoConfirm`:
+Adicionar invalidação de React Query no `updateRally`:
 
-```typescript
-// Para código 0 (erro) e código 2 (defendido):
-onConfirm({ playerId: selectedPlayer, code: code });
-
-// Para kill type:
-onConfirm({ playerId: selectedPlayer, code: 3, killType: type });
-
-// Para Block result:
-onConfirm({ playerId: selectedPlayer, code: 1, blockCode: bCode });
-```
-
-#### 3. Atualizar `handleConfirmAction` no Live.tsx
-
-Usar os overrides para `playerId`:
+**Ficheiro:** `src/hooks/useMatch.ts`
 
 ```typescript
-const handleConfirmAction = (overrides?: {
-  // ... existentes
-  playerId?: string | null;
-  code?: number | null;
-  killType?: KillType | null;
-}) => {
-  // ...
-  const effectivePlayerId = overrides?.playerId ?? pendingAction.playerId;
-  const effectiveCode = overrides?.code ?? pendingAction.code;
-  const effectiveKillType = overrides?.killType ?? pendingAction.killType;
-  
-  const newAction: RallyAction = {
-    // ...
-    playerId: effectivePlayerId,
-    code: effectiveCode,
-    killType: effectiveKillType,
-    // ...
-  };
-};
+import { useQueryClient } from '@tanstack/react-query';
+
+// No updateRally:
+const updateRally = useCallback(async (rallyId: string, updates: Partial<Rally>) => {
+  try {
+    const { error } = await supabase.from('rallies').update(updates).eq('id', rallyId);
+    if (error) throw error;
+    
+    // Invalidar todas as queries relacionadas
+    queryClient.invalidateQueries({ queryKey: ['rallies', matchId] });
+    queryClient.invalidateQueries({ queryKey: ['match', matchId] });
+    queryClient.invalidateQueries({ queryKey: ['attackStats', matchId] });
+    
+    await loadMatch();
+    return true;
+  } catch (error: any) {
+    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    return false;
+  }
+}, [loadMatch, toast, matchId, queryClient]);
 ```
 
 ---
@@ -122,26 +79,14 @@ const handleConfirmAction = (overrides?: {
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Expandir overrides e passar `playerId`/`code`/`killType` em confirmações |
-| `src/pages/Live.tsx` | Processar novos overrides em `handleConfirmAction` |
-
----
-
-## Validação
-
-Após implementação:
-1. Registar distribuição → destino P4
-2. No ataque encadeado, selecionar jogador #11
-3. Selecionar código 3 (Kill) → Chão
-4. Verificar no RallyHistory se o atacante #11 aparece
-5. Verificar console logs para confirmar que `attackAction.playerId` está preenchido
+| `src/pages/Stats.tsx` | Corrigir texto do warning para ser mais específico |
+| `src/hooks/useMatch.ts` | Adicionar invalidação de React Query no `updateRally` |
 
 ---
 
 ## Critérios de Sucesso
 
-- ✅ Atacante é corretamente gravado em ataques encadeados de Distribuição
-- ✅ Atacante é corretamente gravado em ataques com fecho automático (Kills)
-- ✅ Atacante é corretamente gravado em ataques com fecho manual
-- ✅ Dados existentes não são afetados (requer Auto-fix manual)
+- ✅ Warning mostra texto preciso para cada tipo de problema
+- ✅ Após editar um rally, os dados são imediatamente refletidos na tabela
+- ✅ Não é necessário clicar manualmente em "Recalcular" após edições
 
