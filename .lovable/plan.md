@@ -1,107 +1,119 @@
 
-## Plano: Corrigir Race Condition na Gravação de `pass_destination`
 
-### Problema Identificado
+## Plano: Adicionar Cartão "Líbero & Substituições" no Painel Direito
 
-No `ActionEditor.tsx`, quando o utilizador seleciona um destino de passe (P2, P3, etc.), a sequência é:
+### Objetivo
 
-```typescript
-// Linha 401
-onDestinationChange?.(dest);  // setPendingAction({...prev, passDestination: dest})
+Criar um novo componente compacto que agrupe atalhos rápidos para:
+1. **Estado do Líbero** de cada equipa (em campo ou disponível)
+2. **Botões de Substituição** rápida para cada equipa
+3. **Contadores de Substituições** usadas no set atual
 
-// Linha 410-414 (50ms depois)
-setTimeout(() => {
-  onConfirm();  // Lê pendingAction.passDestination - mas pode ainda ser null!
-}, 50);
-```
+### Localização
 
-O problema é que `setPendingAction` é **assíncrono** em React. Quando `handleConfirmAction` executa, pode ainda estar a ler o valor antigo de `passDestination` (null), porque o React não garantiu que o state foi atualizado.
-
-**Prova**: Na base de dados, de 9 rallies, apenas 1 tem `pass_destination` preenchido, apesar de vários terem `setter_player_id` registado.
+- **Desktop**: Coluna direita, imediatamente abaixo do `TimeoutCard`
+- **Mobile**: Igual ao TimeoutCard (pode ser colapsado)
 
 ---
 
-### Solução
+### Novo Componente: `SubsLiberosCard.tsx`
 
-Passar os valores diretamente para o callback `onConfirm`, em vez de depender do state React assíncrono.
+**Ficheiro**: `src/components/live/SubsLiberosCard.tsx`
+
+```tsx
+interface SubsLiberosCardProps {
+  homeName: string;
+  awayName: string;
+  homeColor?: string;
+  awayColor?: string;
+  // Libero state
+  homeLiberoOnCourt: boolean;
+  homeLiberoPlayer: (Player | MatchPlayer) | null;
+  awayLiberoOnCourt: boolean;
+  awayLiberoPlayer: (Player | MatchPlayer) | null;
+  // Substitutions
+  homeSubsUsed: number;
+  awaySubsUsed: number;
+  maxSubstitutions: number;
+  // Callbacks
+  onOpenSubModal: (side: Side) => void;
+  onLiberoEntry: (side: Side) => void;
+  onLiberoExit: (side: Side) => void;
+  // Eligibility
+  homeCanEnterLibero: boolean;
+  awayCanEnterLibero: boolean;
+  homeMustExitLibero: boolean;
+  awayMustExitLibero: boolean;
+}
+```
+
+### Layout do Card
+
+```
++------------------------------------------+
+| 🔄 Líbero & Substituições                |
++------------------------------------------+
+| CASA                    | FORA           |
+|-------------------------|----------------|
+| [🟢 #15 L. Silva]      | [⚫ Libero Off] |
+|  └─ Em campo (Z6)      |  └─ Disponível  |
+|                        |                 |
+| Subs: 2/6              | Subs: 1/6       |
+| [📥 Substituir]        | [📥 Substituir] |
++------------------------------------------+
+```
+
+**Estados visuais do Líbero:**
+- 🟢 Em campo: Badge verde com número e nome
+- 🟡 Pode entrar: Badge amarelo "Entrar Líbero"
+- 🔴 Deve sair: Badge vermelho pulsante "Saída Obrigatória"
+- ⚫ Sem líbero: Badge cinza desabilitado
 
 ---
 
-### Alterações Técnicas
+### Alterações em `Live.tsx`
 
-#### 1. Modificar interface do `onConfirm` em `ActionEditor.tsx`
+**Inserir após TimeoutCard (linha ~1953)**:
 
-Adicionar parâmetros opcionais para valores que podem ter race conditions:
-
-```typescript
-// ActionEditorProps
-onConfirm: (overrides?: {
-  passDestination?: PassDestination | null;
-  passCode?: number | null;
-  setterId?: string | null;
-}) => void;
-```
-
-#### 2. Atualizar `handleDestinationWithAutoConfirm` em `ActionEditor.tsx`
-
-Passar o destino diretamente no callback:
-
-```typescript
-const handleDestinationWithAutoConfirm = useCallback((dest: PassDestination) => {
-  if (selectedDestination === dest) {
-    onDestinationChange?.(null);
-    return;
-  }
-  
-  onDestinationChange?.(dest);
-  
-  if (!selectedSetter) {
-    toast.warning('Selecione um distribuidor primeiro');
-    return;
-  }
-  
-  const player = players.find(p => p.id === selectedSetter);
-  setTimeout(() => {
-    showConfirmToast(player?.jersey_number, selectedPassCode ?? 2);
-    // PASSAR VALORES DIRECTAMENTE para evitar race condition
-    onConfirm({ 
-      passDestination: dest,
-      passCode: selectedPassCode,
-      setterId: selectedSetter,
-    });
-    onChainAction?.('attack', side);
-  }, 50);
-}, [...]);
-```
-
-#### 3. Atualizar `handleConfirmAction` em `Live.tsx`
-
-Aceitar overrides e usá-los com prioridade:
-
-```typescript
-const handleConfirmAction = (overrides?: {
-  passDestination?: PassDestination | null;
-  passCode?: number | null;
-  setterId?: string | null;
-}) => {
-  if (!pendingAction) return;
-  
-  const newAction: RallyAction = {
-    type: pendingAction.type,
-    side: pendingAction.side,
-    phase: 1,
-    playerId: pendingAction.playerId,
-    playerNo: player?.jersey_number || null,
-    code: pendingAction.code,
-    killType: pendingAction.killType,
-    // USAR OVERRIDES COM PRIORIDADE
-    setterId: overrides?.setterId ?? pendingAction.setterId,
-    passDestination: overrides?.passDestination ?? pendingAction.passDestination,
-    passCode: overrides?.passCode ?? pendingAction.passCode,
-    // ...resto dos campos
-  };
-  // ...
-};
+```tsx
+{/* Subs & Libero Quick Card */}
+<SubsLiberosCard
+  homeName={match.home_name}
+  awayName={match.away_name}
+  homeColor={teamColors.home.primary}
+  awayColor={teamColors.away.primary}
+  // Libero state
+  homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
+  homeLiberoPlayer={liberoTrackingHome.activeLiberoPlayer}
+  awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
+  awayLiberoPlayer={liberoTrackingAway.activeLiberoPlayer}
+  // Substitutions
+  homeSubsUsed={getSubstitutionsUsed(currentSet, 'CASA')}
+  awaySubsUsed={getSubstitutionsUsed(currentSet, 'FORA')}
+  maxSubstitutions={6}
+  // Callbacks
+  onOpenSubModal={setSubModalSide}
+  onLiberoEntry={(side) => {
+    // Trigger libero prompt
+    if (side === 'CASA') {
+      setShowHomeLiberoPrompt(true);
+    } else {
+      setShowAwayLiberoPrompt(true);
+    }
+  }}
+  onLiberoExit={async (side) => {
+    if (side === 'CASA') {
+      await liberoTrackingHome.exitLibero();
+    } else {
+      await liberoTrackingAway.exitLibero();
+    }
+  }}
+  // Eligibility
+  homeCanEnterLibero={liberoTrackingHome.shouldPromptLiberoEntry}
+  awayCanEnterLibero={liberoTrackingAway.shouldPromptLiberoEntry}
+  homeMustExitLibero={liberoTrackingHome.mustExitLibero}
+  awayMustExitLibero={liberoTrackingAway.mustExitLibero}
+/>
 ```
 
 ---
@@ -110,13 +122,15 @@ const handleConfirmAction = (overrides?: {
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Modificar `handleDestinationWithAutoConfirm` para passar valores no `onConfirm()` |
-| `src/pages/Live.tsx` | Modificar `handleConfirmAction` para aceitar parâmetros opcionais de override |
+| `src/components/live/SubsLiberosCard.tsx` | **Novo** - Componente de atalho |
+| `src/pages/Live.tsx` | Importar e inserir após `TimeoutCard` |
 
 ---
 
 ### Benefícios
 
-1. **Elimina race condition**: Valores passados directamente, não dependem do state assíncrono
-2. **Fiabilidade**: Garantia de que `pass_destination` é sempre gravado quando selecionado
-3. **Percentagens correctas**: As estatísticas por destino serão atualizadas corretamente
+1. **Acesso rápido**: Líberos e substituições visíveis sem scroll
+2. **Estado claro**: Indica visualmente se líbero está em campo
+3. **Consistência**: Segue o mesmo padrão visual do TimeoutCard
+4. **UX melhorada**: Reduz cliques para ações comuns
+
