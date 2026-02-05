@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ActionPad } from './ActionPad';
 import { QualityPad } from './QualityPad';
@@ -620,15 +621,46 @@ export function ActionEditor({
                 )}
               </>
             ) : currentStep === 2 ? (
-              <div className="space-y-2">
-                {/* Show inherited quality indicator */}
-                {attackPassQuality !== null && (
-                  <div className="text-xs text-muted-foreground text-center mb-1 flex items-center justify-center gap-1">
-                    <span>Passe: {getQualityLabel(attackPassQuality)}</span>
-                    <span className="text-[10px] opacity-70">(via Distribuição)</span>
+              <div className="space-y-3">
+                {/* Contexto do Atacante */}
+                {selectedPlayer && (
+                  <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/40 border border-border/50">
+                    <span className="text-lg font-bold">
+                      #{players.find(p => p.id === selectedPlayer)?.jersey_number}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {players.find(p => p.id === selectedPlayer)?.name?.split(' ')[0]}
+                    </span>
+                    {getZoneLabel && (
+                      <Badge variant="outline" className="text-[10px] h-5">
+                        {getZoneLabelWrapper(selectedPlayer)}
+                      </Badge>
+                    )}
                   </div>
                 )}
-                <div className="text-xs font-medium text-muted-foreground text-center">
+                
+                {/* Indicador de qualidade herdada ou freeball */}
+                {attackPassQuality !== null ? (
+                  <div className="flex items-center justify-center gap-2 p-2 rounded bg-primary/10 border border-primary/20">
+                    <span className="text-xs text-muted-foreground">Passe:</span>
+                    <Badge variant="secondary" className="text-xs">
+                      Q{attackPassQuality} · {getQualityLabel(attackPassQuality)}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground opacity-70">(via Dist.)</span>
+                  </div>
+                ) : isFreeballAttack ? (
+                  <div className="flex items-center justify-center gap-2 p-2 rounded bg-warning/10 border border-warning/30">
+                    <span className="text-lg">🎁</span>
+                    <span className="text-xs text-warning font-medium">Bola de Graça</span>
+                    <span className="text-[10px] text-muted-foreground">— Passe N/A</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1 p-1.5 rounded bg-muted/20">
+                    <span className="text-[10px] text-muted-foreground">Ataque sem distribuição registada</span>
+                  </div>
+                )}
+                
+                <div className="text-xs font-medium text-muted-foreground text-center pt-1">
                   Avaliação do Ataque
                 </div>
                 <QualityPad
