@@ -39,6 +39,7 @@ import { CourtView } from '@/components/live/CourtView';
 import { RefereeModal } from '@/components/live/RefereeModal';
 import { MandatorySubstitutionModal } from '@/components/live/MandatorySubstitutionModal';
 import { TimeoutCard } from '@/components/live/TimeoutCard';
+import { SubsLiberosCard } from '@/components/live/SubsLiberosCard';
 import { useLiberoTracking } from '@/hooks/useLiberoTracking';
 import { 
   Side, 
@@ -265,6 +266,7 @@ export default function Live() {
   // Libero tracking state
   const [liberoPromptDismissedForRally, setLiberoPromptDismissedForRally] = useState<number | null>(null);
   const [liberoLoading, setLiberoLoading] = useState(false);
+  const [manualLiberoPromptSide, setManualLiberoPromptSide] = useState<Side | null>(null);
   
   // Libero tracking for receiving team (CASA)
   const liberoTrackingHome = useLiberoTracking({
@@ -1632,6 +1634,38 @@ export default function Live() {
             : teamColors.away.primary}
         />
       )}
+      
+      {/* Manual Libero Entry Prompt - Triggered from SubsLiberosCard */}
+      {manualLiberoPromptSide && (() => {
+        const tracking = manualLiberoPromptSide === 'CASA' ? liberoTrackingHome : liberoTrackingAway;
+        if (tracking.availableLiberos.length === 0) return null;
+        
+        return (
+          <LiberoPrompt
+            type="entry"
+            side={manualLiberoPromptSide}
+            libero={tracking.availableLiberos[0]}
+            eligiblePlayers={tracking.eligibleForLiberoEntry}
+            recommendedPlayer={tracking.recommendedPlayerForLibero}
+            getZoneLabel={(id) => getZoneLabel(id, manualLiberoPromptSide)}
+            onConfirm={async (replacedPlayerId?: string) => {
+              if (!replacedPlayerId) return;
+              setLiberoLoading(true);
+              try {
+                await tracking.enterLibero(tracking.availableLiberos[0].id, replacedPlayerId);
+                setManualLiberoPromptSide(null);
+              } finally {
+                setLiberoLoading(false);
+              }
+            }}
+            onSkip={() => setManualLiberoPromptSide(null)}
+            isLoading={liberoLoading}
+            teamColor={manualLiberoPromptSide === 'CASA' 
+              ? teamColors.home.primary 
+              : teamColors.away.primary}
+          />
+        );
+      })()}
 
       {/* Set End Overlay */}
       {(() => {
@@ -1950,6 +1984,38 @@ export default function Live() {
               awayColor={teamColors.away.primary}
               timeouts={timeouts.filter(t => t.set_no === currentSet)}
               onTimeoutCalled={handleTimeoutCalled}
+            />
+
+            {/* Subs & Libero Quick Card */}
+            <SubsLiberosCard
+              homeName={match.home_name}
+              awayName={match.away_name}
+              homeColor={teamColors.home.primary}
+              awayColor={teamColors.away.primary}
+              homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
+              homeLiberoPlayer={liberoTrackingHome.activeLiberoPlayer}
+              awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
+              awayLiberoPlayer={liberoTrackingAway.activeLiberoPlayer}
+              homeSubsUsed={getSubstitutionsUsed(currentSet, 'CASA')}
+              awaySubsUsed={getSubstitutionsUsed(currentSet, 'FORA')}
+              maxSubstitutions={6}
+              onOpenSubModal={setSubModalSide}
+              onLiberoEntry={(side) => {
+                setManualLiberoPromptSide(side);
+              }}
+              onLiberoExit={async (side) => {
+                if (side === 'CASA') {
+                  await liberoTrackingHome.exitLibero();
+                } else {
+                  await liberoTrackingAway.exitLibero();
+                }
+              }}
+              homeCanEnterLibero={liberoTrackingHome.shouldPromptLiberoEntry}
+              awayCanEnterLibero={liberoTrackingAway.shouldPromptLiberoEntry}
+              homeMustExitLibero={liberoTrackingHome.mustExitLibero}
+              awayMustExitLibero={liberoTrackingAway.mustExitLibero}
+              homeHasLibero={liberoTrackingHome.availableLiberos.length > 0}
+              awayHasLibero={liberoTrackingAway.availableLiberos.length > 0}
             />
 
           </div>
