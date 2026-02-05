@@ -1,95 +1,172 @@
 
-Objetivo
-- Garantir que o pop-up automático “Entrada do Líbero” lista exatamente os mesmos jogadores que o Campo (CourtView) está a mostrar para esse lado e rotação, e impedir confirmações inválidas (ex.: tentar trocar por alguém que já não está em campo).
+## Plano: Normalizar Apresentação de Estatísticas em Toda a App
 
-Diagnóstico (com base no código atual e na tua resposta)
-- O problema é “Sempre” e “Pop-up automático”, e a discrepância é “Difere do Campo (UI)”.
-- Hoje, tanto o CourtView como o cálculo de elegibilidade usam as mesmas funções (getPlayersOnCourt + getPlayerZone). Quando há divergência consistente, costuma ser por:
-  1) Estado “stale”/não reinicializado do componente do pop-up (seleção e/ou lista) quando o rally muda.
-  2) Substituições gravadas que não se aplicam ao 6 em campo (player_out_id não encontrado), criando um “desalinhamento”: o tracking do líbero (baseado nas linhas de substituição) acha uma coisa, mas o 6 em campo (baseado na aplicação efetiva ao lineup) mostra outra.
-  3) Ordem de aplicação de substituições no mesmo rally (sort apenas por rally_no) a causar resultados diferentes ao longo do render, especialmente quando há entradas/saídas no mesmo rally.
+### Análise Atual
 
-Estratégia de correção
-- Introduzir uma “fonte única de verdade” para o estado do campo (6 jogadores + zonas por lado, para o rally atual), e fazer:
-  - CourtView consumir essa mesma estrutura (ou pelo menos os mesmos cálculos consolidados).
-  - LiberoPrompt (lista de elegíveis e rótulos Z1/Z5/Z6) consumir exatamente o mesmo snapshot.
-- Adicionar validação “hard” no momento de confirmar a entrada do líbero:
-  - Só permite confirmar se o jogador selecionado está mesmo em campo naquele instante e está em Z1/Z5/Z6.
-  - Caso contrário, mostra toast de erro e não grava substituição.
+Após revisão detalhada do código, encontrei **inconsistências** na forma como as estatísticas são apresentadas:
 
-Plano de implementação (arquivos e passos)
+#### O que já está bem implementado ✓
+| Local | Formato | Exemplo |
+|-------|---------|---------|
+| `AttackTab.tsx` | K/Total + Efic% | `1/1 100%` |
+| `PlayerStatsPopover.tsx` | Kills/Attacks + (Eff%) | `5/10 (50%)` |
+| `SetSummaryKPIs.tsx` | Percentagens calculadas | `Kill% 50%` |
+| `useStats.ts` | Cálculo de eficiência correto | `(kills - errors - blocked) / total` |
 
-1) Criar um “snapshot” do campo no Live (1 lugar para calcular tudo)
-Arquivos: src/pages/Live.tsx
-- Criar helper memoizado (useMemo) para cada lado com:
-  - playersOnCourt: getPlayersOnCourt(currentSet, side, gameState.currentRally)
-  - rotationForSide: (side === gameState.serveSide ? gameState.serveRot : gameState.recvRot)
-  - zoneByPlayerId: Map<playerId, zone> usando getPlayerZone com rotationForSide
-- A partir deste snapshot, derivar:
-  - backRowPlayers = playersOnCourt filtrados por zona ∈ {1,5,6}
-  - zoneLabel(playerId) = `Z${zone}`
+#### Problemas encontrados ✗
+| Local | Problema | Formato Atual |
+|-------|----------|---------------|
+| `Stats.tsx` (tab Jogadores) | Mostra apenas pontos/total sem % | `0/1` sem eficácia |
+| `Stats.tsx` | Apenas Serviço e Ataque mostrados | Falta Receção, Defesa |
+| Todas as views | Formato inconsistente | Alguns usam `X/Y`, outros `X%` |
 
-Porquê: isto elimina discrepâncias causadas por cálculos feitos em lugares diferentes e facilita validar/depurar.
+### Proposta de Normalização
 
-2) Fazer o pop-up do líbero usar o snapshot em vez de depender de cálculo “espalhado”
-Arquivos: src/pages/Live.tsx, src/hooks/useLiberoTracking.ts (pequena refatoração)
-Opção A (mais segura, menos intrusiva no hook):
-- Manter useLiberoTracking para “quando mostrar” + estado do líbero (isOnCourt, mustExit, etc.).
-- Calcular eligiblePlayers diretamente no Live.tsx a partir do snapshot (backRowPlayers) e passar isso ao LiberoPrompt.
-- Continuar a usar recommendedPlayer (MB) mas calculado sobre eligiblePlayers do snapshot.
+#### Formato padrão para TODAS as ações:
+```
+[Sucesso]/[Total] ([Eficácia]%)
+```
 
-Opção B (mais “arquitetural”, mas mexe mais):
-- Alterar useLiberoTracking para aceitar como input a lista de onCourtPlayers + zoneByPlayerId já calculados, removendo dependência de getPlayersOnCourt/getPlayerZone.
-- Isto garante consistência total, mas implica alterar chamadas e tipos.
+Exemplo: `5/10 (50%)`
 
-Recomendação: Opção A primeiro (corrige rápido e reduz risco).
+#### Definição de "Sucesso" e "Eficácia" por ação:
 
-3) Forçar reset do estado interno do LiberoPrompt a cada rally (eliminar “stale selection”)
-Arquivos: src/pages/Live.tsx, src/components/live/LiberoPrompt.tsx
-- No Live.tsx, adicionar uma key no LiberoPrompt automático:
-  - key={`${gameState.currentSet}-${gameState.currentRally}-${gameState.recvSide}-entry`}
-- No LiberoPrompt.tsx, ajustar o useEffect de preseleção para atualizar quando o recommended mudar (mesmo que selectedPlayer já exista) OU limpar selectedPlayer quando:
-  - type muda, ou
-  - eligiblePlayers muda de forma significativa (ex.: ids diferentes), ou
-  - receber uma prop “rallyKey”.
+| Ação | Sucesso | Total | Eficácia |
+|------|---------|-------|----------|
+| **Serviço** | Aces (code 3) | Todos os serviços | `(aces - erros) / total × 100` |
+| **Receção** | Positivas (code 2+3) | Todas receções | `(positivas) / total × 100` |
+| **Ataque** | Kills (code 3) | Todos ataques | `(kills - erros - bloqueados) / total × 100` |
+| **Bloco** | Pontos (code 3) | Participações | `pontos / participações × 100` |
+| **Defesa** | Bem sucedidas (code 2+3) | Todas defesas | `(boas) / total × 100` |
 
-Objetivo: garantir que nunca fica selecionado um jogador do rally anterior.
+---
 
-4) Validação antes de gravar a substituição do líbero (evitar criar substituições que não se aplicam)
-Arquivos: src/pages/Live.tsx (handleLiberoEntry e também o handler do prompt manual)
-- Antes de chamar enterLibero, verificar:
-  - replacedPlayerId está presente em snapshot.playersOnCourt (ids)
-  - zona do replacedPlayerId no snapshot é 1, 5 ou 6
-  - se falhar, toast “Jogador selecionado já não está em campo / não está na linha de trás” e return (não grava)
-- Isto impede o cenário em que se grava uma substituição “inválida” (que depois não altera o 6 em campo), que é uma fonte grande de inconsistência.
+### Alterações Técnicas
 
-5) Tornar a aplicação de substituições determinística (ordem estável)
-Arquivos: src/hooks/useMatch.ts
-- Em getActiveLineup, ordenar substituições por:
-  - rally_no ASC
-  - created_at ASC (ou id como fallback)
-- Hoje só ordena por rally_no. Se existirem duas trocas no mesmo rally (muito comum em correções/undo/ajustes), a ordem pode variar e gerar estados diferentes entre renders.
+#### 1. Atualizar Tabela de Jogadores em `Stats.tsx`
 
-6) (Opcional) “Debug strip” temporária para confirmar a correção (removível)
-Arquivos: src/pages/Live.tsx
-- Atrás de um toggle (ex.: query param ?debug=1), mostrar:
-  - recvSide/recvRot
-  - lista dos 6 em campo (jersey + zone)
-  - lista de elegíveis no pop-up
-- Isto acelera a validação contigo. Depois podemos remover.
+**Antes:**
+```tsx
+<TableHead>Srv</TableHead>
+<TableHead>Att</TableHead>
+<TableHead>Eff%</TableHead>
+<TableHead>Blk</TableHead>
+```
 
-Critérios de aceitação (o que vais conseguir testar)
-- Quando o pop-up automático abrir:
-  - Os jogadores listados são exatamente os que aparecem em Z1/Z5/Z6 no CourtView para o lado que está a receber.
-  - Se roda e o rally muda, a seleção recomendada/selecionada não “fica presa” em alguém que já não está no fundo.
-- Se tentares confirmar por um jogador que não está em campo (por qualquer razão), a app não grava e avisa.
+**Depois:**
+```tsx
+<TableHead>Serviço</TableHead>
+<TableHead>Receção</TableHead>
+<TableHead>Ataque</TableHead>
+<TableHead>Bloco</TableHead>
+<TableHead>Defesa</TableHead>
+```
 
-Riscos e cuidados
-- Não alterar a lógica de “quando mostrar” o pop-up sem necessidade (para não quebrar a automação já existente).
-- Garantir que o snapshot é recalculado apenas quando gameState/substitutions/lineups mudam (useMemo com deps corretas), para não causar re-renders pesados.
+Cada célula terá o formato: `Sucesso/Total (X%)`
 
-Sequência sugerida (para reduzir risco)
-1) Passo 5 (sort estável) + Passo 4 (validação) — evita estados “maus” na base de dados.
-2) Passo 1 + 2 (snapshot + usar snapshot no pop-up).
-3) Passo 3 (reset do LiberoPrompt).
-4) Passo 6 (debug) só se ainda houver dúvida durante testes.
+#### 2. Adicionar mais métricas ao `PlayerStats` interface
+
+Já existem no tipo mas não estão a ser mostradas:
+- `recAttempts`, `recPoints` (receção)
+- `defAttempts`, `defPoints` (defesa)
+
+#### 3. Criar componente reutilizável `StatCell`
+
+```tsx
+interface StatCellProps {
+  success: number;
+  total: number;
+  efficiency?: number; // Pre-calculated or auto-calculate
+  showEfficiency?: boolean;
+  successColor?: 'primary' | 'success' | 'warning';
+}
+
+function StatCell({ success, total, efficiency, showEfficiency = true }: StatCellProps) {
+  const eff = efficiency ?? (total > 0 ? (success / total) * 100 : null);
+  
+  if (total === 0) return <span className="text-muted-foreground">-</span>;
+  
+  return (
+    <span>
+      <span className="text-success">{success}</span>
+      <span className="text-muted-foreground">/{total}</span>
+      {showEfficiency && eff !== null && (
+        <span className={cn(
+          "ml-1 text-xs",
+          eff >= 50 ? "text-success" : eff >= 25 ? "text-warning" : "text-destructive"
+        )}>
+          ({eff.toFixed(0)}%)
+        </span>
+      )}
+    </span>
+  );
+}
+```
+
+---
+
+### Botão de Recálculo de Estatísticas
+
+#### Quando é útil?
+- Após correções manuais no `RallyHistory`
+- Quando há dados em falta (kill_type, pass_destination)
+- Após edição de rallies via `EditRallyModal`
+
+#### Implementação
+
+Adicionar botão no header de `Stats.tsx`:
+```tsx
+<Button 
+  variant="outline" 
+  size="sm" 
+  onClick={() => {
+    queryClient.invalidateQueries(['rallies', matchId]);
+    toast.success('Estatísticas recalculadas');
+  }}
+  className="gap-1"
+>
+  <RefreshCw className="h-4 w-4" />
+  Recalcular
+</Button>
+```
+
+**Nota:** As estatísticas já são calculadas em tempo real via `useMemo`. O botão força um refetch dos dados da DB, útil quando:
+1. Outro dispositivo fez alterações
+2. Correções foram feitas mas a cache não atualizou
+
+---
+
+### Resumo de Ficheiros a Alterar
+
+| Ficheiro | Alteração |
+|----------|-----------|
+| `src/pages/Stats.tsx` | Expandir tabela Jogadores com todas as ações + botão Recalcular |
+| `src/components/ui/StatCell.tsx` | **Novo** - Componente reutilizável |
+| `src/hooks/useStats.ts` | Adicionar cálculo de `recEfficiency` e `defEfficiency` |
+| `src/types/volleyball.ts` | Adicionar campos de eficiência em `PlayerStats` |
+| `src/components/live/PlayerStatsPopover.tsx` | Usar `StatCell` para consistência |
+| `src/components/AttackTab.tsx` | Usar `StatCell` |
+
+---
+
+### Minhas Observações Adicionais
+
+#### Concordo com a tua visão
+O formato `Sucesso/Total (Efic%)` é o padrão no voleibol profissional (Data Volley, VolleyMetrics). É intuitivo e permite comparação rápida.
+
+#### Sugestão adicional: Código de cores por eficácia
+
+| Range | Cor | Significado |
+|-------|-----|-------------|
+| ≥50% | 🟢 Verde | Excelente |
+| 25-49% | 🟡 Amarelo | Aceitável |
+| <25% | 🔴 Vermelho | A melhorar |
+
+Estes limiares são ajustáveis por ação (ataque espera mais, receção tolera menos).
+
+#### Sugestão: Tooltips detalhados
+
+Para cada célula, um hover que mostre:
+- Breakdown: Aces/Erros/Neutros
+- Comparação com média da equipa
+- Tendência no set atual vs anteriores
