@@ -787,8 +787,12 @@ export default function Live() {
   const receptionAction = registeredActions.find(a => a.type === 'reception');
   const isReceptionIncomplete = receptionAction && !receptionAction.playerId;
 
-  // Confirm pending action
-  const handleConfirmAction = () => {
+  // Confirm pending action - accepts overrides for values that may have race conditions
+  const handleConfirmAction = (overrides?: {
+    passDestination?: PassDestination | null;
+    passCode?: number | null;
+    setterId?: string | null;
+  }) => {
     if (!pendingAction) return;
     
     const effectivePlayers = getEffectivePlayers();
@@ -859,9 +863,10 @@ export default function Live() {
       playerNo: player?.jersey_number || null,
       code: pendingAction.code,
       killType: pendingAction.killType,
-      setterId: pendingAction.setterId,
-      passDestination: pendingAction.passDestination,
-      passCode: pendingAction.passCode,
+      // Use overrides with priority to avoid race conditions
+      setterId: overrides?.setterId ?? pendingAction.setterId,
+      passDestination: overrides?.passDestination ?? pendingAction.passDestination,
+      passCode: overrides?.passCode ?? pendingAction.passCode,
       b1PlayerId: pendingAction.b1PlayerId,
       b2PlayerId: pendingAction.b2PlayerId,
       b3PlayerId: pendingAction.b3PlayerId,

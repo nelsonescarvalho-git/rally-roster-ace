@@ -68,7 +68,11 @@ interface ActionEditorProps {
   onBlocker3Change?: (id: string | null) => void;
   onBlockCodeChange?: (code: number | null) => void;
   onAttackPassQualityChange?: (quality: number | null) => void;
-  onConfirm: () => void;
+  onConfirm: (overrides?: {
+    passDestination?: PassDestination | null;
+    passCode?: number | null;
+    setterId?: string | null;
+  }) => void;
   onCancel: () => void;
   onUndo?: () => void;
   // Auto-finish point for definitive actions (errors, kills, aces, etc.)
@@ -409,7 +413,12 @@ export function ActionEditor({
     const player = players.find(p => p.id === selectedSetter);
     setTimeout(() => {
       showConfirmToast(player?.jersey_number, selectedPassCode ?? 2);
-      onConfirm();
+      // Pass values directly to avoid race condition with async state updates
+      onConfirm({
+        passDestination: dest,
+        passCode: selectedPassCode,
+        setterId: selectedSetter,
+      });
       // Chain to Attack action for the same team
       onChainAction?.('attack', side);
     }, 50);
