@@ -88,9 +88,27 @@ export function useDashboardStats(): DashboardStats {
   
   const lastMatchScores = scoresData || [];
   
-  // Calculate sets won
-  const homeSetsWon = lastMatchScores.filter(s => s.home_score > s.away_score).length;
-  const awaySetsWon = lastMatchScores.filter(s => s.away_score > s.home_score).length;
+  // Helper to check if a set is actually won (not just in progress)
+  const isSetWon = (setNo: number, homeScore: number, awayScore: number): 'home' | 'away' | null => {
+    const minPoints = setNo === 5 ? 15 : 25;
+    const maxScore = Math.max(homeScore, awayScore);
+    const diff = Math.abs(homeScore - awayScore);
+    
+    // Set is won when: reached minimum points AND has 2+ point difference
+    if (maxScore >= minPoints && diff >= 2) {
+      return homeScore > awayScore ? 'home' : 'away';
+    }
+    
+    return null; // Set still in progress
+  };
+  
+  // Calculate sets won (only count finished sets)
+  const homeSetsWon = lastMatchScores.filter(s => 
+    isSetWon(s.set_no, s.home_score, s.away_score) === 'home'
+  ).length;
+  const awaySetsWon = lastMatchScores.filter(s => 
+    isSetWon(s.set_no, s.home_score, s.away_score) === 'away'
+  ).length;
   
   // Fetch team colors
   const { data: teamColorsData } = useQuery({
