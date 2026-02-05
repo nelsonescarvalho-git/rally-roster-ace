@@ -73,6 +73,12 @@ interface ActionEditorProps {
     passDestination?: PassDestination | null;
     passCode?: number | null;
     setterId?: string | null;
+    // Attack-specific overrides to avoid race conditions
+    playerId?: string | null;
+    code?: number | null;
+    killType?: KillType | null;
+    blockCode?: number | null;
+    blocker1Id?: string | null;
   }) => void;
   onCancel: () => void;
   onUndo?: () => void;
@@ -310,7 +316,8 @@ export function ActionEditor({
         requestAnimationFrame(() => {
           setTimeout(() => {
             showConfirmToast(player?.jersey_number, code);
-            onConfirm();
+            // Pass playerId and code directly to avoid race conditions
+            onConfirm({ playerId: selectedPlayer, code: 0 });
             onAutoFinishPoint?.(opponent, 'AE');
           }, 0);
         });
@@ -323,7 +330,8 @@ export function ActionEditor({
       requestAnimationFrame(() => {
         setTimeout(() => {
           showConfirmToast(player?.jersey_number, code);
-          onConfirm();
+          // Pass playerId and code directly to avoid race conditions
+          onConfirm({ playerId: selectedPlayer, code: 2 });
           // Chain to defense action for opponent (they defended the attack)
           onChainAction?.('defense', opponent);
         }, 0);
@@ -350,7 +358,8 @@ export function ActionEditor({
           `#${player?.jersey_number || '?'} · Ataque → Bloco ${bCodeLabels[bCode]}`,
           { duration: 2500 }
         );
-        onConfirm();
+        // Pass playerId, code, and blockCode directly to avoid race conditions
+        onConfirm({ playerId: selectedPlayer, code: 1, blockCode: bCode });
         
         // Auto-finish point based on block result
         if (bCode === 0) {
@@ -381,7 +390,8 @@ export function ActionEditor({
           `#${attacker?.jersey_number || '?'} Bloqueado por #${blocker?.jersey_number || '?'} · Ponto de Bloco`,
           { duration: 2500 }
         );
-        onConfirm();
+        // Pass all relevant data directly to avoid race conditions
+        onConfirm({ playerId: selectedPlayer, code: 1, blockCode: 3, blocker1Id: blockerId });
         onAutoFinishPoint?.(blockerSide, 'BLK');
       }, 0);
     });
@@ -392,7 +402,8 @@ export function ActionEditor({
     const player = players.find(p => p.id === selectedPlayer);
     setTimeout(() => {
       showConfirmToast(player?.jersey_number, 3);
-      onConfirm();
+      // Pass playerId, code, and killType directly to avoid race conditions
+      onConfirm({ playerId: selectedPlayer, code: 3, killType: type });
       // Kill: attacking team wins
       onAutoFinishPoint?.(side, 'KILL');
     }, 50);

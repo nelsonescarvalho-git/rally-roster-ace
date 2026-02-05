@@ -882,39 +882,52 @@ export default function Live() {
     passDestination?: PassDestination | null;
     passCode?: number | null;
     setterId?: string | null;
+    // Attack-specific overrides to avoid race conditions
+    playerId?: string | null;
+    code?: number | null;
+    killType?: KillType | null;
+    blockCode?: number | null;
+    blocker1Id?: string | null;
   }) => {
     if (!pendingAction) return;
     
+    // Use overrides with priority to avoid race conditions
+    const effectivePlayerId = overrides?.playerId ?? pendingAction.playerId;
+    const effectiveCode = overrides?.code ?? pendingAction.code;
+    const effectiveKillType = overrides?.killType ?? pendingAction.killType;
+    const effectiveBlockCode = overrides?.blockCode ?? pendingAction.blockCode;
+    const effectiveBlocker1Id = overrides?.blocker1Id ?? pendingAction.b1PlayerId;
+    
     const effectivePlayers = getEffectivePlayers();
-    const player = effectivePlayers.find(p => p.id === pendingAction.playerId);
+    const player = effectivePlayers.find(p => p.id === effectivePlayerId);
     
     // Special handling for attack with a_code=1 (touched block) - create both attack and block actions
-    if (pendingAction.type === 'attack' && pendingAction.code === 1 && pendingAction.blockCode !== null) {
+    if (pendingAction.type === 'attack' && effectiveCode === 1 && effectiveBlockCode !== null) {
       const blockSide: Side = pendingAction.side === 'CASA' ? 'FORA' : 'CASA';
       
       const attackAction: RallyAction = {
         type: 'attack',
         side: pendingAction.side,
         phase: 1,
-        playerId: pendingAction.playerId,
+        playerId: effectivePlayerId,
         playerNo: player?.jersey_number || null,
         code: 1, // Touched block
         attackPassQuality: pendingAction.attackPassQuality,
-        blockCode: pendingAction.blockCode,
+        blockCode: effectiveBlockCode,
       };
       
       const blockAction: RallyAction = {
         type: 'block',
         side: blockSide,
         phase: 1,
-        playerId: null, // Blocker not identified in quick flow
-        code: pendingAction.blockCode,
+        playerId: effectiveBlocker1Id, // Use blocker from override if provided
+        code: effectiveBlockCode,
       };
       
       // Save last attacker for ultra-rapid mode
-      if (pendingAction.playerId && player) {
+      if (effectivePlayerId && player) {
         setLastAttacker({
-          playerId: pendingAction.playerId,
+          playerId: effectivePlayerId,
           playerNumber: player.jersey_number,
           playerName: player.name,
           side: pendingAction.side,
@@ -949,24 +962,24 @@ export default function Live() {
       type: pendingAction.type,
       side: pendingAction.side,
       phase: 1, // Always use phase 1 (phases removed)
-      playerId: pendingAction.playerId,
+      playerId: effectivePlayerId,
       playerNo: player?.jersey_number || null,
-      code: pendingAction.code,
-      killType: pendingAction.killType,
+      code: effectiveCode,
+      killType: effectiveKillType,
       // Use overrides with priority to avoid race conditions
       setterId: overrides?.setterId ?? pendingAction.setterId,
       passDestination: overrides?.passDestination ?? pendingAction.passDestination,
       passCode: overrides?.passCode ?? pendingAction.passCode,
-      b1PlayerId: pendingAction.b1PlayerId,
+      b1PlayerId: effectiveBlocker1Id,
       b2PlayerId: pendingAction.b2PlayerId,
       b3PlayerId: pendingAction.b3PlayerId,
       attackPassQuality: pendingAction.attackPassQuality,
     };
     
     // Save last attacker for ultra-rapid mode
-    if (pendingAction.type === 'attack' && pendingAction.playerId && player) {
+    if (pendingAction.type === 'attack' && effectivePlayerId && player) {
       setLastAttacker({
-        playerId: pendingAction.playerId,
+        playerId: effectivePlayerId,
         playerNumber: player.jersey_number,
         playerName: player.name,
         side: pendingAction.side,
