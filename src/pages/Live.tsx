@@ -1228,8 +1228,22 @@ export default function Live() {
     setRegisteredActions(prev => prev.slice(0, -1));
   };
 
+  // Interface for attack overrides to bypass React state race conditions
+  interface AttackOverrides {
+    attackPlayerId?: string | null;
+    attackCode?: number | null;
+    killType?: KillType | null;
+    blockCode?: number | null;
+    blocker1Id?: string | null;
+  }
+
   // Finish point
-  const handleFinishPoint = async (winner: Side, reason: Reason, faultPlayerId?: string | null) => {
+  const handleFinishPoint = async (
+    winner: Side, 
+    reason: Reason, 
+    faultPlayerId?: string | null,
+    attackOverrides?: AttackOverrides
+  ) => {
     if (!gameState) return;
     
     const effectivePlayers = getEffectivePlayers();
@@ -1241,6 +1255,13 @@ export default function Live() {
     const attackAction = registeredActions.find(a => a.type === 'attack');
     const blockAction = registeredActions.find(a => a.type === 'block');
     const defenseAction = registeredActions.find(a => a.type === 'defense');
+    
+    // Prioritize overrides over registeredActions to avoid race conditions
+    const effectiveAttackPlayerId = attackOverrides?.attackPlayerId ?? attackAction?.playerId ?? null;
+    const effectiveAttackCode = attackOverrides?.attackCode ?? attackAction?.code ?? null;
+    const effectiveKillType = attackOverrides?.killType ?? attackAction?.killType ?? null;
+    const effectiveBlockCode = attackOverrides?.blockCode ?? blockAction?.code ?? null;
+    const effectiveBlocker1Id = attackOverrides?.blocker1Id ?? blockAction?.b1PlayerId ?? blockAction?.playerId ?? null;
     
     // Warning if setter exists but destination is missing (incomplete distribution data)
     if (setterAction?.setterId && !setterAction?.passDestination) {
@@ -1281,20 +1302,20 @@ export default function Live() {
       setter_player_id: setterAction?.setterId || setterAction?.playerId || null,
       pass_destination: setterAction?.passDestination || attackAction?.passDestination || null,
       pass_code: setterAction?.passCode ?? attackAction?.passCode ?? null,
-      // Attack
-      a_player_id: attackAction?.playerId || null,
-      a_no: getPlayerNo(attackAction?.playerId),
-      a_code: attackAction?.code ?? null,
+      // Attack - use effective values from overrides or registeredActions
+      a_player_id: effectiveAttackPlayerId,
+      a_no: getPlayerNo(effectiveAttackPlayerId),
+      a_code: effectiveAttackCode,
       a_pass_quality: attackAction?.attackPassQuality ?? null,
-      kill_type: attackAction?.code === 3 ? attackAction?.killType : null,
-      // Block
-      b1_player_id: blockAction?.b1PlayerId || blockAction?.playerId || null,
-      b1_no: getPlayerNo(blockAction?.b1PlayerId || blockAction?.playerId),
+      kill_type: effectiveAttackCode === 3 ? effectiveKillType : null,
+      // Block - use effective values from overrides or registeredActions
+      b1_player_id: effectiveBlocker1Id,
+      b1_no: getPlayerNo(effectiveBlocker1Id),
       b2_player_id: blockAction?.b2PlayerId || null,
       b2_no: getPlayerNo(blockAction?.b2PlayerId),
       b3_player_id: blockAction?.b3PlayerId || null,
       b3_no: getPlayerNo(blockAction?.b3PlayerId),
-      b_code: blockAction?.code ?? null,
+      b_code: effectiveBlockCode,
       // Defense
       d_player_id: defenseAction?.playerId || null,
       d_no: getPlayerNo(defenseAction?.playerId),
@@ -1306,6 +1327,7 @@ export default function Live() {
     
     // Debug log to diagnose missing destination issues
     console.log('[Rally Save Debug]', {
+      attackOverrides,
       setterAction: setterAction ? {
         setterId: setterAction.setterId,
         passDestination: setterAction.passDestination,
@@ -1316,8 +1338,26 @@ export default function Live() {
         passDestination: attackAction.passDestination,
         attackPassQuality: attackAction.attackPassQuality,
       } : null,
+      effectiveAttack: {
+        playerId: effectiveAttackPlayerId,
+        code: effectiveAttackCode,
+        killType: effectiveKillType,
+      },
       finalDestination: rallyData.pass_destination,
     });
+    
+    // Update lastAttacker if we have valid attack data
+    if (effectiveAttackPlayerId && effectiveAttackCode !== null) {
+      const attackerPlayer = effectivePlayers.find(p => p.id === effectiveAttackPlayerId);
+      if (attackerPlayer) {
+        setLastAttacker({
+          playerId: effectiveAttackPlayerId,
+          playerNumber: attackerPlayer.jersey_number,
+          playerName: attackerPlayer.name || '',
+          side: attackAction?.side || gameState.recvSide,
+        });
+      }
+    }
     
     const faultPlayer = faultPlayerId ? effectivePlayers.find(p => p.id === faultPlayerId) : null;
     const success = await saveRally(rallyData);
@@ -1498,9 +1538,19 @@ export default function Live() {
     });
   }, [toast]);
 
-  // Auto-finish point handler (reuses handleFinishPoint)
-  const handleAutoFinishPoint = useCallback((winner: Side, reason: Reason) => {
-    handleFinishPoint(winner, reason);
+  // Auto-finish point handler (reuses handleFinishPoint with attack overrides)
+  const handleAutoFinishPoint = useCallback((
+    winner: Side, 
+    reason: Reason,
+    attackOverrides?: {
+      attackPlayerId?: string | null;
+      attackCode?: number | null;
+      killType?: KillType | null;
+      blockCode?: number | null;
+      blocker1Id?: string | null;
+    }
+  ) => {
+    handleFinishPoint(winner, reason, undefined, attackOverrides);
   }, [handleFinishPoint]);
 
   // Chain action handler - auto-opens next logical action
