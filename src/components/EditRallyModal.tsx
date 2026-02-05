@@ -106,18 +106,32 @@ export function EditRallyModal({
                          (editData.a_code !== null && editData.a_code !== undefined && !editData.a_player_id);
   const hasSetterIssue = editData.pass_destination && !editData.setter_player_id;
   const hasReceptionIssue = editData.r_code !== null && editData.r_code !== undefined && !editData.r_player_id;
+  
+  // NEW: Partial data detection
+  const hasDefenseIssue = editData.d_player_id && 
+    (editData.d_code === null || editData.d_code === undefined);
+  const hasBlockIssue = editData.b_code !== null && editData.b_code !== undefined && 
+    !editData.b1_player_id;
+  
   const hasIssues = hasAttackIssue || hasSetterIssue || hasReceptionIssue;
+  const hasPartialData = hasDefenseIssue || hasBlockIssue;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             Editar Rally #{rally.rally_no}
             {hasIssues && (
               <Badge variant="destructive" className="gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Dados em falta
+              </Badge>
+            )}
+            {hasPartialData && !hasIssues && (
+              <Badge variant="outline" className="gap-1 border-warning text-warning">
+                <AlertTriangle className="h-3 w-3" />
+                Dados parciais
               </Badge>
             )}
           </DialogTitle>
@@ -321,7 +335,14 @@ export function EditRallyModal({
 
           {/* Block */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Bloco ({defSide === 'CASA' ? homeName : awayName})</Label>
+            <Label className="text-sm font-medium flex items-center gap-2">
+              Bloco ({defSide === 'CASA' ? homeName : awayName})
+              {hasBlockIssue && (
+                <Badge variant="outline" className="border-warning text-warning text-[10px]">
+                  Jogador em falta
+                </Badge>
+              )}
+            </Label>
             <div className="flex gap-2">
               <Select
                 value={editData.b1_player_id || 'none'}
@@ -356,7 +377,14 @@ export function EditRallyModal({
 
           {/* Defense */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Defesa ({defSide === 'CASA' ? homeName : awayName})</Label>
+            <Label className="text-sm font-medium flex items-center gap-2">
+              Defesa ({defSide === 'CASA' ? homeName : awayName})
+              {hasDefenseIssue && (
+                <Badge variant="outline" className="border-warning text-warning text-[10px]">
+                  Código em falta
+                </Badge>
+              )}
+            </Label>
             <div className="flex gap-2">
               <Select
                 value={editData.d_player_id || 'none'}

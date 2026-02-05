@@ -82,6 +82,14 @@ function RallyGroup({
     p.a_code === 1 && p.b_code === null
   );
   
+  // Partial data detection (player without code or code without player)
+  const hasPartialData = phases.some(p =>
+    // Defesa com jogador mas sem código
+    (p.d_player_id && p.d_code === null) ||
+    // Bloco com código mas sem jogadores
+    (p.b_code !== null && !p.b1_player_id)
+  );
+  
   const getPlayer = (id: string | null) => players.find(p => p.id === id);
   
   const renderTimelinePhase = (rally: Rally, isLastPhase: boolean) => {
@@ -170,7 +178,7 @@ function RallyGroup({
     if (rally.b1_player_id || rally.b_code !== null) {
       const b1Player = getPlayer(rally.b1_player_id);
       const b2Player = getPlayer(rally.b2_player_id);
-      const blockNumbers = [b1Player, b2Player].filter(Boolean).map(p => p?.jersey_number).join(',');
+      const isBlockPartial = rally.b_code !== null && !rally.b1_player_id;
       items.push(
         <TimelineItem
           key={`${rally.id}-block`}
@@ -181,6 +189,8 @@ function RallyGroup({
           playerNumber={b1Player?.jersey_number}
           playerName={b2Player ? `+#${b2Player.jersey_number}` : undefined}
           code={rally.b_code}
+          isPartial={isBlockPartial}
+          partialMessage="Jogador(es) em falta"
         />
       );
     }
@@ -188,6 +198,7 @@ function RallyGroup({
     // Defense
     if (rally.d_player_id || rally.d_code !== null) {
       const dPlayer = getPlayer(rally.d_player_id);
+      const isDefensePartial = rally.d_player_id && rally.d_code === null;
       items.push(
         <TimelineItem
           key={`${rally.id}-def`}
@@ -199,6 +210,8 @@ function RallyGroup({
           playerName={dPlayer?.name}
           code={rally.d_code}
           isLast={isLastPhase && !rally.point_won_by}
+          isPartial={isDefensePartial}
+          partialMessage="Código em falta"
         />
       );
     }
@@ -233,6 +246,7 @@ function RallyGroup({
                 scoreAfter={scoreAfter}
                 hasIssue={hasIssue}
                 hasBlockInconsistency={hasBlockInconsistency}
+                hasPartialData={hasPartialData}
                 isExpanded={isOpen}
               />
             </div>
