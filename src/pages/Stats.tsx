@@ -366,14 +366,28 @@ export default function Stats() {
                         </CollapsibleContent>
                       </Collapsible>
 
-                      {ralliesWithIssues.length > 0 && (
-                        <div className="p-3 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-destructive" />
-                          <span className="text-sm text-destructive">
-                            {ralliesWithIssues.length} rally(s) com dados em falta (KILL sem atacante)
-                          </span>
-                        </div>
-                      )}
+                      {(() => {
+                        const killsWithoutAttacker = filteredRallies.filter(r => r.reason === 'KILL' && !r.a_player_id).length;
+                        const setterWithoutDest = filteredRallies.filter(r => r.setter_player_id && !r.pass_destination).length;
+                        const blockWithoutResult = filteredRallies.filter(r => r.a_code === 1 && r.b_code === null).length;
+                        const totalIssues = killsWithoutAttacker + setterWithoutDest + blockWithoutResult;
+                        
+                        if (totalIssues === 0) return null;
+                        
+                        const messages: string[] = [];
+                        if (killsWithoutAttacker > 0) messages.push(`${killsWithoutAttacker} kill(s) sem atacante`);
+                        if (setterWithoutDest > 0) messages.push(`${setterWithoutDest} passe(s) sem destino`);
+                        if (blockWithoutResult > 0) messages.push(`${blockWithoutResult} bloco(s) sem resultado (b_code)`);
+                        
+                        return (
+                          <div className="p-3 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                            <span className="text-sm text-destructive">
+                              {messages.join(' • ')}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       <Table>
                         <TableHeader>
                           <TableRow>
