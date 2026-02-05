@@ -6,9 +6,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAttackStats, AttackerStats, DistributionBreakdown } from '@/hooks/useAttackStats';
 import { Rally, Player, MatchPlayer, Side, Match, DISTRIBUTION_LABELS } from '@/types/volleyball';
 import { Progress } from '@/components/ui/progress';
-import { Zap, TrendingUp, TrendingDown } from 'lucide-react';
+import { Zap, TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StatCell, STAT_THRESHOLDS } from '@/components/ui/StatCell';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+// Detailed descriptions for each distribution quality
+const DISTRIBUTION_DESCRIPTIONS: Record<number, { title: string; description: string; attackOptions: string }> = {
+  3: {
+    title: 'Distribuição Excelente (Q3)',
+    description: 'Passe perfeito que permite todas as combinações de ataque.',
+    attackOptions: 'Primeiros tempos, bolas rápidas, combinações'
+  },
+  2: {
+    title: 'Distribuição Boa (Q2)',
+    description: 'Passe com boas condições para ataque organizado.',
+    attackOptions: 'Bolas altas, alguns primeiros tempos'
+  },
+  1: {
+    title: 'Distribuição Fraca (Q1)',
+    description: 'Passe que limita as opções de ataque.',
+    attackOptions: 'Bola alta forçada, poucos recursos'
+  },
+  0: {
+    title: 'Distribuição Má (Q0)',
+    description: 'Passe muito fraco, ataque em condições difíceis.',
+    attackOptions: 'Bola de segurança, freeball'
+  }
+};
 
 interface AttackTabProps {
   rallies: Rally[];
@@ -50,39 +75,118 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[100px]">Dist.</TableHead>
-            <TableHead className="text-center">Dific.</TableHead>
+            <TableHead className="w-[140px]">
+              <div className="flex items-center gap-1">
+                Distribuição
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[250px]">
+                      <div className="space-y-1 text-xs">
+                        <div className="font-medium">Qualidade da Distribuição</div>
+                        <div>Q3: Todas as opções disponíveis</div>
+                        <div>Q2: Várias opções de ataque</div>
+                        <div>Q1: Opções limitadas</div>
+                        <div>Q0: Ataque muito difícil</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </TableHead>
             <TableHead className="text-center">K/Att (Efic.)</TableHead>
             <TableHead>Top Atacantes</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {breakdown.map(row => (
-            <TableRow key={row.distributionCode} className={row.totalAttempts === 0 ? 'opacity-50' : ''}>
-              <TableCell className="font-medium">
-                <span className="mr-1">{row.emoji}</span>
-                {row.distributionCode} - {row.qualityLabel}
-              </TableCell>
-              <TableCell className="text-center text-xs text-muted-foreground">{row.difficulty}</TableCell>
-              <TableCell className="text-center">
-                <StatCell
-                  success={row.totalKills}
-                  total={row.totalAttempts}
-                  errors={row.totalErrors}
-                  efficiency={row.killRate * 100}
-                  thresholds={STAT_THRESHOLDS.attack}
-                  tooltipContent={
-                    <div className="space-y-1">
-                      <div>Kills: {row.totalKills}</div>
-                      <div>Erros: {row.totalErrors}</div>
-                      <div>Neutros: {row.totalAttempts - row.totalKills - row.totalErrors}</div>
-                    </div>
-                  }
-                />
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">{row.topAttackers}</TableCell>
-            </TableRow>
-          ))}
+          {breakdown.map(row => {
+            const distInfo = DISTRIBUTION_DESCRIPTIONS[row.distributionCode];
+            const neutrals = row.totalAttempts - row.totalKills - row.totalErrors;
+            const expectedDiff = row.totalAttempts > 0 
+              ? (row.killRate * 100) - (row.expectedKillRate * 100)
+              : 0;
+            
+            return (
+              <TableRow key={row.distributionCode} className={row.totalAttempts === 0 ? 'opacity-50' : ''}>
+                <TableCell className="font-medium">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1 cursor-help">
+                          <span className="mr-1">{row.emoji}</span>
+                          <span>Q{row.distributionCode}</span>
+                          <span className="text-muted-foreground text-xs">- {row.qualityLabel}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-[280px]">
+                        <div className="space-y-2 text-xs">
+                          <div className="font-medium">{distInfo?.title}</div>
+                          <div className="text-muted-foreground">{distInfo?.description}</div>
+                          <div className="pt-1 border-t border-border">
+                            <span className="text-muted-foreground">Opções: </span>
+                            {distInfo?.attackOptions}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Dificuldade: </span>
+                            <span className="font-medium">{row.difficulty}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Kill% esperada: </span>
+                            <span className="font-medium">{Math.round(row.expectedKillRate * 100)}%</span>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
+                <TableCell className="text-center">
+                  <StatCell
+                    success={row.totalKills}
+                    total={row.totalAttempts}
+                    errors={row.totalErrors}
+                    efficiency={row.killRate * 100}
+                    thresholds={STAT_THRESHOLDS.attack}
+                    tooltipContent={
+                      <div className="space-y-1.5">
+                        <div className="font-medium border-b border-border pb-1">
+                          {row.emoji} Q{row.distributionCode} - {row.qualityLabel}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3">
+                          <span className="text-muted-foreground">Kills:</span>
+                          <span className="text-primary font-medium">{row.totalKills}</span>
+                          <span className="text-muted-foreground">Erros:</span>
+                          <span className="text-destructive">{row.totalErrors}</span>
+                          <span className="text-muted-foreground">Neutros:</span>
+                          <span>{neutrals}</span>
+                        </div>
+                        <div className="pt-1 border-t border-border">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Kill% atual:</span>
+                            <span className="font-medium">{Math.round(row.killRate * 100)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Kill% esperada:</span>
+                            <span>{Math.round(row.expectedKillRate * 100)}%</span>
+                          </div>
+                          {row.totalAttempts > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Diferença:</span>
+                              <span className={expectedDiff >= 0 ? 'text-primary' : 'text-destructive'}>
+                                {expectedDiff >= 0 ? '+' : ''}{expectedDiff.toFixed(0)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    }
+                  />
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{row.topAttackers}</TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     );
