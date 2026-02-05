@@ -1,85 +1,119 @@
 
-# Plano: Permitir Seleção de Bloqueador em "Bloco Ponto"
+
+# Plano: Corrigir Atacante Não Gravado no Fluxo Distribuição→Ataque
 
 ## Problema Identificado
 
-Quando o utilizador seleciona **"Bloco Ponto"** (Stuff Block, b_code=3) no Step 3 da ação de Ataque, a ação fecha imediatamente sem permitir selecionar qual jogador (ou jogadores) fez o ponto de bloco.
+No fluxo **Distribuição → Ataque** encadeado:
+1. Utilizador seleciona destino (ex: P4)
+2. Sistema confirma setter e abre automaticamente o editor de Ataque
+3. Utilizador seleciona jogador atacante e código de ataque
+4. **BUG:** O `a_player_id` não é gravado na base de dados
+
+### Causa Raiz
+
+Quando o ataque é encadeado automaticamente, existem dois problemas:
+
+1. **O `pendingAction` para o ataque não está a herdar o `playerId`** quando é criado pelo `handleSelectAction`
+2. **O atacante selecionado no Step 1 pode não estar a ser propagado** para o `registeredActions` antes do ponto ser fechado
+
+Analisando o código em `Live.tsx`:
+- `handleConfirmAction` recebe o `pendingAction.playerId` e cria o `RallyAction`
+- O problema pode estar em **timing** - o ataque pode estar a ser confirmado com `playerId: null`
+
+---
+
+## Diagnóstico Técnico
 
 ### Fluxo Atual
-1. Ataque → Step 1: Seleciona atacante
-2. Ataque → Step 2: Avaliação → "Bloco" (a_code=1)
-3. Ataque → Step 3: Resultado do Bloco → "Bloco Ponto"
-4. ❌ **Auto-confirma e fecha sem pedir bloqueador**
 
-### Fluxo Desejado
-1. Ataque → Step 1: Seleciona atacante
-2. Ataque → Step 2: Avaliação → "Bloco" (a_code=1)
-3. Ataque → Step 3: Resultado do Bloco → "Bloco Ponto"
-4. ✅ **Step 4: Seleciona bloqueador(es) que fez(fizeram) ponto**
-5. Confirma e fecha
+```text
+[ActionEditor: Setter]
+   ↓ handleDestinationWithAutoConfirm()
+   ↓ onConfirm({ passDestination, passCode, setterId })
+   ↓ onChainAction('attack', side, { passDestination })
+      ↓ handleChainAction()
+         ↓ handleSelectAction('attack', side)
+            ↓ setPendingAction({ playerId: null, ... })
+
+[ActionEditor: Attack]
+   ↓ Utilizador seleciona jogador → onPlayerChange(id)
+   ↓ Utilizador seleciona código → handleCodeWithAutoConfirm()
+      ↓ onConfirm() ← pendingAction.playerId pode ainda não estar atualizado!
+```
+
+### O Bug
+
+O `handleCodeWithAutoConfirm` no `ActionEditor` usa `setTimeout(..., 0)` dentro de `requestAnimationFrame`, mas:
+- Para **kills** (código 3), o fluxo vai para Step 3 → kill type → outro timeout
+- A confirmação pode acontecer **antes** do React atualizar `pendingAction.playerId` no componente pai
 
 ---
 
 ## Solução Proposta
 
-### Adicionar Step 4 para Seleção de Bloqueadores
+### Abordagem: Passar `playerId` Diretamente no `onConfirm()`
+
+Similar ao que já fazemos com `passDestination`, devemos passar o `playerId` diretamente como override para evitar race conditions.
+
+### Alterações
+
+#### 1. Atualizar interface `onConfirm` no ActionEditor
 
 **Ficheiro:** `src/components/live/ActionEditor.tsx`
 
-#### 1. Atualizar Cálculo de `totalSteps`
+Expandir os overrides suportados:
+
 ```typescript
-case 'attack': 
-  // Step 4 for blocker selection when b_code=3 (stuff block)
-  if (selectedCode === 1 && selectedBlockCode === 3) return 4;
-  return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
+onConfirm: (overrides?: {
+  passDestination?: PassDestination | null;
+  passCode?: number | null;
+  setterId?: string | null;
+  playerId?: string | null;  // NOVO
+  code?: number | null;      // NOVO
+  killType?: KillType | null; // NOVO
+}) => void;
 ```
 
-#### 2. Modificar `handleBlockCodeWithAutoConfirm`
-Quando `bCode === 3`, avançar para Step 4 em vez de auto-confirmar:
+#### 2. Passar `playerId` em todas as confirmações de Ataque
+
+No `handleCodeWithAutoConfirm` e `handleKillTypeWithAutoConfirm`:
+
 ```typescript
-if (bCode === 3) {
-  // Stuff block: go to Step 4 to select blocker(s)
-  setCurrentStep(4);
-  return;
-}
+// Para código 0 (erro) e código 2 (defendido):
+onConfirm({ playerId: selectedPlayer, code: code });
+
+// Para kill type:
+onConfirm({ playerId: selectedPlayer, code: 3, killType: type });
+
+// Para Block result:
+onConfirm({ playerId: selectedPlayer, code: 1, blockCode: bCode });
 ```
 
-#### 3. Adicionar UI de Step 4 no caso `attack`
-Renderizar PlayerStrip para seleção de bloqueador(es) da equipa adversária (equipa que bloqueou):
-```typescript
-{currentStep === 4 && selectedBlockCode === 3 && (
-  <div className="space-y-3">
-    <div className="text-xs font-medium text-muted-foreground text-center">
-      Bloqueador(es) do Ponto
-    </div>
-    <PlayerStrip
-      players={opponentPlayers} // Jogadores da equipa que bloqueou
-      selectedPlayerId={selectedBlocker1}
-      onSelect={(id) => {
-        onBlocker1Change?.(id);
-        // Auto-confirma após selecionar bloqueador
-        handleStuffBlockConfirm(id);
-      }}
-      teamSide={opponentTeamSide}
-    />
-  </div>
-)}
-```
+#### 3. Atualizar `handleConfirmAction` no Live.tsx
 
-#### 4. Criar Handler de Confirmação para Stuff Block
+Usar os overrides para `playerId`:
+
 ```typescript
-const handleStuffBlockConfirm = useCallback((blockerId: string) => {
-  const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
-  const blocker = opponentPlayers.find(p => p.id === blockerId);
+const handleConfirmAction = (overrides?: {
+  // ... existentes
+  playerId?: string | null;
+  code?: number | null;
+  killType?: KillType | null;
+}) => {
+  // ...
+  const effectivePlayerId = overrides?.playerId ?? pendingAction.playerId;
+  const effectiveCode = overrides?.code ?? pendingAction.code;
+  const effectiveKillType = overrides?.killType ?? pendingAction.killType;
   
-  toast.success(
-    `#${blocker?.jersey_number || '?'} · Ponto de Bloco`,
-    { duration: 2500 }
-  );
-  
-  onConfirm();
-  onAutoFinishPoint?.(blockerSide, 'BLK');
-}, [side, opponentPlayers, onConfirm, onAutoFinishPoint]);
+  const newAction: RallyAction = {
+    // ...
+    playerId: effectivePlayerId,
+    code: effectiveCode,
+    killType: effectiveKillType,
+    // ...
+  };
+};
 ```
 
 ---
@@ -88,29 +122,26 @@ const handleStuffBlockConfirm = useCallback((blockerId: string) => {
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/components/live/ActionEditor.tsx` | Adicionar Step 4 para seleção de bloqueador em stuff block |
+| `src/components/live/ActionEditor.tsx` | Expandir overrides e passar `playerId`/`code`/`killType` em confirmações |
+| `src/pages/Live.tsx` | Processar novos overrides em `handleConfirmAction` |
 
 ---
 
-## Considerações
+## Validação
 
-### Jogadores Disponíveis
-O Step 4 deve mostrar os jogadores da **equipa adversária** (a equipa que bloqueou), não da equipa que atacou.
-
-### Props Necessárias
-O `ActionEditor` pode precisar de receber os jogadores da equipa adversária como prop adicional, ou o componente pai (`Live.tsx`) pode passar essa informação.
-
-### Alternativa Simplificada
-Se adicionar props for complexo, podemos:
-1. Usar os mesmos slots de bloqueador (blocker1, blocker2, blocker3) que já existem
-2. Mostrar apenas um botão "Confirmar Bloco" após selecionar b_code=3
-3. Permitir skip com "Sem identificar bloqueador"
+Após implementação:
+1. Registar distribuição → destino P4
+2. No ataque encadeado, selecionar jogador #11
+3. Selecionar código 3 (Kill) → Chão
+4. Verificar no RallyHistory se o atacante #11 aparece
+5. Verificar console logs para confirmar que `attackAction.playerId` está preenchido
 
 ---
 
 ## Critérios de Sucesso
 
-1. ✅ Ao selecionar "Bloco Ponto", aparece UI para selecionar bloqueador
-2. ✅ Bloqueador é registado antes de fechar a ação
-3. ✅ Ponto é atribuído à equipa correta (equipa que bloqueou)
-4. ✅ Se utilizador não quiser identificar, pode saltar com botão "Sem detalhar"
+- ✅ Atacante é corretamente gravado em ataques encadeados de Distribuição
+- ✅ Atacante é corretamente gravado em ataques com fecho automático (Kills)
+- ✅ Atacante é corretamente gravado em ataques com fecho manual
+- ✅ Dados existentes não são afetados (requer Auto-fix manual)
+
