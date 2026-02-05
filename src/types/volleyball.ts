@@ -213,29 +213,38 @@ export interface PlayerStats {
   playerName: string;
   jerseyNumber: number;
   side: Side;
+  // Serve
   serveAttempts: number;
-  servePoints: number;
-  serveErrors: number;
+  servePoints: number; // Aces (code 3)
+  serveErrors: number; // code 0
   serveAvg: number;
+  serveEfficiency: number; // (aces - errors) / total
+  // Reception
   recAttempts: number;
-  recPoints: number;
-  recErrors: number;
+  recPoints: number; // Positive (code 2+3)
+  recErrors: number; // code 0
   recAvg: number;
+  recEfficiency: number; // positives / total
+  // Attack
   attAttempts: number;
-  attPoints: number;
-  attErrors: number;
+  attPoints: number; // Kills (code 3)
+  attErrors: number; // code 0
   attFloorKills: number;
   attBlockoutKills: number;
   attBlocked?: number; // Attacks blocked for point (a_code=1 AND b_code=3)
   attAvg: number;
-  attEfficiency: number;
+  attEfficiency: number; // (kills - errors - blocked) / total
+  // Block
   blkAttempts: number;
-  blkPoints: number;
+  blkPoints: number; // code 3
   blkErrors: number;
+  blkEfficiency: number; // points / attempts
+  // Defense
   defAttempts: number;
-  defPoints: number;
+  defPoints: number; // Good (code 2+3)
   defErrors: number;
   defAvg: number;
+  defEfficiency: number; // good / total
 }
 
 export interface RotationStats {

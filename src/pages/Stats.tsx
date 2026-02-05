@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { Button } from '@/components/ui/button';
@@ -7,21 +8,29 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, AlertTriangle, Pencil, HelpCircle, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Download, AlertTriangle, Pencil, HelpCircle, ChevronDown, RefreshCw } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Side, Rally } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
 import { EditRallyModal } from '@/components/EditRallyModal';
+import { StatCell, STAT_THRESHOLDS } from '@/components/ui/StatCell';
+import { toast } from 'sonner';
 
 export default function Stats() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { match, rallies, loading, loadMatch, getRalliesForSet, getEffectivePlayers, updateRally } = useMatch(matchId || null);
   const effectivePlayers = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0); // 0 = all
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
+
+  const handleRecalculate = () => {
+    queryClient.invalidateQueries({ queryKey: ['rallies', matchId] });
+    toast.success('Estatísticas recalculadas');
+  };
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -61,6 +70,10 @@ export default function Stats() {
             <h1 className="font-semibold">Estatísticas</h1>
             <p className="text-xs text-muted-foreground">{match.title}</p>
           </div>
+          <Button variant="outline" size="sm" onClick={handleRecalculate} className="gap-1">
+            <RefreshCw className="h-4 w-4" />
+            Recalcular
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
             <Download className="h-4 w-4" />
             CSV
@@ -125,29 +138,96 @@ export default function Stats() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead className="text-center">Srv</TableHead>
-                      <TableHead className="text-center">Att</TableHead>
-                      <TableHead className="text-center">Eff%</TableHead>
-                      <TableHead className="text-center">Blk</TableHead>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead className="min-w-[80px]">Nome</TableHead>
+                      <TableHead className="text-center">Serviço</TableHead>
+                      <TableHead className="text-center">Receção</TableHead>
+                      <TableHead className="text-center">Ataque</TableHead>
+                      <TableHead className="text-center">Bloco</TableHead>
+                      <TableHead className="text-center">Defesa</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredPlayerStats.map((p) => (
                       <TableRow key={p.playerId}>
                         <TableCell className="font-medium">{p.jerseyNumber}</TableCell>
-                        <TableCell>{p.playerName}</TableCell>
+                        <TableCell className="text-sm truncate max-w-[100px]">{p.playerName}</TableCell>
                         <TableCell className="text-center">
-                          {p.servePoints}/{p.serveAttempts}
+                          <StatCell
+                            success={p.servePoints}
+                            total={p.serveAttempts}
+                            errors={p.serveErrors}
+                            efficiency={p.serveEfficiency * 100}
+                            thresholds={STAT_THRESHOLDS.serve}
+                            tooltipContent={
+                              <div>
+                                <div>Aces: {p.servePoints}</div>
+                                <div>Erros: {p.serveErrors}</div>
+                                <div>Neutros: {p.serveAttempts - p.servePoints - p.serveErrors}</div>
+                              </div>
+                            }
+                          />
                         </TableCell>
                         <TableCell className="text-center">
-                          {p.attPoints}/{p.attAttempts}
+                          <StatCell
+                            success={p.recAttempts - p.recErrors}
+                            total={p.recAttempts}
+                            errors={p.recErrors}
+                            efficiency={p.recEfficiency * 100}
+                            thresholds={STAT_THRESHOLDS.reception}
+                            tooltipContent={
+                              <div>
+                                <div>Positivas: {p.recAttempts - p.recErrors}</div>
+                                <div>Erros: {p.recErrors}</div>
+                              </div>
+                            }
+                          />
                         </TableCell>
                         <TableCell className="text-center">
-                          {p.attAttempts > 0 ? (p.attEfficiency * 100).toFixed(0) : '-'}%
+                          <StatCell
+                            success={p.attPoints}
+                            total={p.attAttempts}
+                            errors={p.attErrors}
+                            efficiency={p.attEfficiency * 100}
+                            thresholds={STAT_THRESHOLDS.attack}
+                            tooltipContent={
+                              <div>
+                                <div>Kills: {p.attPoints}</div>
+                                <div>Erros: {p.attErrors}</div>
+                                <div>Bloqueados: {p.attBlocked || 0}</div>
+                              </div>
+                            }
+                          />
                         </TableCell>
-                        <TableCell className="text-center">{p.blkPoints}</TableCell>
+                        <TableCell className="text-center">
+                          <StatCell
+                            success={p.blkPoints}
+                            total={p.blkAttempts}
+                            efficiency={p.blkEfficiency * 100}
+                            thresholds={STAT_THRESHOLDS.block}
+                            tooltipContent={
+                              <div>
+                                <div>Pontos: {p.blkPoints}</div>
+                                <div>Participações: {p.blkAttempts}</div>
+                              </div>
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <StatCell
+                            success={p.defAttempts - p.defErrors}
+                            total={p.defAttempts}
+                            errors={p.defErrors}
+                            efficiency={p.defEfficiency * 100}
+                            thresholds={STAT_THRESHOLDS.defense}
+                            tooltipContent={
+                              <div>
+                                <div>Boas: {p.defAttempts - p.defErrors}</div>
+                                <div>Erros: {p.defErrors}</div>
+                              </div>
+                            }
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
