@@ -209,7 +209,7 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
 
       if (!playerMap[key]) {
         playerMap[key] = {
-          stats: {
+        stats: {
             playerId: key,
             playerName: player.name,
             jerseyNumber: player.jersey_number,
@@ -220,10 +220,12 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
             servePoints: 0,
             serveErrors: 0,
             serveAvg: 0,
+            serveEfficiency: 0,
             recAttempts: 0,
             recPoints: 0,
             recErrors: 0,
             recAvg: 0,
+            recEfficiency: 0,
             attAttempts: 0,
             attPoints: 0,
             attErrors: 0,
@@ -234,10 +236,12 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
             blkAttempts: 0,
             blkPoints: 0,
             blkErrors: 0,
+            blkEfficiency: 0,
             defAttempts: 0,
             defPoints: 0,
             defErrors: 0,
             defAvg: 0,
+            defEfficiency: 0,
           },
           matchIds: new Set(),
         };
@@ -328,23 +332,35 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
       }
     });
 
-    // Calculate averages and match count
+    // Calculate averages, efficiencies and match count
     Object.values(playerMap).forEach(({ stats, matchIds }) => {
       stats.matchCount = matchIds.size;
       
+      // Serve efficiency: (aces - errors) / total
       if (stats.serveAttempts > 0) {
         stats.serveAvg = (stats.servePoints * 3 + (stats.serveAttempts - stats.servePoints - stats.serveErrors) * 1.5) / stats.serveAttempts;
+        stats.serveEfficiency = (stats.servePoints - stats.serveErrors) / stats.serveAttempts;
       }
+      // Reception efficiency: positives / total
       if (stats.recAttempts > 0) {
         stats.recAvg = (stats.recPoints * 3 + (stats.recAttempts - stats.recPoints - stats.recErrors) * 1.5) / stats.recAttempts;
+        const recPositive = stats.recAttempts - stats.recErrors;
+        stats.recEfficiency = recPositive / stats.recAttempts;
       }
+      // Attack efficiency: (kills - errors - blocked) / total
       if (stats.attAttempts > 0) {
         stats.attAvg = (stats.attPoints * 3 + (stats.attAttempts - stats.attPoints - stats.attErrors) * 1.5) / stats.attAttempts;
-        // Correct efficiency: (kills - errors - blocked_point) / total
         stats.attEfficiency = (stats.attPoints - stats.attErrors - (stats.attBlocked || 0)) / stats.attAttempts;
       }
+      // Block efficiency: points / attempts
+      if (stats.blkAttempts > 0) {
+        stats.blkEfficiency = stats.blkPoints / stats.blkAttempts;
+      }
+      // Defense efficiency: good / total
       if (stats.defAttempts > 0) {
         stats.defAvg = (stats.defPoints * 3 + (stats.defAttempts - stats.defPoints - stats.defErrors) * 1.5) / stats.defAttempts;
+        const defPositive = stats.defAttempts - stats.defErrors;
+        stats.defEfficiency = defPositive / stats.defAttempts;
       }
     });
 

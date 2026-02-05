@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Player, MatchPlayer, Rally } from '@/types/volleyball';
 import { cn } from '@/lib/utils';
+import { StatCell, STAT_THRESHOLDS } from '@/components/ui/StatCell';
 
 interface PlayerStatsPopoverProps {
   player: Player | MatchPlayer;
@@ -138,18 +139,13 @@ export function PlayerStatsPopover({ player, rallies, children, isLibero, curren
               {stats.attacks > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Ataque</span>
-                  <span className="font-medium">
-                    {stats.kills}/{stats.attacks}
-                    {efficiency && (
-                      <span className={cn(
-                        "ml-1.5 text-xs",
-                        Number(efficiency) >= 40 ? "text-primary" :
-                        Number(efficiency) >= 20 ? "text-warning" : "text-destructive"
-                      )}>
-                        ({efficiency}%)
-                      </span>
-                    )}
-                  </span>
+                  <StatCell
+                    success={stats.kills}
+                    total={stats.attacks}
+                    efficiency={stats.attacks > 0 ? ((stats.kills - stats.attErrors - stats.attBlocked) / stats.attacks) * 100 : 0}
+                    thresholds={STAT_THRESHOLDS.attack}
+                    compact
+                  />
                 </div>
               )}
               
@@ -157,12 +153,12 @@ export function PlayerStatsPopover({ player, rallies, children, isLibero, curren
               {stats.receptions > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Receção</span>
-                  <span className="font-medium">
-                    {stats.perfectRec}★/{stats.receptions}
-                    {stats.recErrors > 0 && (
-                      <span className="text-destructive ml-1.5 text-xs">({stats.recErrors}✗)</span>
-                    )}
-                  </span>
+                  <StatCell
+                    success={stats.receptions - stats.recErrors}
+                    total={stats.receptions}
+                    thresholds={STAT_THRESHOLDS.reception}
+                    compact
+                  />
                 </div>
               )}
               
@@ -170,12 +166,13 @@ export function PlayerStatsPopover({ player, rallies, children, isLibero, curren
               {stats.serves > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Serviço</span>
-                  <span className="font-medium">
-                    {stats.aces}★/{stats.serves}
-                    {stats.serveErrors > 0 && (
-                      <span className="text-destructive ml-1.5 text-xs">({stats.serveErrors}✗)</span>
-                    )}
-                  </span>
+                  <StatCell
+                    success={stats.aces}
+                    total={stats.serves}
+                    efficiency={stats.serves > 0 ? ((stats.aces - stats.serveErrors) / stats.serves) * 100 : 0}
+                    thresholds={STAT_THRESHOLDS.serve}
+                    compact
+                  />
                 </div>
               )}
               
@@ -183,10 +180,12 @@ export function PlayerStatsPopover({ player, rallies, children, isLibero, curren
               {stats.blocks > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Bloco</span>
-                  <span className="font-medium">
-                    {stats.blockPoints} pts
-                    <span className="text-muted-foreground ml-1.5 text-xs">/{stats.blocks}</span>
-                  </span>
+                  <StatCell
+                    success={stats.blockPoints}
+                    total={stats.blocks}
+                    thresholds={STAT_THRESHOLDS.block}
+                    compact
+                  />
                 </div>
               )}
               
@@ -194,12 +193,12 @@ export function PlayerStatsPopover({ player, rallies, children, isLibero, curren
               {stats.digs > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Defesa</span>
-                  <span className="font-medium">
-                    {stats.digs - stats.digErrors}/{stats.digs}
-                    {stats.digErrors > 0 && (
-                      <span className="text-destructive ml-1.5 text-xs">({stats.digErrors}✗)</span>
-                    )}
-                  </span>
+                  <StatCell
+                    success={stats.digs - stats.digErrors}
+                    total={stats.digs}
+                    thresholds={STAT_THRESHOLDS.defense}
+                    compact
+                  />
                 </div>
               )}
             </div>

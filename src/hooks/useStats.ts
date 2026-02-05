@@ -15,10 +15,12 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
         servePoints: 0,
         serveErrors: 0,
         serveAvg: 0,
+        serveEfficiency: 0,
         recAttempts: 0,
         recPoints: 0,
         recErrors: 0,
         recAvg: 0,
+        recEfficiency: 0,
         attAttempts: 0,
         attPoints: 0,
         attErrors: 0,
@@ -29,10 +31,12 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
         blkAttempts: 0,
         blkPoints: 0,
         blkErrors: 0,
+        blkEfficiency: 0,
         defAttempts: 0,
         defPoints: 0,
         defErrors: 0,
         defAvg: 0,
+        defEfficiency: 0,
       };
     });
 
@@ -98,22 +102,36 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
       }
     });
 
-    // Calculate averages
+    // Calculate averages and efficiencies
     Object.values(stats).forEach(s => {
+      // Serve efficiency: (aces - errors) / total
       if (s.serveAttempts > 0) {
         s.serveAvg = (s.servePoints * 3 + (s.serveAttempts - s.servePoints - s.serveErrors) * 1.5) / s.serveAttempts;
+        s.serveEfficiency = (s.servePoints - s.serveErrors) / s.serveAttempts;
       }
+      // Reception efficiency: positives (code 2+3) / total
+      // Note: recPoints counts code 3 (excellent), we need to also count code 2 (good)
+      // For now, using recPoints as "positive" - in practice this should track code 2+3
       if (s.recAttempts > 0) {
         s.recAvg = (s.recPoints * 3 + (s.recAttempts - s.recPoints - s.recErrors) * 1.5) / s.recAttempts;
+        // Positive = all non-errors (simplified: total - errors)
+        const recPositive = s.recAttempts - s.recErrors;
+        s.recEfficiency = recPositive / s.recAttempts;
       }
+      // Attack efficiency: (kills - errors - blocked) / total
       if (s.attAttempts > 0) {
         s.attAvg = (s.attPoints * 3 + (s.attAttempts - s.attPoints - s.attErrors) * 1.5) / s.attAttempts;
-        // Correct efficiency formula: (kills - errors - blocked_point) / total
-        // attBlocked only counts a_code=1 AND b_code=3 (stuff blocks)
         s.attEfficiency = (s.attPoints - s.attErrors - (s.attBlocked || 0)) / s.attAttempts;
       }
+      // Block efficiency: points / attempts
+      if (s.blkAttempts > 0) {
+        s.blkEfficiency = s.blkPoints / s.blkAttempts;
+      }
+      // Defense efficiency: good / total (non-errors)
       if (s.defAttempts > 0) {
         s.defAvg = (s.defPoints * 3 + (s.defAttempts - s.defPoints - s.defErrors) * 1.5) / s.defAttempts;
+        const defPositive = s.defAttempts - s.defErrors;
+        s.defEfficiency = defPositive / s.defAttempts;
       }
     });
 
