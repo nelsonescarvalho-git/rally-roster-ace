@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Match, Player, MatchPlayer, Lineup, Rally, Side, GameState, Substitution } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
 
 export function useMatch(matchId: string | null) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [match, setMatch] = useState<Match | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [matchPlayers, setMatchPlayers] = useState<MatchPlayer[]>([]);
@@ -300,13 +302,20 @@ export function useMatch(matchId: string | null) {
     try {
       const { error } = await supabase.from('rallies').update(updates).eq('id', rallyId);
       if (error) throw error;
+      
+      // Invalidate all related queries to ensure UI updates
+      await queryClient.invalidateQueries({ queryKey: ['rallies', matchId] });
+      await queryClient.invalidateQueries({ queryKey: ['match', matchId] });
+      await queryClient.invalidateQueries({ queryKey: ['attackStats', matchId] });
+      await queryClient.invalidateQueries({ queryKey: ['distributionStats', matchId] });
+      
       await loadMatch();
       return true;
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       return false;
     }
-  }, [loadMatch, toast]);
+  }, [loadMatch, toast, matchId, queryClient]);
 
   const deleteLastRally = useCallback(async (setNo: number) => {
     const setRallies = getRalliesForSet(setNo);
