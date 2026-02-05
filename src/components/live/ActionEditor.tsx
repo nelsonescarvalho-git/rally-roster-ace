@@ -83,7 +83,14 @@ interface ActionEditorProps {
   onCancel: () => void;
   onUndo?: () => void;
   // Auto-finish point for definitive actions (errors, kills, aces, etc.)
-  onAutoFinishPoint?: (winner: Side, reason: Reason) => void;
+  // Accepts optional attack overrides to bypass React state race conditions
+  onAutoFinishPoint?: (winner: Side, reason: Reason, attackOverrides?: {
+    attackPlayerId?: string | null;
+    attackCode?: number | null;
+    killType?: KillType | null;
+    blockCode?: number | null;
+    blocker1Id?: string | null;
+  }) => void;
   // Auto-chain to next logical action (e.g., attack defended → defense)
   // Accepts optional inherited data to propagate (e.g., pass_destination from setter to attack)
   onChainAction?: (type: RallyActionType, side: Side, inheritedData?: {
@@ -318,7 +325,11 @@ export function ActionEditor({
             showConfirmToast(player?.jersey_number, code);
             // Pass playerId and code directly to avoid race conditions
             onConfirm({ playerId: selectedPlayer, code: 0 });
-            onAutoFinishPoint?.(opponent, 'AE');
+            // Pass attack overrides to handleFinishPoint to avoid race condition
+            onAutoFinishPoint?.(opponent, 'AE', {
+              attackPlayerId: selectedPlayer,
+              attackCode: 0,
+            });
           }, 0);
         });
         return;
@@ -364,7 +375,11 @@ export function ActionEditor({
         // Auto-finish point based on block result
         if (bCode === 0) {
           // Block fault: attacker wins (side is the attacker)
-          onAutoFinishPoint?.(side, 'BLK');
+          onAutoFinishPoint?.(side, 'BLK', {
+            attackPlayerId: selectedPlayer,
+            attackCode: 1,
+            blockCode: 0,
+          });
         } else if (bCode === 1) {
           // Bloco Ofensivo: bola jogável no campo do bloqueador → defesa para bloqueador
           const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
@@ -392,7 +407,13 @@ export function ActionEditor({
         );
         // Pass all relevant data directly to avoid race conditions
         onConfirm({ playerId: selectedPlayer, code: 1, blockCode: 3, blocker1Id: blockerId });
-        onAutoFinishPoint?.(blockerSide, 'BLK');
+        // Pass attack overrides to handleFinishPoint to avoid race condition
+        onAutoFinishPoint?.(blockerSide, 'BLK', {
+          attackPlayerId: selectedPlayer,
+          attackCode: 1,
+          blockCode: 3,
+          blocker1Id: blockerId,
+        });
       }, 0);
     });
   }, [onBlocker1Change, players, selectedPlayer, side, onConfirm, onAutoFinishPoint]);
@@ -404,8 +425,12 @@ export function ActionEditor({
       showConfirmToast(player?.jersey_number, 3);
       // Pass playerId, code, and killType directly to avoid race conditions
       onConfirm({ playerId: selectedPlayer, code: 3, killType: type });
-      // Kill: attacking team wins
-      onAutoFinishPoint?.(side, 'KILL');
+      // Kill: attacking team wins - pass overrides to avoid race condition
+      onAutoFinishPoint?.(side, 'KILL', {
+        attackPlayerId: selectedPlayer,
+        attackCode: 3,
+        killType: type,
+      });
     }, 50);
   }, [onKillTypeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players, showConfirmToast]);
 
