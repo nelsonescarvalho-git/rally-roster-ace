@@ -1,63 +1,136 @@
 
-## Correção: Contagem de Sets Ganhos no Dashboard
+# Plano: Corrigir Perda de Dados de Destino do Ataque
 
-### Problema Identificado
-O cálculo atual em `useDashboardStats.ts` conta qualquer set onde uma equipa lidera como "ganho":
+## Diagnóstico
+
+### Estado Atual da Base de Dados
+
+| Rally | a_code | setter_player_id | pass_destination | Observação |
+|-------|--------|------------------|------------------|------------|
+| 1     | 3      | ✅               | ✅ P4            | OK |
+| 4     | 1      | ✅               | ❌ null          | Destino perdido |
+| 6     | 3      | ✅               | ❌ null          | Destino perdido |
+| 10    | 1      | ✅               | ✅ P4            | OK |
+| 12    | 3      | ✅               | ✅ P3            | OK (editado manualmente) |
+
+### Causas Identificadas
+
+1. **Fluxo Quick Attack** (`QuickAttackBar`)
+   - Permite registar ataque sem passar pelo fluxo de setter/distribuição
+   - Resultado: `pass_destination` fica sempre `null`
+
+2. **Ataque Direto sem Setter**
+   - Utilizador pode selecionar "Ataque" no `ActionSelector` sem antes registar "Setter"
+   - O fluxo de ataque não obriga a ter setter previamente
+
+3. **Condição de corrida no encadeamento**
+   - No `ActionEditor`, o `handleDestinationWithAutoConfirm` faz:
+     1. `onDestinationChange(dest)` - atualiza state assincronamente
+     2. `setTimeout(50ms)` → `onConfirm({passDestination: dest})` com override
+     3. `onChainAction('attack', side)` - abre ataque
+   - O override resolve a race condition, mas se o utilizador clicar noutra ação antes dos 50ms, os dados podem perder-se
+
+---
+
+## Soluções Propostas
+
+### Solução 1: Propagar Destino para Ação de Ataque (Recomendado)
+
+Quando o ataque é encadeado após o setter, copiar o `pass_destination` do setter para o ataque, garantindo redundância.
+
+### Solução 2: Validação Obrigatória no Setter
+
+Bloquear a confirmação do setter até que um destino seja selecionado (já implementado parcialmente mas pode ser reforçado).
+
+### Solução 3: Fallback no `handleFinishPoint`
+
+Se existe ação de ataque mas não existe setter, verificar se o ataque tem dados de destino no próprio objeto.
+
+---
+
+## Plano de Implementação
+
+### Fase 1: Garantir Propagação de Destino
+
+**Ficheiro:** `src/pages/Live.tsx`
+
+Modificar `handleChainAction` para copiar dados do setter para a nova ação:
+
 ```typescript
-const homeSetsWon = lastMatchScores.filter(s => s.home_score > s.away_score).length;
-```
-
-Isto resulta em mostrar 0-1 quando o set ainda está 5-7 (em curso).
-
-### Regras do Voleibol para Set Ganho
-| Set | Pontos Mínimos | Diferença Mínima |
-|-----|----------------|------------------|
-| 1-4 | 25 | 2 |
-| 5 | 15 | 2 |
-
-### Solução
-
-**Ficheiro:** `src/hooks/useDashboardStats.ts`
-
-Adicionar função para verificar se um set está terminado:
-
-```typescript
-const isSetWon = (setNo: number, homeScore: number, awayScore: number): 'home' | 'away' | null => {
-  const minPoints = setNo === 5 ? 15 : 25;
-  const maxScore = Math.max(homeScore, awayScore);
-  const diff = Math.abs(homeScore - awayScore);
-  
-  // Set terminado: atingiu pontos mínimos E tem 2+ de diferença
-  if (maxScore >= minPoints && diff >= 2) {
-    return homeScore > awayScore ? 'home' : 'away';
+const handleChainAction = useCallback((type: RallyActionType, side: Side) => {
+  // Se estamos a abrir um ataque, verificar se existe setter com destino
+  let inheritedDestination: PassDestination | null = null;
+  if (type === 'attack') {
+    const setterAction = registeredActions.find(a => a.type === 'setter' && a.side === side);
+    if (setterAction?.passDestination) {
+      inheritedDestination = setterAction.passDestination;
+    }
   }
   
-  return null; // Set ainda em curso
+  handleSelectAction(type, side);
+  // Armazenar destino herdado para usar no attackAction
+}, [handleSelectAction, registeredActions]);
+```
+
+### Fase 2: Adicionar `inheritedDestination` ao Ataque
+
+**Ficheiro:** `src/types/volleyball.ts`
+
+Adicionar campo opcional ao `RallyAction`:
+```typescript
+interface RallyAction {
+  // ... campos existentes
+  inheritedDestination?: PassDestination | null; // Destino copiado do setter
+}
+```
+
+### Fase 3: Usar Destino Herdado no `handleFinishPoint`
+
+**Ficheiro:** `src/pages/Live.tsx`
+
+Modificar a construção do `rallyData`:
+```typescript
+const rallyData: Partial<Rally> = {
+  // ...
+  pass_destination: setterAction?.passDestination 
+    || attackAction?.inheritedDestination 
+    || null,
 };
 ```
 
-Alterar cálculo de sets ganhos:
+### Fase 4: Validação Visual no Timeline
 
+**Ficheiro:** `src/components/live/RallyTimeline.tsx`
+
+Mostrar badge de aviso quando ataque existe sem destino no setter:
+- Badge amarelo: "Destino em falta"
+
+### Fase 5: Log de Debug Temporário
+
+Adicionar `console.log` antes do `saveRally` para diagnosticar:
 ```typescript
-// ANTES (incorreto)
-const homeSetsWon = lastMatchScores.filter(s => s.home_score > s.away_score).length;
-const awaySetsWon = lastMatchScores.filter(s => s.away_score > s.home_score).length;
-
-// DEPOIS (correto)
-const homeSetsWon = lastMatchScores.filter(s => 
-  isSetWon(s.set_no, s.home_score, s.away_score) === 'home'
-).length;
-const awaySetsWon = lastMatchScores.filter(s => 
-  isSetWon(s.set_no, s.home_score, s.away_score) === 'away'
-).length;
+console.log('Rally data:', {
+  setterAction,
+  attackAction,
+  pass_destination: rallyData.pass_destination,
+});
 ```
 
-### Resultado Esperado
-Com Set 1 a 5-7:
-- **Antes:** 0-1 (incorreto)
-- **Depois:** 0-0 (correto - set em curso)
+---
 
-### Ficheiros a Alterar
+## Ficheiros a Alterar
+
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/hooks/useDashboardStats.ts` | Adicionar função `isSetWon` e corrigir cálculos |
+| `src/pages/Live.tsx` | Propagar destino no encadeamento, fallback no finish |
+| `src/types/volleyball.ts` | Adicionar `inheritedDestination` a RallyAction |
+| `src/components/live/RallyTimeline.tsx` | Badge de aviso para destino em falta |
+
+---
+
+## Critérios de Sucesso
+
+1. ✅ Novos ataques após setter sempre têm `pass_destination` salvo
+2. ✅ Ataques rápidos mostram aviso de destino em falta
+3. ✅ Histórico de rallies permite identificar e corrigir destinos em falta
+4. ✅ Console logs ajudam a diagnosticar falhas durante testes
