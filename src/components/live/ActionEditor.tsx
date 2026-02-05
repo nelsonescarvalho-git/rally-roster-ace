@@ -79,7 +79,11 @@ interface ActionEditorProps {
   // Auto-finish point for definitive actions (errors, kills, aces, etc.)
   onAutoFinishPoint?: (winner: Side, reason: Reason) => void;
   // Auto-chain to next logical action (e.g., attack defended → defense)
-  onChainAction?: (type: RallyActionType, side: Side) => void;
+  // Accepts optional inherited data to propagate (e.g., pass_destination from setter to attack)
+  onChainAction?: (type: RallyActionType, side: Side, inheritedData?: {
+    passDestination?: PassDestination | null;
+    passCode?: number | null;
+  }) => void;
   // Navigation between actions
   currentActionIndex?: number;
   totalActions?: number;
@@ -420,8 +424,11 @@ export function ActionEditor({
         passCode: selectedPassCode,
         setterId: selectedSetter,
       });
-      // Chain to Attack action for the same team
-      onChainAction?.('attack', side);
+      // Chain to Attack action for the same team - pass inherited data
+      onChainAction?.('attack', side, {
+        passDestination: dest,
+        passCode: selectedPassCode,
+      });
     }, 50);
   }, [selectedDestination, selectedSetter, selectedPassCode, players, onDestinationChange, onConfirm, showConfirmToast, onChainAction, side]);
 
