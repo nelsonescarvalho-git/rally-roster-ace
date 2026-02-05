@@ -585,6 +585,31 @@ export function ActionEditor({
                   selectedCode={selectedPassCode ?? null}
                   onSelect={(code) => {
                     onPassCodeChange?.(code);
+                    
+                    if (code === 0) {
+                      // Erro de distribuição: auto-confirmar e dar ponto ao adversário
+                      const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                      const player = players.find(p => p.id === selectedSetter);
+                      
+                      requestAnimationFrame(() => {
+                        setTimeout(() => {
+                          toast.success(
+                            `#${player?.jersey_number || '?'} · Distribuição · Erro`,
+                            { duration: 2500 }
+                          );
+                          onConfirm({
+                            passCode: 0,
+                            setterId: selectedSetter,
+                            passDestination: null,
+                          });
+                          // Auto-finish: ponto para adversário com razão 'OP' (out/falta)
+                          onAutoFinishPoint?.(opponent, 'OP');
+                        }, 0);
+                      });
+                      return;
+                    }
+                    
+                    // Código 1, 2 ou 3: avançar para destino
                     setCurrentStep(3);
                   }}
                 />
