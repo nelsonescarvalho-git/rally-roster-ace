@@ -390,6 +390,73 @@ export default function Live() {
     return combined;
   }, [gameState, currentSet, getPlayersOnCourt, getPlayersForSide]);
 
+  // ============ COURT SNAPSHOT - Single source of truth for libero prompts ============
+  // This ensures LiberoPrompt shows exactly the same players as CourtView
+  const courtSnapshot = useMemo(() => {
+    if (!gameState) return { home: null, away: null };
+    
+    const createSideSnapshot = (side: Side) => {
+      const rotation = side === gameState.serveSide ? gameState.serveRot : gameState.recvRot;
+      const playersOnCourt = getPlayersOnCourt(currentSet, side, gameState.currentRally);
+      
+      // Build zone map
+      const zoneByPlayerId = new Map<string, number>();
+      playersOnCourt.forEach(player => {
+        const zone = getPlayerZone(currentSet, side, player.id, rotation, gameState.currentRally);
+        if (zone !== null) {
+          zoneByPlayerId.set(player.id, zone);
+        }
+      });
+      
+      // Back row players (Z1, Z5, Z6)
+      const backRowPlayers = playersOnCourt.filter(player => {
+        const zone = zoneByPlayerId.get(player.id);
+        return zone !== undefined && [1, 5, 6].includes(zone);
+      });
+      
+      return {
+        playersOnCourt,
+        rotation,
+        zoneByPlayerId,
+        backRowPlayers,
+        playerIds: new Set(playersOnCourt.map(p => p.id)),
+      };
+    };
+    
+    return {
+      home: createSideSnapshot('CASA'),
+      away: createSideSnapshot('FORA'),
+    };
+  }, [gameState, currentSet, getPlayersOnCourt, getPlayerZone]);
+
+  // Eligible players for libero entry derived from snapshot (used by LiberoPrompt)
+  const getEligibleLiberoPlayers = useMemo(() => {
+    return (side: Side, liberoTracking: ReturnType<typeof useLiberoTracking>) => {
+      const snapshot = side === 'CASA' ? courtSnapshot.home : courtSnapshot.away;
+      if (!snapshot || liberoTracking.isLiberoOnCourt) return [];
+      
+      const liberoIds = new Set(liberoTracking.availableLiberos.map(l => l.id));
+      
+      // Filter back row players excluding liberos
+      return snapshot.backRowPlayers.filter(player => !liberoIds.has(player.id));
+    };
+  }, [courtSnapshot]);
+
+  // Recommended player for libero (MB in back row)
+  const getRecommendedLiberoPlayer = useMemo(() => {
+    return (eligiblePlayers: (Player | MatchPlayer)[]) => {
+      if (eligiblePlayers.length === 0) return null;
+      
+      // Priority: Middle Blocker (MB/C/CENTRAL) in back row
+      const mb = eligiblePlayers.find(p => {
+        const pos = p.position?.toUpperCase() || '';
+        return ['MB', 'C', 'CENTRAL'].includes(pos);
+      });
+      
+      return mb || eligiblePlayers[0];
+    };
+  }, []);
+
   // Calculate KPIs for current set (for WizardLegend insights)
   const previousSetRalliesForKPI = useMemo(() => 
     currentSet > 1 ? rallies.filter(r => r.set_no === currentSet - 1) : undefined,
@@ -526,7 +593,28 @@ export default function Live() {
 
   // Libero entry/exit handlers
   const handleLiberoEntry = async (replacedPlayerId: string) => {
-    if (!activeLiberoTracking.availableLiberos.length) return;
+    if (!activeLiberoTracking.availableLiberos.length || !gameState) return;
+    
+    // VALIDATION: Verify player is actually on court and in back row using snapshot
+    const snapshot = gameState.recvSide === 'CASA' ? courtSnapshot.home : courtSnapshot.away;
+    if (!snapshot) {
+      toast({ title: 'Erro', description: 'Não foi possível verificar o estado do campo', variant: 'destructive' });
+      return;
+    }
+    
+    // Check if player is on court
+    if (!snapshot.playerIds.has(replacedPlayerId)) {
+      toast({ title: 'Erro', description: 'Jogador selecionado já não está em campo', variant: 'destructive' });
+      return;
+    }
+    
+    // Check if player is in back row (Z1, Z5, Z6)
+    const playerZone = snapshot.zoneByPlayerId.get(replacedPlayerId);
+    if (playerZone === undefined || ![1, 5, 6].includes(playerZone)) {
+      toast({ title: 'Erro', description: 'Jogador selecionado não está na linha de trás', variant: 'destructive' });
+      return;
+    }
+    
     const libero = activeLiberoTracking.availableLiberos[0]; // Use first available libero
     setLiberoLoading(true);
     await activeLiberoTracking.enterLibero(libero.id, replacedPlayerId);
@@ -1603,26 +1691,34 @@ export default function Live() {
       </header>
 
       {/* Libero Entry Prompt - Shows when receiving team can enter libero */}
-      {shouldShowLiberoEntryPrompt && activeLiberoTracking.availableLiberos.length > 0 && (
-        <LiberoPrompt
-          type="entry"
-          side={gameState!.recvSide}
-          libero={activeLiberoTracking.availableLiberos[0]}
-          eligiblePlayers={activeLiberoTracking.eligibleForLiberoEntry}
-          recommendedPlayer={activeLiberoTracking.recommendedPlayerForLibero}
-          getZoneLabel={(id) => getZoneLabel(id, gameState!.recvSide)}
-          onConfirm={handleLiberoEntry}
-          onSkip={handleLiberoSkip}
-          isLoading={liberoLoading}
-          teamColor={gameState!.recvSide === 'CASA' 
-            ? teamColors.home.primary 
-            : teamColors.away.primary}
-        />
-      )}
+      {shouldShowLiberoEntryPrompt && activeLiberoTracking.availableLiberos.length > 0 && (() => {
+        // Use snapshot for eligible players (single source of truth)
+        const eligibleFromSnapshot = getEligibleLiberoPlayers(gameState!.recvSide, activeLiberoTracking);
+        const recommended = getRecommendedLiberoPlayer(eligibleFromSnapshot);
+        
+        return (
+          <LiberoPrompt
+            key={`${currentSet}-${gameState!.currentRally}-${gameState!.recvSide}-entry`}
+            type="entry"
+            side={gameState!.recvSide}
+            libero={activeLiberoTracking.availableLiberos[0]}
+            eligiblePlayers={eligibleFromSnapshot}
+            recommendedPlayer={recommended}
+            getZoneLabel={(id) => getZoneLabel(id, gameState!.recvSide)}
+            onConfirm={handleLiberoEntry}
+            onSkip={handleLiberoSkip}
+            isLoading={liberoLoading}
+            teamColor={gameState!.recvSide === 'CASA' 
+              ? teamColors.home.primary 
+              : teamColors.away.primary}
+          />
+        );
+      })()}
       
       {/* Libero Exit Prompt - Shows when libero must exit (reached Z4) */}
       {mustShowLiberoExitPrompt && liberoExitTracking && liberoExitTracking.activeLiberoPlayer && (
         <LiberoPrompt
+          key={`${currentSet}-${gameState!.currentRally}-${liberoExitSide}-exit`}
           type="exit"
           side={liberoExitSide!}
           libero={liberoExitTracking.activeLiberoPlayer}
@@ -1640,16 +1736,35 @@ export default function Live() {
         const tracking = manualLiberoPromptSide === 'CASA' ? liberoTrackingHome : liberoTrackingAway;
         if (tracking.availableLiberos.length === 0) return null;
         
+        // Use snapshot for eligible players
+        const eligibleFromSnapshot = getEligibleLiberoPlayers(manualLiberoPromptSide, tracking);
+        const recommended = getRecommendedLiberoPlayer(eligibleFromSnapshot);
+        const snapshot = manualLiberoPromptSide === 'CASA' ? courtSnapshot.home : courtSnapshot.away;
+        
         return (
           <LiberoPrompt
+            key={`${currentSet}-${gameState!.currentRally}-${manualLiberoPromptSide}-manual`}
             type="entry"
             side={manualLiberoPromptSide}
             libero={tracking.availableLiberos[0]}
-            eligiblePlayers={tracking.eligibleForLiberoEntry}
-            recommendedPlayer={tracking.recommendedPlayerForLibero}
+            eligiblePlayers={eligibleFromSnapshot}
+            recommendedPlayer={recommended}
             getZoneLabel={(id) => getZoneLabel(id, manualLiberoPromptSide)}
             onConfirm={async (replacedPlayerId?: string) => {
-              if (!replacedPlayerId) return;
+              if (!replacedPlayerId || !snapshot) return;
+              
+              // VALIDATION: Verify player is on court and in back row
+              if (!snapshot.playerIds.has(replacedPlayerId)) {
+                toast({ title: 'Erro', description: 'Jogador selecionado já não está em campo', variant: 'destructive' });
+                return;
+              }
+              
+              const playerZone = snapshot.zoneByPlayerId.get(replacedPlayerId);
+              if (playerZone === undefined || ![1, 5, 6].includes(playerZone)) {
+                toast({ title: 'Erro', description: 'Jogador selecionado não está na linha de trás', variant: 'destructive' });
+                return;
+              }
+              
               setLiberoLoading(true);
               try {
                 await tracking.enterLibero(tracking.availableLiberos[0].id, replacedPlayerId);

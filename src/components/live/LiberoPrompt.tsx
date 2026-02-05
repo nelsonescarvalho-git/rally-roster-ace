@@ -36,12 +36,18 @@ export function LiberoPrompt({
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [showAllPlayers, setShowAllPlayers] = useState(false);
   
-  // Pre-select recommended player when available
+  // Pre-select recommended player when available, reset when eligiblePlayers change
   useEffect(() => {
-    if (recommendedPlayer && !selectedPlayer) {
+    // Reset selection when eligible players change (e.g., rally changed)
+    const eligibleIds = eligiblePlayers.map(p => p.id).sort().join(',');
+    if (selectedPlayer && !eligiblePlayers.some(p => p.id === selectedPlayer)) {
+      setSelectedPlayer(null);
+    }
+    // Pre-select recommended if no selection or selection was reset
+    if (recommendedPlayer && (!selectedPlayer || !eligiblePlayers.some(p => p.id === selectedPlayer))) {
       setSelectedPlayer(recommendedPlayer.id);
     }
-  }, [recommendedPlayer]);
+  }, [recommendedPlayer?.id, eligiblePlayers.map(p => p.id).join(',')]);
   
   const handleConfirmEntry = () => {
     if (selectedPlayer) {

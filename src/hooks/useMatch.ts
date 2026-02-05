@@ -359,10 +359,18 @@ export function useMatch(matchId: string | null) {
       lineup.rot6,
     ].filter(Boolean) as string[];
 
-    // Apply substitutions up to the current rally
+    // Apply substitutions up to the current rally (stable sort by rally_no, created_at, id)
     const relevantSubs = substitutions
       .filter(s => s.set_no === setNo && s.side === side && s.rally_no <= upToRally)
-      .sort((a, b) => a.rally_no - b.rally_no);
+      .sort((a, b) => {
+        if (a.rally_no !== b.rally_no) return a.rally_no - b.rally_no;
+        // Secondary sort by created_at for deterministic order
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        // Fallback to id comparison
+        return a.id.localeCompare(b.id);
+      });
 
     for (const sub of relevantSubs) {
       const outIndex = activePlayerIds.indexOf(sub.player_out_id);
