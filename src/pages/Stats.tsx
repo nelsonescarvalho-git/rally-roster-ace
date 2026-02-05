@@ -27,8 +27,14 @@ export default function Stats() {
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
 
-  const handleRecalculate = () => {
-    queryClient.invalidateQueries({ queryKey: ['rallies', matchId] });
+  const handleRecalculate = async () => {
+    // Invalidate all queries related to this match
+    await queryClient.invalidateQueries({ queryKey: ['rallies', matchId] });
+    await queryClient.invalidateQueries({ queryKey: ['match', matchId] });
+    await queryClient.invalidateQueries({ queryKey: ['attackStats', matchId] });
+    await queryClient.invalidateQueries({ queryKey: ['distributionStats', matchId] });
+    // Also refetch match data directly (useMatch uses local state, not React Query)
+    await loadMatch();
     toast.success('Estatísticas recalculadas');
   };
 
