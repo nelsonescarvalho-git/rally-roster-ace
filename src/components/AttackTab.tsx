@@ -8,6 +8,7 @@ import { Rally, Player, MatchPlayer, Side, Match, DISTRIBUTION_LABELS } from '@/
 import { Progress } from '@/components/ui/progress';
 import { Zap, TrendingUp, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { StatCell, STAT_THRESHOLDS } from '@/components/ui/StatCell';
 
 interface AttackTabProps {
   rallies: Rally[];
@@ -51,10 +52,7 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
           <TableRow>
             <TableHead className="w-[100px]">Dist.</TableHead>
             <TableHead className="text-center">Dific.</TableHead>
-            <TableHead className="text-center">Ataques</TableHead>
-            <TableHead className="text-center">Kills</TableHead>
-            <TableHead className="text-center">Erros</TableHead>
-            <TableHead className="text-center">Efic.</TableHead>
+            <TableHead className="text-center">K/Att (Efic.)</TableHead>
             <TableHead>Top Atacantes</TableHead>
           </TableRow>
         </TableHeader>
@@ -66,11 +64,21 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
                 {row.distributionCode} - {row.qualityLabel}
               </TableCell>
               <TableCell className="text-center text-xs text-muted-foreground">{row.difficulty}</TableCell>
-              <TableCell className="text-center">{row.totalAttempts}</TableCell>
-              <TableCell className="text-center text-success">{row.totalKills}</TableCell>
-              <TableCell className="text-center text-destructive">{row.totalErrors}</TableCell>
-              <TableCell className="text-center font-semibold">
-                {row.totalAttempts > 0 ? `${(row.killRate * 100).toFixed(0)}%` : '-'}
+              <TableCell className="text-center">
+                <StatCell
+                  success={row.totalKills}
+                  total={row.totalAttempts}
+                  errors={row.totalErrors}
+                  efficiency={row.killRate * 100}
+                  thresholds={STAT_THRESHOLDS.attack}
+                  tooltipContent={
+                    <div className="space-y-1">
+                      <div>Kills: {row.totalKills}</div>
+                      <div>Erros: {row.totalErrors}</div>
+                      <div>Neutros: {row.totalAttempts - row.totalKills - row.totalErrors}</div>
+                    </div>
+                  }
+                />
               </TableCell>
               <TableCell className="text-xs text-muted-foreground">{row.topAttackers}</TableCell>
             </TableRow>
@@ -83,24 +91,57 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
   const renderAttackerRow = (stat: AttackerStats) => {
     const effDiff = stat.efficiencyWithGoodDist - stat.efficiencyWithBadDist;
     const isAdaptable = stat.attemptsWithBadDist >= 2 && stat.efficiencyWithBadDist > 0;
+    const neutrals = stat.totalAttempts - stat.totalKills - stat.totalErrors;
     
     return (
       <TableRow key={stat.attackerId}>
         <TableCell className="font-medium whitespace-nowrap">
           #{stat.jerseyNumber} {stat.attackerName}
         </TableCell>
-        <TableCell className="text-center">{stat.totalAttempts}</TableCell>
-        <TableCell className="text-center text-success">{stat.totalKills}</TableCell>
-        <TableCell className="text-center text-destructive">{stat.totalErrors}</TableCell>
-        <TableCell className="text-center font-semibold">
-          {(stat.efficiency * 100).toFixed(0)}%
+        <TableCell className="text-center">
+          <StatCell
+            success={stat.totalKills}
+            total={stat.totalAttempts}
+            errors={stat.totalErrors}
+            efficiency={stat.efficiency * 100}
+            thresholds={STAT_THRESHOLDS.attack}
+            tooltipContent={
+              <div className="space-y-1">
+                <div className="font-medium">{stat.attackerName}</div>
+                <div>Kills: {stat.totalKills}</div>
+                <div>Erros: {stat.totalErrors}</div>
+                <div>Neutros: {neutrals}</div>
+                <div className="pt-1 border-t border-border">
+                  Média Dist.: {stat.avgDistributionQuality.toFixed(1)}
+                </div>
+              </div>
+            }
+          />
         </TableCell>
         <TableCell className="text-center text-xs">{stat.avgDistributionQuality.toFixed(1)}</TableCell>
-        <TableCell className="text-center text-xs text-success">
-          {stat.attemptsWithGoodDist > 0 ? `${(stat.efficiencyWithGoodDist * 100).toFixed(0)}%` : '-'}
+        <TableCell className="text-center text-xs">
+          {stat.attemptsWithGoodDist > 0 ? (
+            <StatCell
+              success={Math.round(stat.efficiencyWithGoodDist * stat.attemptsWithGoodDist)}
+              total={stat.attemptsWithGoodDist}
+              efficiency={stat.efficiencyWithGoodDist * 100}
+              thresholds={STAT_THRESHOLDS.attack}
+              compact
+              tooltipContent="Eficiência com distribuição boa (Q2-Q3)"
+            />
+          ) : '-'}
         </TableCell>
-        <TableCell className="text-center text-xs text-warning">
-          {stat.attemptsWithBadDist > 0 ? `${(stat.efficiencyWithBadDist * 100).toFixed(0)}%` : '-'}
+        <TableCell className="text-center text-xs">
+          {stat.attemptsWithBadDist > 0 ? (
+            <StatCell
+              success={Math.round(stat.efficiencyWithBadDist * stat.attemptsWithBadDist)}
+              total={stat.attemptsWithBadDist}
+              efficiency={stat.efficiencyWithBadDist * 100}
+              thresholds={STAT_THRESHOLDS.attack}
+              compact
+              tooltipContent="Eficiência com distribuição má (Q0-Q1)"
+            />
+          ) : '-'}
         </TableCell>
         <TableCell className="text-center">
           {stat.attemptsWithGoodDist > 0 && stat.attemptsWithBadDist > 0 ? (
@@ -157,13 +198,10 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
             <TableHeader>
               <TableRow>
                 <TableHead>Atacante</TableHead>
-                <TableHead className="text-center">Att</TableHead>
-                <TableHead className="text-center">K</TableHead>
-                <TableHead className="text-center">E</TableHead>
-                <TableHead className="text-center">Efic.</TableHead>
+                <TableHead className="text-center">K/Att (Efic.)</TableHead>
                 <TableHead className="text-center text-xs">Média Dist.</TableHead>
-                <TableHead className="text-center text-xs">Efic. c/Boa</TableHead>
-                <TableHead className="text-center text-xs">Efic. c/Má</TableHead>
+                <TableHead className="text-center text-xs">c/Boa Dist.</TableHead>
+                <TableHead className="text-center text-xs">c/Má Dist.</TableHead>
                 <TableHead className="text-center text-xs">Δ Adapt.</TableHead>
               </TableRow>
             </TableHeader>
