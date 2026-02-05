@@ -19,6 +19,7 @@ import {
   Award
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SetSummaryKPIsProps {
   rallies: Rally[];
@@ -31,6 +32,28 @@ interface SetSummaryKPIsProps {
   players?: MatchPlayer[];
 }
 
+// Thresholds for different stats
+const THRESHOLDS = {
+  sideout: { excellent: 60, acceptable: 45 },
+  break: { excellent: 50, acceptable: 35 },
+  attack: { excellent: 40, acceptable: 20 },
+  serve: { excellent: 15, acceptable: 5 },
+  reception: { excellent: 70, acceptable: 50 },
+  block: { excellent: 30, acceptable: 15 },
+  defense: { excellent: 60, acceptable: 40 },
+};
+
+function getThresholdColor(value: number, thresholds: { excellent: number; acceptable: number }, lowerIsBetter = false) {
+  if (lowerIsBetter) {
+    if (value <= thresholds.acceptable) return 'text-primary';
+    if (value <= thresholds.excellent) return 'text-warning';
+    return 'text-destructive';
+  }
+  if (value >= thresholds.excellent) return 'text-primary';
+  if (value >= thresholds.acceptable) return 'text-warning';
+  return 'text-destructive';
+}
+
 function StatRow({ 
   label, 
   homeValue, 
@@ -38,6 +61,13 @@ function StatRow({
   format = 'percent',
   highlightBetter = true,
   lowerIsBetter = false,
+  thresholds,
+  homeTooltip,
+  awayTooltip,
+  homeSuccess,
+  homeTotal,
+  awaySuccess,
+  awayTotal,
 }: {
   label: string;
   homeValue: number;
@@ -45,6 +75,13 @@ function StatRow({
   format?: 'percent' | 'number' | 'efficiency';
   highlightBetter?: boolean;
   lowerIsBetter?: boolean;
+  thresholds?: { excellent: number; acceptable: number };
+  homeTooltip?: React.ReactNode;
+  awayTooltip?: React.ReactNode;
+  homeSuccess?: number;
+  homeTotal?: number;
+  awaySuccess?: number;
+  awayTotal?: number;
 }) {
   const formatValue = (val: number) => {
     if (format === 'percent') return `${val}%`;
@@ -56,16 +93,59 @@ function StatRow({
   const awayBetter = lowerIsBetter ? awayValue < homeValue : awayValue > homeValue;
   const diff = homeValue - awayValue;
   
+  const homeColorClass = thresholds 
+    ? getThresholdColor(homeValue, thresholds, lowerIsBetter)
+    : (highlightBetter && homeBetter ? 'text-home' : '');
+    
+  const awayColorClass = thresholds 
+    ? getThresholdColor(awayValue, thresholds, lowerIsBetter)
+    : (highlightBetter && awayBetter ? 'text-away' : '');
+
+  const renderValue = (
+    value: number, 
+    colorClass: string, 
+    success?: number, 
+    total?: number, 
+    tooltip?: React.ReactNode,
+    align: 'left' | 'right' = 'right'
+  ) => {
+    const showCounts = success !== undefined && total !== undefined && total > 0;
+    const content = (
+      <span className={cn(
+        'font-medium min-w-[50px]',
+        align === 'right' ? 'text-right' : 'text-left',
+        colorClass
+      )}>
+        {showCounts ? (
+          <span className="inline-flex items-baseline gap-0.5">
+            <span>{success}</span>
+            <span className="text-muted-foreground">/{total}</span>
+            <span className="ml-0.5 text-xs">({formatValue(value)})</span>
+          </span>
+        ) : formatValue(value)}
+      </span>
+    );
+
+    if (tooltip) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>{content}</TooltipTrigger>
+            <TooltipContent side="top" className="text-xs max-w-[200px]">
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    return content;
+  };
+  
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
       <span className="text-xs text-muted-foreground flex-1">{label}</span>
       <div className="flex items-center gap-3 text-sm">
-        <span className={cn(
-          'font-medium min-w-[50px] text-right',
-          highlightBetter && homeBetter && 'text-home'
-        )}>
-          {formatValue(homeValue)}
-        </span>
+        {renderValue(homeValue, homeColorClass, homeSuccess, homeTotal, homeTooltip, 'right')}
         <span className="text-muted-foreground text-xs min-w-[40px] text-center">
           {diff !== 0 && (
             <span className={diff > 0 ? 'text-home' : 'text-away'}>
@@ -73,12 +153,7 @@ function StatRow({
             </span>
           )}
         </span>
-        <span className={cn(
-          'font-medium min-w-[50px] text-left',
-          highlightBetter && awayBetter && 'text-away'
-        )}>
-          {formatValue(awayValue)}
-        </span>
+        {renderValue(awayValue, awayColorClass, awaySuccess, awayTotal, awayTooltip, 'left')}
       </div>
     </div>
   );
@@ -229,20 +304,25 @@ export function SetSummaryKPIs({
           <Card className="bg-muted/30">
             <CardContent className="p-3">
               <StatRow 
+                label="ACE%" 
+                homeValue={kpis.home.serveAcePercent} 
+                awayValue={kpis.away.serveAcePercent}
+                thresholds={THRESHOLDS.serve}
+                homeTooltip={`Aces: ${Math.round(kpis.home.serveAcePercent * kpis.home.serveTotal / 100)} / ${kpis.home.serveTotal}`}
+                awayTooltip={`Aces: ${Math.round(kpis.away.serveAcePercent * kpis.away.serveTotal / 100)} / ${kpis.away.serveTotal}`}
+              />
+              <StatRow 
                 label="Erro%" 
                 homeValue={kpis.home.serveErrorPercent} 
                 awayValue={kpis.away.serveErrorPercent}
                 lowerIsBetter
-              />
-              <StatRow 
-                label="ACE/Vantagem%" 
-                homeValue={kpis.home.serveAcePercent} 
-                awayValue={kpis.away.serveAcePercent}
+                thresholds={{ excellent: 10, acceptable: 15 }}
               />
               <StatRow 
                 label="Pressão% (1+2)" 
                 homeValue={kpis.home.servePressurePercent} 
                 awayValue={kpis.away.servePressurePercent}
+                thresholds={{ excellent: 40, acceptable: 25 }}
               />
               <StatRow 
                 label="Eficiência Líquida" 
@@ -266,23 +346,29 @@ export function SetSummaryKPIs({
                 label="Perfect% (3)" 
                 homeValue={kpis.home.recPerfectPercent} 
                 awayValue={kpis.away.recPerfectPercent}
+                thresholds={{ excellent: 40, acceptable: 25 }}
               />
               <StatRow 
                 label="Positive% (2+3)" 
                 homeValue={kpis.home.recPositivePercent} 
                 awayValue={kpis.away.recPositivePercent}
+                thresholds={THRESHOLDS.reception}
+                homeTooltip={`Receções positivas / Total`}
+                awayTooltip={`Receções positivas / Total`}
               />
               <StatRow 
                 label="Erro% (ACE sofrido)" 
                 homeValue={kpis.home.recErrorPercent} 
                 awayValue={kpis.away.recErrorPercent}
                 lowerIsBetter
+                thresholds={{ excellent: 5, acceptable: 10 }}
               />
               <StatRow 
                 label="Sob Pressão%" 
                 homeValue={kpis.home.recUnderPressurePercent} 
                 awayValue={kpis.away.recUnderPressurePercent}
                 lowerIsBetter
+                thresholds={{ excellent: 20, acceptable: 35 }}
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-2 pt-2 border-t">
                 <span>Total: {kpis.home.recTotal}</span>
@@ -300,18 +386,25 @@ export function SetSummaryKPIs({
                 label="Kill%" 
                 homeValue={kpis.home.attKillPercent} 
                 awayValue={kpis.away.attKillPercent}
+                thresholds={THRESHOLDS.attack}
+                homeTooltip={`Kills / Total ataques`}
+                awayTooltip={`Kills / Total ataques`}
               />
               <StatRow 
                 label="Erro%" 
                 homeValue={kpis.home.attErrorPercent} 
                 awayValue={kpis.away.attErrorPercent}
                 lowerIsBetter
+                thresholds={{ excellent: 10, acceptable: 15 }}
               />
               <StatRow 
                 label="Bloq. Ponto%" 
                 homeValue={kpis.home.attBlockedPointPercent} 
                 awayValue={kpis.away.attBlockedPointPercent}
                 lowerIsBetter
+                thresholds={{ excellent: 5, acceptable: 10 }}
+                homeTooltip="Ataques terminados em stuff block (b_code 3)"
+                awayTooltip="Ataques terminados em stuff block (b_code 3)"
               />
               <StatRow 
                 label="Bloq. Toque%" 
@@ -319,23 +412,25 @@ export function SetSummaryKPIs({
                 awayValue={kpis.away.attBlockedTouchPercent}
                 lowerIsBetter={false}
                 highlightBetter={false}
+                homeTooltip="Ataques que tocaram no bloco mas rally continuou (b_code 1,2)"
+                awayTooltip="Ataques que tocaram no bloco mas rally continuou (b_code 1,2)"
               />
               <StatRow 
                 label="Falta Bloco%" 
                 homeValue={kpis.home.attBlockFaultPercent} 
                 awayValue={kpis.away.attBlockFaultPercent}
-              />
-              <StatRow 
-                label="Bloqueado% (Total)" 
-                homeValue={kpis.home.attBlockedPercent} 
-                awayValue={kpis.away.attBlockedPercent}
-                lowerIsBetter
+                thresholds={{ excellent: 10, acceptable: 5 }}
+                homeTooltip="Ataques onde o bloco cometeu falta (b_code 0)"
+                awayTooltip="Ataques onde o bloco cometeu falta (b_code 0)"
               />
               <StatRow 
                 label="Eficiência" 
                 homeValue={Math.round(kpis.home.attEfficiency * 100)} 
                 awayValue={Math.round(kpis.away.attEfficiency * 100)}
                 format="percent"
+                thresholds={THRESHOLDS.attack}
+                homeTooltip="(Kills - Erros - Bloqueado) / Total"
+                awayTooltip="(Kills - Erros - Bloqueado) / Total"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-2 pt-2 border-t">
                 <span>Total: {kpis.home.attTotal}</span>
