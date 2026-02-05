@@ -1229,6 +1229,15 @@ export default function Live() {
     const blockAction = registeredActions.find(a => a.type === 'block');
     const defenseAction = registeredActions.find(a => a.type === 'defense');
     
+    // Warning if setter exists but destination is missing (incomplete distribution data)
+    if (setterAction?.setterId && !setterAction?.passDestination) {
+      toast({
+        title: 'Destino em falta',
+        description: 'Distribuição sem destino - estatísticas por zona incompletas',
+        variant: 'destructive',
+      });
+    }
+    
     // Get player numbers
     const getPlayerNo = (id: string | null | undefined) => {
       if (!id) return null;
