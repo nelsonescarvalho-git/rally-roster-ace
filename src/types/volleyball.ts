@@ -29,6 +29,8 @@ export interface RallyAction {
   blockCode?: number | null;
   // Reception that went over the net to opponent
   overTheNet?: boolean;
+  // Inherited destination from setter (redundancy for attack actions)
+  inheritedDestination?: PassDestination | null;
 }
 
 // Persistent team (reusable across matches)

@@ -1264,10 +1264,10 @@ export default function Live() {
       r_player_id: recAction?.playerId || receptionData.playerId,
       r_no: getPlayerNo(recAction?.playerId || receptionData.playerId),
       r_code: recAction?.code ?? receptionData.code,
-      // Setter
+      // Setter - use pass_destination from setter, with fallback to attack's inherited destination
       setter_player_id: setterAction?.setterId || setterAction?.playerId || null,
-      pass_destination: setterAction?.passDestination || null,
-      pass_code: setterAction?.passCode || null,
+      pass_destination: setterAction?.passDestination || attackAction?.passDestination || null,
+      pass_code: setterAction?.passCode ?? attackAction?.passCode ?? null,
       // Attack
       a_player_id: attackAction?.playerId || null,
       a_no: getPlayerNo(attackAction?.playerId),
@@ -1290,6 +1290,21 @@ export default function Live() {
       fault_player_id: reason === 'NET' ? faultPlayerId : null,
       fault_no: reason === 'NET' ? getPlayerNo(faultPlayerId) : null,
     };
+    
+    // Debug log to diagnose missing destination issues
+    console.log('[Rally Save Debug]', {
+      setterAction: setterAction ? {
+        setterId: setterAction.setterId,
+        passDestination: setterAction.passDestination,
+        passCode: setterAction.passCode,
+      } : null,
+      attackAction: attackAction ? {
+        playerId: attackAction.playerId,
+        passDestination: attackAction.passDestination,
+        attackPassQuality: attackAction.attackPassQuality,
+      } : null,
+      finalDestination: rallyData.pass_destination,
+    });
     
     const faultPlayer = faultPlayerId ? effectivePlayers.find(p => p.id === faultPlayerId) : null;
     const success = await saveRally(rallyData);
@@ -1476,7 +1491,29 @@ export default function Live() {
   }, [handleFinishPoint]);
 
   // Chain action handler - auto-opens next logical action
-  const handleChainAction = useCallback((type: RallyActionType, actionSide: Side) => {
+  // When chaining to attack, inherit pass_destination from setter for fallback
+  const handleChainAction = useCallback((type: RallyActionType, actionSide: Side, inheritedData?: {
+    passDestination?: PassDestination | null;
+    passCode?: number | null;
+  }) => {
+    // If opening attack after setter, the ActionEditor will pass inherited data
+    // We store this in the attack action for redundancy
+    if (type === 'attack' && inheritedData?.passDestination) {
+      // Store in registeredActions - find setter and ensure destination is saved
+      setRegisteredActions(prev => {
+        const setterIdx = prev.findIndex(a => a.type === 'setter' && a.side === actionSide);
+        if (setterIdx >= 0 && !prev[setterIdx].passDestination && inheritedData.passDestination) {
+          const updated = [...prev];
+          updated[setterIdx] = {
+            ...updated[setterIdx],
+            passDestination: inheritedData.passDestination,
+            passCode: inheritedData.passCode ?? updated[setterIdx].passCode,
+          };
+          return updated;
+        }
+        return prev;
+      });
+    }
     handleSelectAction(type, actionSide);
   }, [handleSelectAction]);
 

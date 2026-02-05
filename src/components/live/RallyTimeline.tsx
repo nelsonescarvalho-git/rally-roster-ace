@@ -50,6 +50,16 @@ const ACTION_CONFIG: Record<RallyActionType, {
   defense: { icon: ShieldCheck, label: 'Defesa', shortLabel: 'Df', color: 'bg-accent' },
 };
 
+// Check if destination is missing for attack validation
+const hasDestinationMissing = (actions: RallyAction[]) => {
+  const attackAction = actions.find(a => a.type === 'attack');
+  if (!attackAction) return false;
+  
+  const setterAction = actions.find(a => a.type === 'setter' && a.side === attackAction.side);
+  // Attack exists but no setter destination for the same side
+  return setterAction && !setterAction.passDestination;
+};
+
 const CODE_EMOJI: Record<number, string> = {
   0: '✕',
   1: '−',
@@ -295,6 +305,11 @@ export function RallyTimeline({
           Ações Registadas ({actions.length})
         </div>
         <div className="flex items-center gap-2">
+          {hasDestinationMissing(actions) && (
+            <Badge variant="outline" className="text-[10px] border-warning text-warning">
+              ⚠️ Destino em falta
+            </Badge>
+          )}
           <div className="text-[10px] text-muted-foreground">
             Arraste para reordenar
           </div>
