@@ -50,10 +50,10 @@ export function useDestinationStats(
         )
       : null;
     
-    // Filter rallies with pass_destination and a_code defined
+    // Filter rallies with a_code defined (pass_destination optional - fallback to OUTROS)
     const relevantRallies = rallies.filter(rally => {
-      // Must have a pass destination and attack code
-      if (!rally.pass_destination || rally.a_code === null || rally.a_code === undefined) {
+      // Must have attack code to count as an attack attempt
+      if (rally.a_code === null || rally.a_code === undefined) {
         return false;
       }
       
@@ -62,13 +62,13 @@ export function useDestinationStats(
         return sidePlayerIds.has(rally.a_player_id);
       }
       
-      // If no side filter and no attacker, still include based on destination for overall stats
+      // If no side filter, include all attacks
       return true;
     });
     
-    // Aggregate statistics by destination
+    // Aggregate statistics by destination (fallback to OUTROS when missing)
     relevantRallies.forEach(rally => {
-      const dest = rally.pass_destination as PassDestination;
+      const dest = (rally.pass_destination as PassDestination) || 'OUTROS';
       if (!stats[dest]) return;
       
       stats[dest].attempts++;
