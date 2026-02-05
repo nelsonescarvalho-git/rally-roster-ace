@@ -170,12 +170,14 @@ export function ActionEditor({
       case 'defense': return 2;    // Player → Quality
       case 'setter': return 3;     // Player → Quality → Destination
       case 'attack': 
+        // Step 4 for blocker selection when b_code=3 (stuff block)
+        if (selectedCode === 1 && selectedBlockCode === 3) return 4;
         // Step 3 for a_code=1 (block result) or a_code=3 (kill type)
         return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
       case 'block': return 2; // Blockers → Quality
       default: return 1;
     }
-  }, [actionType, selectedCode]);
+  }, [actionType, selectedCode, selectedBlockCode]);
 
   // Show confirmation toast
   const showConfirmToast = useCallback((playerNumber: number | undefined, quality: number) => {
@@ -332,6 +334,13 @@ export function ActionEditor({
   // Handler for block result when a_code=1
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
     onBlockCodeChange?.(bCode);
+    
+    // For stuff block (bCode=3), go to Step 4 to select blocker
+    if (bCode === 3) {
+      setCurrentStep(4);
+      return;
+    }
+    
     const player = players.find(p => p.id === selectedPlayer);
     const bCodeLabels = ['Falta', 'Ofensivo', 'Defensivo', 'Ponto'];
     
@@ -347,10 +356,6 @@ export function ActionEditor({
         if (bCode === 0) {
           // Block fault: attacker wins (side is the attacker)
           onAutoFinishPoint?.(side, 'BLK');
-        } else if (bCode === 3) {
-          // Stuff block: blocker wins (opponent of attacker)
-          const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
-          onAutoFinishPoint?.(blockerSide, 'BLK');
         } else if (bCode === 1) {
           // Bloco Ofensivo: bola jogável no campo do bloqueador → defesa para bloqueador
           const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
@@ -362,6 +367,25 @@ export function ActionEditor({
       }, 0);
     });
   }, [onBlockCodeChange, onConfirm, onAutoFinishPoint, onChainAction, side, selectedPlayer, players]);
+
+  // Handler for stuff block confirmation after blocker selection
+  const handleStuffBlockConfirm = useCallback((blockerId: string) => {
+    onBlocker1Change?.(blockerId);
+    const blocker = players.find(p => p.id === blockerId);
+    const attacker = players.find(p => p.id === selectedPlayer);
+    const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+    
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        toast.success(
+          `#${attacker?.jersey_number || '?'} Bloqueado por #${blocker?.jersey_number || '?'} · Ponto de Bloco`,
+          { duration: 2500 }
+        );
+        onConfirm();
+        onAutoFinishPoint?.(blockerSide, 'BLK');
+      }, 0);
+    });
+  }, [onBlocker1Change, players, selectedPlayer, side, onConfirm, onAutoFinishPoint]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
@@ -681,7 +705,7 @@ export function ActionEditor({
                   }}
                 />
               </div>
-            ) : (
+            ) : currentStep === 3 ? (
               // Step 3: Kill Type (code=3) or Block Result (code=1)
               <div className="space-y-4">
                 {selectedCode === 3 && (
@@ -791,6 +815,58 @@ export function ActionEditor({
                     </Button>
                   </div>
                 )}
+              </div>
+            ) : (
+              // Step 4: Blocker selection for stuff block (b_code=3)
+              <div className="space-y-4">
+                <div className="text-center p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                  <span className="text-lg">🧱</span>
+                  <p className="text-sm font-medium text-destructive mt-1">Bloco Ponto</p>
+                  <p className="text-xs text-muted-foreground">Quem fez o bloco?</p>
+                </div>
+                
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Selecionar Bloqueador <span className="text-destructive">*</span>
+                </div>
+                
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {players.map((player) => (
+                    <Button
+                      key={player.id}
+                      variant={selectedBlocker1 === player.id ? 'default' : 'outline'}
+                      className={cn(
+                        'h-14 flex flex-col gap-0.5',
+                        selectedBlocker1 === player.id && 'ring-2 ring-offset-2 bg-destructive hover:bg-destructive/90'
+                      )}
+                      onClick={() => handleStuffBlockConfirm(player.id)}
+                    >
+                      <span className="text-lg font-bold">#{player.jersey_number}</span>
+                      {player.position && (
+                        <span className="text-[10px] opacity-70">
+                          {player.position === 'Middle Blocker' ? 'MB' : 
+                           player.position === 'Outside Hitter' ? 'OH' :
+                           player.position === 'Opposite' ? 'OP' :
+                           player.position === 'Setter' ? 'S' : 
+                           player.position?.substring(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </Button>
+                  ))}
+                </div>
+                
+                {/* Skip blocker identification */}
+                <Button
+                  variant="outline"
+                  className="w-full h-10 text-xs text-muted-foreground hover:text-foreground border-dashed"
+                  onClick={() => {
+                    const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                    toast.success('Bloco Ponto (sem identificar bloqueador)', { duration: 2500 });
+                    onConfirm();
+                    onAutoFinishPoint?.(blockerSide, 'BLK');
+                  }}
+                >
+                  Sem identificar bloqueador →
+                </Button>
               </div>
             )}
           </div>
