@@ -1,119 +1,85 @@
 
-# Plano: Corrigir Perda de Dados de Destino do Ataque
+# Plano: Permitir Seleção de Bloqueador em "Bloco Ponto"
 
-## Diagnóstico
+## Problema Identificado
 
-### Estado Atual da Base de Dados
+Quando o utilizador seleciona **"Bloco Ponto"** (Stuff Block, b_code=3) no Step 3 da ação de Ataque, a ação fecha imediatamente sem permitir selecionar qual jogador (ou jogadores) fez o ponto de bloco.
 
-| Rally | a_code | setter_player_id | pass_destination | Observação |
-|-------|--------|------------------|------------------|------------|
-| 1     | 3      | ✅               | ✅ P4            | OK |
-| 4     | 1      | ✅               | ❌ null          | Destino perdido |
-| 6     | 3      | ✅               | ❌ null          | Destino perdido |
-| 10    | 1      | ✅               | ✅ P4            | OK |
-| 12    | 3      | ✅               | ✅ P3            | OK (editado manualmente) |
+### Fluxo Atual
+1. Ataque → Step 1: Seleciona atacante
+2. Ataque → Step 2: Avaliação → "Bloco" (a_code=1)
+3. Ataque → Step 3: Resultado do Bloco → "Bloco Ponto"
+4. ❌ **Auto-confirma e fecha sem pedir bloqueador**
 
-### Causas Identificadas
-
-1. **Fluxo Quick Attack** (`QuickAttackBar`)
-   - Permite registar ataque sem passar pelo fluxo de setter/distribuição
-   - Resultado: `pass_destination` fica sempre `null`
-
-2. **Ataque Direto sem Setter**
-   - Utilizador pode selecionar "Ataque" no `ActionSelector` sem antes registar "Setter"
-   - O fluxo de ataque não obriga a ter setter previamente
-
-3. **Condição de corrida no encadeamento**
-   - No `ActionEditor`, o `handleDestinationWithAutoConfirm` faz:
-     1. `onDestinationChange(dest)` - atualiza state assincronamente
-     2. `setTimeout(50ms)` → `onConfirm({passDestination: dest})` com override
-     3. `onChainAction('attack', side)` - abre ataque
-   - O override resolve a race condition, mas se o utilizador clicar noutra ação antes dos 50ms, os dados podem perder-se
+### Fluxo Desejado
+1. Ataque → Step 1: Seleciona atacante
+2. Ataque → Step 2: Avaliação → "Bloco" (a_code=1)
+3. Ataque → Step 3: Resultado do Bloco → "Bloco Ponto"
+4. ✅ **Step 4: Seleciona bloqueador(es) que fez(fizeram) ponto**
+5. Confirma e fecha
 
 ---
 
-## Soluções Propostas
+## Solução Proposta
 
-### Solução 1: Propagar Destino para Ação de Ataque (Recomendado)
+### Adicionar Step 4 para Seleção de Bloqueadores
 
-Quando o ataque é encadeado após o setter, copiar o `pass_destination` do setter para o ataque, garantindo redundância.
+**Ficheiro:** `src/components/live/ActionEditor.tsx`
 
-### Solução 2: Validação Obrigatória no Setter
-
-Bloquear a confirmação do setter até que um destino seja selecionado (já implementado parcialmente mas pode ser reforçado).
-
-### Solução 3: Fallback no `handleFinishPoint`
-
-Se existe ação de ataque mas não existe setter, verificar se o ataque tem dados de destino no próprio objeto.
-
----
-
-## Plano de Implementação
-
-### Fase 1: Garantir Propagação de Destino
-
-**Ficheiro:** `src/pages/Live.tsx`
-
-Modificar `handleChainAction` para copiar dados do setter para a nova ação:
-
+#### 1. Atualizar Cálculo de `totalSteps`
 ```typescript
-const handleChainAction = useCallback((type: RallyActionType, side: Side) => {
-  // Se estamos a abrir um ataque, verificar se existe setter com destino
-  let inheritedDestination: PassDestination | null = null;
-  if (type === 'attack') {
-    const setterAction = registeredActions.find(a => a.type === 'setter' && a.side === side);
-    if (setterAction?.passDestination) {
-      inheritedDestination = setterAction.passDestination;
-    }
-  }
-  
-  handleSelectAction(type, side);
-  // Armazenar destino herdado para usar no attackAction
-}, [handleSelectAction, registeredActions]);
+case 'attack': 
+  // Step 4 for blocker selection when b_code=3 (stuff block)
+  if (selectedCode === 1 && selectedBlockCode === 3) return 4;
+  return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
 ```
 
-### Fase 2: Adicionar `inheritedDestination` ao Ataque
-
-**Ficheiro:** `src/types/volleyball.ts`
-
-Adicionar campo opcional ao `RallyAction`:
+#### 2. Modificar `handleBlockCodeWithAutoConfirm`
+Quando `bCode === 3`, avançar para Step 4 em vez de auto-confirmar:
 ```typescript
-interface RallyAction {
-  // ... campos existentes
-  inheritedDestination?: PassDestination | null; // Destino copiado do setter
+if (bCode === 3) {
+  // Stuff block: go to Step 4 to select blocker(s)
+  setCurrentStep(4);
+  return;
 }
 ```
 
-### Fase 3: Usar Destino Herdado no `handleFinishPoint`
-
-**Ficheiro:** `src/pages/Live.tsx`
-
-Modificar a construção do `rallyData`:
+#### 3. Adicionar UI de Step 4 no caso `attack`
+Renderizar PlayerStrip para seleção de bloqueador(es) da equipa adversária (equipa que bloqueou):
 ```typescript
-const rallyData: Partial<Rally> = {
-  // ...
-  pass_destination: setterAction?.passDestination 
-    || attackAction?.inheritedDestination 
-    || null,
-};
+{currentStep === 4 && selectedBlockCode === 3 && (
+  <div className="space-y-3">
+    <div className="text-xs font-medium text-muted-foreground text-center">
+      Bloqueador(es) do Ponto
+    </div>
+    <PlayerStrip
+      players={opponentPlayers} // Jogadores da equipa que bloqueou
+      selectedPlayerId={selectedBlocker1}
+      onSelect={(id) => {
+        onBlocker1Change?.(id);
+        // Auto-confirma após selecionar bloqueador
+        handleStuffBlockConfirm(id);
+      }}
+      teamSide={opponentTeamSide}
+    />
+  </div>
+)}
 ```
 
-### Fase 4: Validação Visual no Timeline
-
-**Ficheiro:** `src/components/live/RallyTimeline.tsx`
-
-Mostrar badge de aviso quando ataque existe sem destino no setter:
-- Badge amarelo: "Destino em falta"
-
-### Fase 5: Log de Debug Temporário
-
-Adicionar `console.log` antes do `saveRally` para diagnosticar:
+#### 4. Criar Handler de Confirmação para Stuff Block
 ```typescript
-console.log('Rally data:', {
-  setterAction,
-  attackAction,
-  pass_destination: rallyData.pass_destination,
-});
+const handleStuffBlockConfirm = useCallback((blockerId: string) => {
+  const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+  const blocker = opponentPlayers.find(p => p.id === blockerId);
+  
+  toast.success(
+    `#${blocker?.jersey_number || '?'} · Ponto de Bloco`,
+    { duration: 2500 }
+  );
+  
+  onConfirm();
+  onAutoFinishPoint?.(blockerSide, 'BLK');
+}, [side, opponentPlayers, onConfirm, onAutoFinishPoint]);
 ```
 
 ---
@@ -122,15 +88,29 @@ console.log('Rally data:', {
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/pages/Live.tsx` | Propagar destino no encadeamento, fallback no finish |
-| `src/types/volleyball.ts` | Adicionar `inheritedDestination` a RallyAction |
-| `src/components/live/RallyTimeline.tsx` | Badge de aviso para destino em falta |
+| `src/components/live/ActionEditor.tsx` | Adicionar Step 4 para seleção de bloqueador em stuff block |
+
+---
+
+## Considerações
+
+### Jogadores Disponíveis
+O Step 4 deve mostrar os jogadores da **equipa adversária** (a equipa que bloqueou), não da equipa que atacou.
+
+### Props Necessárias
+O `ActionEditor` pode precisar de receber os jogadores da equipa adversária como prop adicional, ou o componente pai (`Live.tsx`) pode passar essa informação.
+
+### Alternativa Simplificada
+Se adicionar props for complexo, podemos:
+1. Usar os mesmos slots de bloqueador (blocker1, blocker2, blocker3) que já existem
+2. Mostrar apenas um botão "Confirmar Bloco" após selecionar b_code=3
+3. Permitir skip com "Sem identificar bloqueador"
 
 ---
 
 ## Critérios de Sucesso
 
-1. ✅ Novos ataques após setter sempre têm `pass_destination` salvo
-2. ✅ Ataques rápidos mostram aviso de destino em falta
-3. ✅ Histórico de rallies permite identificar e corrigir destinos em falta
-4. ✅ Console logs ajudam a diagnosticar falhas durante testes
+1. ✅ Ao selecionar "Bloco Ponto", aparece UI para selecionar bloqueador
+2. ✅ Bloqueador é registado antes de fechar a ação
+3. ✅ Ponto é atribuído à equipa correta (equipa que bloqueou)
+4. ✅ Se utilizador não quiser identificar, pode saltar com botão "Sem detalhar"
