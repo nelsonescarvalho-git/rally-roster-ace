@@ -1,76 +1,172 @@
 
 
-# Plano: Corrigir Visualização de Dados e Mensagens de Aviso em Stats/RallyHistory
+# Plano: Corrigir Race Condition no Auto-Finish Point
 
 ## Problema Identificado
 
-Após análise detalhada da base de dados e do código, identifiquei que:
+No fluxo **Distribuição → Ataque** com finalização automática (Kill, ACE, Erro):
 
-1. **Os dados do rally #14 estão corretos na BD:**
-   - `a_player_id`: preenchido (7a69b6eb... = #12 Rafael Esperanço)
-   - `a_no`: 12
-   - `a_code`: 1 (tocou bloco)
-   - `b_code`: null
-   - `reason`: BLK
+1. O `handleKillTypeWithAutoConfirm` chama:
+   ```typescript
+   onConfirm({ playerId: selectedPlayer, code: 3, killType: type });
+   onAutoFinishPoint?.(side, 'KILL');  // ← SEM passar dados do ataque!
+   ```
 
-2. **O atacante aparece corretamente na tabela de Stats** (coluna "Atq" mostra `#12 1`)
+2. O `handleAutoFinishPoint` no `Live.tsx` (linha 1502):
+   ```typescript
+   const handleAutoFinishPoint = useCallback((winner: Side, reason: Reason) => {
+     handleFinishPoint(winner, reason);  // ← SEM overrides!
+   }, [handleFinishPoint]);
+   ```
 
-3. **O warning "9 rally(s) com dados em falta (KILL sem atacante)" é misleading** porque:
-   - A condição inclui rallies com `a_code === 1 && b_code === null` (bloco tocado sem resultado)
-   - Mas o texto só menciona "KILL sem atacante"
+3. O `handleFinishPoint` procura o ataque em `registeredActions`:
+   ```typescript
+   const attackAction = registeredActions.find(a => a.type === 'attack');
+   a_player_id: attackAction?.playerId || null,  // ← AINDA NÃO ATUALIZADO!
+   ```
 
-4. **Possível problema de cache**: Quando o utilizador edita um rally e guarda, o `loadMatch()` é chamado mas pode haver um delay na propagação do estado para a UI.
+### Cenários Afetados
+
+| Cenário | Chamada | Dados Perdidos |
+|---------|---------|----------------|
+| Kill (a_code 3) | `onAutoFinishPoint(side, 'KILL')` | `playerId`, `code`, `killType` |
+| Erro Ataque (a_code 0) | `onAutoFinishPoint(opponent, 'AE')` | `playerId`, `code` |
+| ACE (s_code 3) | `onAutoFinishPoint(side, 'ACE')` | Serviço OK (está em `serveData`) |
+| Erro Serviço (s_code 0) | `onAutoFinishPoint(opponent, 'SE')` | Serviço OK |
+| Block Fault (b_code 0) | `onAutoFinishPoint(side, 'BLK')` | `playerId`, `blockCode` |
+| Stuff Block (b_code 3) | `onAutoFinishPoint(blockerSide, 'BLK')` | `playerId`, `blockCode`, `blocker1Id` |
 
 ---
 
-## Soluções Propostas
+## Solução
 
-### 1. Corrigir Texto do Warning em Stats.tsx
+### 1. Expandir Interface do `onAutoFinishPoint`
 
-Atualizar o texto do alerta para refletir todas as condições verificadas:
+**Ficheiro:** `src/components/live/ActionEditor.tsx` (linha 86)
 
 ```typescript
 // Antes:
-{ralliesWithIssues.length} rally(s) com dados em falta (KILL sem atacante)
+onAutoFinishPoint?: (winner: Side, reason: Reason) => void;
 
-// Depois - mostrar texto mais específico:
-const killsWithoutAttacker = filteredRallies.filter(r => r.reason === 'KILL' && !r.a_player_id).length;
-const setterWithoutDest = filteredRallies.filter(r => r.setter_player_id && !r.pass_destination).length;
-const blockWithoutResult = filteredRallies.filter(r => r.a_code === 1 && r.b_code === null).length;
-
-// Mostrar mensagens separadas ou combinadas:
-{killsWithoutAttacker > 0 && `${killsWithoutAttacker} kill(s) sem atacante`}
-{setterWithoutDest > 0 && `${setterWithoutDest} passe(s) sem destino`}
-{blockWithoutResult > 0 && `${blockWithoutResult} bloco(s) sem resultado (b_code)`}
+// Depois:
+onAutoFinishPoint?: (winner: Side, reason: Reason, attackOverrides?: {
+  attackPlayerId?: string | null;
+  attackCode?: number | null;
+  killType?: KillType | null;
+  blockCode?: number | null;
+  blocker1Id?: string | null;
+}) => void;
 ```
 
-### 2. Forçar Refresh de Cache Após Edição
+### 2. Passar Overrides em Todas as Chamadas
 
-Adicionar invalidação de React Query no `updateRally`:
+**Ficheiro:** `src/components/live/ActionEditor.tsx`
 
-**Ficheiro:** `src/hooks/useMatch.ts`
+**handleKillTypeWithAutoConfirm (linha 408):**
+```typescript
+onAutoFinishPoint?.(side, 'KILL', { 
+  attackPlayerId: selectedPlayer, 
+  attackCode: 3, 
+  killType: type 
+});
+```
+
+**handleCodeWithAutoConfirm - Attack Error (linha 321):**
+```typescript
+onAutoFinishPoint?.(opponent, 'AE', {
+  attackPlayerId: selectedPlayer,
+  attackCode: 0
+});
+```
+
+**handleBlockCodeWithAutoConfirm - Block Fault (linha 367):**
+```typescript
+onAutoFinishPoint?.(side, 'BLK', {
+  attackPlayerId: selectedPlayer,
+  attackCode: 1,
+  blockCode: 0
+});
+```
+
+**handleStuffBlockConfirm (linha 395):**
+```typescript
+onAutoFinishPoint?.(blockerSide, 'BLK', {
+  attackPlayerId: selectedPlayer,
+  attackCode: 1,
+  blockCode: 3,
+  blocker1Id: blockerId
+});
+```
+
+### 3. Atualizar `handleAutoFinishPoint` no Live.tsx
+
+**Ficheiro:** `src/pages/Live.tsx` (linha 1501-1504)
 
 ```typescript
-import { useQueryClient } from '@tanstack/react-query';
+interface AttackOverrides {
+  attackPlayerId?: string | null;
+  attackCode?: number | null;
+  killType?: KillType | null;
+  blockCode?: number | null;
+  blocker1Id?: string | null;
+}
 
-// No updateRally:
-const updateRally = useCallback(async (rallyId: string, updates: Partial<Rally>) => {
-  try {
-    const { error } = await supabase.from('rallies').update(updates).eq('id', rallyId);
-    if (error) throw error;
-    
-    // Invalidar todas as queries relacionadas
-    queryClient.invalidateQueries({ queryKey: ['rallies', matchId] });
-    queryClient.invalidateQueries({ queryKey: ['match', matchId] });
-    queryClient.invalidateQueries({ queryKey: ['attackStats', matchId] });
-    
-    await loadMatch();
-    return true;
-  } catch (error: any) {
-    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    return false;
+const handleAutoFinishPoint = useCallback((
+  winner: Side, 
+  reason: Reason,
+  attackOverrides?: AttackOverrides
+) => {
+  handleFinishPoint(winner, reason, undefined, attackOverrides);
+}, [handleFinishPoint]);
+```
+
+### 4. Atualizar `handleFinishPoint` para Usar Overrides
+
+**Ficheiro:** `src/pages/Live.tsx` (linha 1232)
+
+```typescript
+const handleFinishPoint = async (
+  winner: Side, 
+  reason: Reason, 
+  faultPlayerId?: string | null,
+  attackOverrides?: AttackOverrides
+) => {
+  // ... código existente ...
+  
+  const attackAction = registeredActions.find(a => a.type === 'attack');
+  
+  // Priorizar overrides sobre registeredActions
+  const effectiveAttackPlayerId = attackOverrides?.attackPlayerId ?? attackAction?.playerId ?? null;
+  const effectiveAttackCode = attackOverrides?.attackCode ?? attackAction?.code ?? null;
+  const effectiveKillType = attackOverrides?.killType ?? attackAction?.killType ?? null;
+  const effectiveBlockCode = attackOverrides?.blockCode ?? attackAction?.blockCode ?? null;
+  const effectiveBlocker1Id = attackOverrides?.blocker1Id ?? blockAction?.b1PlayerId ?? null;
+  
+  const rallyData: Partial<Rally> = {
+    // ... outros campos ...
+    a_player_id: effectiveAttackPlayerId,
+    a_no: getPlayerNo(effectiveAttackPlayerId),
+    a_code: effectiveAttackCode,
+    kill_type: effectiveAttackCode === 3 ? effectiveKillType : null,
+    b1_player_id: effectiveBlocker1Id,
+    b1_no: getPlayerNo(effectiveBlocker1Id),
+    b_code: effectiveBlockCode ?? blockAction?.code ?? null,
+    // ...
+  };
+  
+  // Atualizar lastAttacker se temos dados válidos
+  if (effectiveAttackPlayerId && effectiveAttackCode !== null) {
+    const attackerPlayer = effectivePlayers.find(p => p.id === effectiveAttackPlayerId);
+    if (attackerPlayer) {
+      setLastAttacker({
+        playerId: effectiveAttackPlayerId,
+        playerNumber: attackerPlayer.jersey_number,
+        playerName: attackerPlayer.name || '',
+        side: attackAction?.side || gameState.recvSide,
+      });
+    }
   }
-}, [loadMatch, toast, matchId, queryClient]);
+};
 ```
 
 ---
@@ -79,14 +175,26 @@ const updateRally = useCallback(async (rallyId: string, updates: Partial<Rally>)
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/pages/Stats.tsx` | Corrigir texto do warning para ser mais específico |
-| `src/hooks/useMatch.ts` | Adicionar invalidação de React Query no `updateRally` |
+| `src/components/live/ActionEditor.tsx` | Expandir interface `onAutoFinishPoint` e passar overrides em todas as chamadas |
+| `src/pages/Live.tsx` | Atualizar `handleAutoFinishPoint` e `handleFinishPoint` para processar overrides |
 
 ---
 
 ## Critérios de Sucesso
 
-- ✅ Warning mostra texto preciso para cada tipo de problema
-- ✅ Após editar um rally, os dados são imediatamente refletidos na tabela
-- ✅ Não é necessário clicar manualmente em "Recalcular" após edições
+- Atacante #8 aparece corretamente em kills e blockouts
+- `kill_type` (FLOOR/BLOCKOUT) gravado corretamente
+- Erros de ataque gravam o atacante
+- Stuff blocks gravam atacante e bloqueador
+- `lastAttacker` atualizado corretamente para modo ultra-rápido
+
+---
+
+## Validação
+
+1. Registar Receção → Distribuição (destino P4) → Ataque #8 → Kill → Blockout
+2. Verificar no RallyHistory que atacante #8 e kill_type BLOCKOUT aparecem
+3. Verificar na tabela Stats que a coluna "Atq" mostra "#8 3 BLK"
+4. Testar erro de ataque: verificar que atacante aparece
+5. Testar stuff block: verificar que atacante e bloqueador aparecem
 
