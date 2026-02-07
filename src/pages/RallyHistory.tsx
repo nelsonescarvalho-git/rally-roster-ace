@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
+import { useRallyActionsForMatch } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,8 @@ import {
   FileSpreadsheet,
   ChevronDown as DropdownChevron,
   Wand2,
-  Loader2
+  Loader2,
+  Layers
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -32,14 +34,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Rally, Player, MatchPlayer } from '@/types/volleyball';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 import { EditRallyModal } from '@/components/EditRallyModal';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { RallySummary } from '@/components/rally/RallySummary';
 import { TimelineItem } from '@/components/rally/TimelineItem';
+import { RallyActionsTimeline } from '@/components/rally/RallyActionsTimeline';
 import { cn } from '@/lib/utils';
 
-type ViewMode = 'compact' | 'timeline';
+type ViewMode = 'compact' | 'timeline' | 'actions';
 
 interface RallyGroupProps {
   rallyNo: number;
@@ -51,6 +55,8 @@ interface RallyGroupProps {
   scoreBefore?: { home: number; away: number };
   scoreAfter?: { home: number; away: number };
   viewMode: ViewMode;
+  /** Actions from rally_actions table (new multi-action format) */
+  rallyActions?: Map<string, RallyActionWithPlayer[]>;
 }
 
 function RallyGroup({ 
@@ -62,7 +68,8 @@ function RallyGroup({
   onEdit,
   scoreBefore,
   scoreAfter,
-  viewMode
+  viewMode,
+  rallyActions
 }: RallyGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const sortedPhases = [...phases].sort((a, b) => a.phase - b.phase);
@@ -256,7 +263,79 @@ function RallyGroup({
       
       <CollapsibleContent>
         <div className="ml-6 mt-2 space-y-4">
-          {sortedPhases.map((phase, phaseIdx) => (
+          {/* Actions View - from rally_actions table */}
+          {viewMode === 'actions' && (
+            <div className="border rounded-lg bg-card/50 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] gap-1">
+                    <Layers className="h-3 w-3" />
+                    Sequência Detalhada
+                  </Badge>
+                  {/* Count actions from all phases */}
+                  {(() => {
+                    const allActions = sortedPhases.flatMap(phase => 
+                      rallyActions?.get(phase.id) || []
+                    );
+                    return allActions.length > 0 ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {allActions.length} ações
+                      </Badge>
+                    ) : null;
+                  })()}
+                </div>
+              </div>
+              <div className="p-4">
+                {sortedPhases.map((phase, phaseIdx) => {
+                  const actions = rallyActions?.get(phase.id) || [];
+                  if (actions.length === 0 && sortedPhases.length > 1) {
+                    return (
+                      <div key={phase.id} className="mb-4 last:mb-0">
+                        <Badge variant="outline" className="text-[10px] mb-2">Fase {phase.phase}</Badge>
+                        <div className="text-xs text-muted-foreground italic pl-2">
+                          Sem ações detalhadas (dados legados)
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={phase.id} className="mb-4 last:mb-0">
+                      {sortedPhases.length > 1 && (
+                        <Badge variant="outline" className="text-[10px] mb-2">Fase {phase.phase}</Badge>
+                      )}
+                      <RallyActionsTimeline
+                        actions={actions}
+                        homeName={homeName}
+                        awayName={awayName}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Outcome for actions view */}
+              {sortedPhases[sortedPhases.length - 1]?.point_won_by && (
+                <div className="flex items-center gap-2 px-3 py-2 border-t bg-muted/20">
+                  <span className="text-xs text-muted-foreground">Ponto:</span>
+                  <Badge className={cn(
+                    'text-xs',
+                    sortedPhases[sortedPhases.length - 1].point_won_by === 'CASA' 
+                      ? 'bg-home text-home-foreground' 
+                      : 'bg-away text-away-foreground'
+                  )}>
+                    {sortedPhases[sortedPhases.length - 1].point_won_by === 'CASA' ? homeName : awayName}
+                  </Badge>
+                  {sortedPhases[sortedPhases.length - 1].reason && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {sortedPhases[sortedPhases.length - 1].reason}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Phase-based views (timeline and compact) */}
+          {(viewMode === 'timeline' || viewMode === 'compact') && sortedPhases.map((phase, phaseIdx) => (
             <div key={phase.id} className="border rounded-lg bg-card/50 overflow-hidden">
               {/* Phase Header */}
               <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b">
@@ -400,11 +479,12 @@ export default function RallyHistory() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet, autoFixMissingPlayerIds, autoFixMissingKillTypes } = useMatch(matchId || null);
+  const { data: rallyActionsMap, isLoading: actionsLoading } = useRallyActionsForMatch(matchId || null);
   const players = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0);
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
+  const [viewMode, setViewMode] = useState<ViewMode>('actions'); // Default to actions view
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [isAutoFixingKillTypes, setIsAutoFixingKillTypes] = useState(false);
 
@@ -681,10 +761,20 @@ export default function RallyHistory() {
           {/* View Mode Toggle */}
           <div className="flex items-center gap-1 border rounded-lg p-0.5">
             <Button
+              variant={viewMode === 'actions' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setViewMode('actions')}
+              title="Sequência de Ações"
+            >
+              <Layers className="h-4 w-4" />
+            </Button>
+            <Button
               variant={viewMode === 'timeline' ? 'secondary' : 'ghost'}
               size="icon"
               className="h-7 w-7"
               onClick={() => setViewMode('timeline')}
+              title="Timeline por Fase"
             >
               <LayoutList className="h-4 w-4" />
             </Button>
@@ -693,6 +783,7 @@ export default function RallyHistory() {
               size="icon"
               className="h-7 w-7"
               onClick={() => setViewMode('compact')}
+              title="Vista Compacta"
             >
               <LayoutGrid className="h-4 w-4" />
             </Button>
@@ -771,6 +862,7 @@ export default function RallyHistory() {
                         scoreBefore={scores?.before}
                         scoreAfter={scores?.after}
                         viewMode={viewMode}
+                        rallyActions={rallyActionsMap}
                       />
                     );
                   })}
