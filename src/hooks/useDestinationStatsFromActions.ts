@@ -54,51 +54,60 @@ export function useDestinationStatsFromActions(
       // Sort by sequence_no to ensure correct order
       const sortedActions = [...actions].sort((a, b) => a.sequence_no - b.sequence_no);
       
-      // Track pending setter destinations waiting for an attack
+      // Track pending setter destinations waiting for an attack (Architecture 1)
       let pendingDestination: PassDestination | null = null;
       let pendingSetterSide: Side | null = null;
       
       for (const action of sortedActions) {
-        // If this is a setter action with a destination, store it
+        // If this is a setter action with a destination
         if (action.action_type === 'setter' && action.pass_destination) {
-          pendingDestination = action.pass_destination as PassDestination;
-          pendingSetterSide = action.side as Side;
+          const dest = action.pass_destination as PassDestination;
+          const setterSide = action.side as Side;
+          
+          // Apply side filter
+          if (!side || setterSide === side) {
+            // 1. Count ALL distributions as attempts immediately
+            stats[dest].attempts++;
+            
+            // 2. Architecture 2 (Combo): If setter has code, use it directly
+            if (action.code !== null && action.code !== undefined) {
+              if (action.code === 3) stats[dest].kills++;
+              else if (action.code === 0) stats[dest].errors++;
+              else if (action.code === 1) stats[dest].blocked++;
+              else if (action.code === 2) stats[dest].defended++;
+              // Result already processed, no need to wait for attack
+              continue;
+            }
+          }
+          
+          // 3. Architecture 1: Store for correlation with subsequent attack
+          pendingDestination = dest;
+          pendingSetterSide = setterSide;
         }
         
-        // If this is an attack action, correlate with pending setter
+        // Architecture 1: Correlate attack with pending setter
         if (action.action_type === 'attack' && pendingDestination !== null) {
           const attackSide = action.side as Side;
           
-          // Only count if attack is from the same side as the setter (same team sequence)
-          // and matches the side filter if specified
+          // Only correlate if attack is from the same side as the setter
           if (pendingSetterSide === attackSide) {
             if (!side || attackSide === side) {
               const dest = pendingDestination;
               const code = action.code;
               
-              // Always increment attempts (every pass to this zone counts)
-              stats[dest].attempts++;
-              
-              // Categorize the result
-              if (code === 3) {
-                stats[dest].kills++;
-              } else if (code === 0) {
-                stats[dest].errors++;
-              } else if (code === 1) {
-                stats[dest].blocked++;
-              } else if (code === 2) {
-                stats[dest].defended++;
-              }
+              // Don't increment attempts again (already counted at setter)
+              // Just categorize the result
+              if (code === 3) stats[dest].kills++;
+              else if (code === 0) stats[dest].errors++;
+              else if (code === 1) stats[dest].blocked++;
+              else if (code === 2) stats[dest].defended++;
             }
           }
           
-          // Clear pending destination after processing attack
+          // Clear pending after processing
           pendingDestination = null;
           pendingSetterSide = null;
         }
-        
-        // If we hit another setter before an attack, update pending destination
-        // This handles cases where there might be multiple setters before an attack
       }
     });
     
