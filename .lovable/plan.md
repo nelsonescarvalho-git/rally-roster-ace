@@ -1,173 +1,285 @@
 
 
-# Plano: Estatísticas do Plantel
+# Plano: Upload de Logótipos das Equipas
 
 ## Objetivo
 
-Adicionar um card de estatísticas na página `TeamDetail` que mostra:
-- Altura média da equipa
-- Idade média da equipa  
-- Distribuição de jogadores por posição
+Permitir o upload e exibição de logótipos/emblemas para cada equipa, utilizando o armazenamento do Lovable Cloud.
 
-## Interface Proposta
+---
+
+## Arquitetura da Solução
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│ 📊 Estatísticas do Plantel                                 │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────────────┐ │
-│  │   185    │  │   22.5   │  │  OH  ████████  4        │ │
-│  │    cm    │  │   anos   │  │  OP  ████      2        │ │
-│  │  Altura  │  │  Idade   │  │  MB  ██████    3        │ │
-│  │  Média   │  │  Média   │  │  S   ████      2        │ │
-│  └──────────┘  └──────────┘  │  L   ██        1        │ │
-│                              │  --  ████      2        │ │
-│  (6/14 com altura)           └──────────────────────────┘ │
-│  (10/14 com nascimento)                                   │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        FLUXO DE UPLOAD                              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. Utilizador seleciona imagem                                     │
+│         ↓                                                           │
+│  2. Preview local (URL.createObjectURL)                             │
+│         ↓                                                           │
+│  3. Upload para bucket 'team-logos'                                 │
+│         ↓                                                           │
+│  4. Obter URL público                                               │
+│         ↓                                                           │
+│  5. Guardar logo_url na tabela teams                                │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Lógica de Cálculo
+---
 
-### Altura Média
-- Filtrar jogadores com `height_cm` preenchido
-- Calcular média aritmética
-- Mostrar quantos jogadores têm altura registada (ex: "6/14 com altura")
+## Alterações Necessárias
 
-### Idade Média
-- Filtrar jogadores com `birth_date` preenchido
-- Usar `differenceInYears` do date-fns para calcular idade de cada um
-- Calcular média das idades
-- Mostrar quantos jogadores têm data de nascimento (ex: "10/14 com nascimento")
+### 1. Base de Dados - Storage Bucket
 
-### Distribuição por Posição
-- Agrupar jogadores por `position`
-- Contar jogadores em cada posição (OH, OP, MB, S, L)
-- Jogadores sem posição contam como "Sem posição"
-- Mostrar barra de progresso proporcional
+Criar um bucket público para armazenar os logótipos:
 
-## Ficheiros a Alterar
+```sql
+-- Criar bucket para logótipos das equipas
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('team-logos', 'team-logos', true);
+
+-- Política: qualquer pessoa pode ver logótipos (bucket público)
+CREATE POLICY "Public read access for team logos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'team-logos');
+
+-- Política: qualquer pessoa pode fazer upload de logótipos
+CREATE POLICY "Public upload access for team logos"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'team-logos');
+
+-- Política: qualquer pessoa pode atualizar os seus uploads
+CREATE POLICY "Public update access for team logos"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'team-logos');
+
+-- Política: qualquer pessoa pode apagar logótipos
+CREATE POLICY "Public delete access for team logos"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'team-logos');
+```
+
+### 2. Novo Componente - LogoUploadCard
+
+Criar componente dedicado para upload e preview do logótipo:
+
+| Ficheiro | Descrição |
+|----------|-----------|
+| `src/components/team/LogoUploadCard.tsx` | Card com upload, preview e remoção do logótipo |
+
+**Funcionalidades:**
+- Área de drop/clique para selecionar imagem
+- Preview da imagem antes e depois do upload
+- Botão para remover logótipo existente
+- Validação de tipo (apenas imagens) e tamanho (max 2MB)
+- Loading state durante upload
+
+### 3. Atualizar Componentes Existentes
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/pages/TeamDetail.tsx` | Adicionar card de estatísticas com cálculos e visualização |
+| `src/hooks/useTeams.ts` | Adicionar funções `uploadLogo` e `removeLogo` |
+| `src/pages/TeamDetail.tsx` | Integrar LogoUploadCard na página de detalhes |
+| `src/pages/Teams.tsx` | Mostrar logótipo no card de cada equipa (se existir) |
+| `src/components/CreateTeamDialog.tsx` | Adicionar opção de upload de logótipo na criação |
+
+---
+
+## Interface Proposta
+
+### LogoUploadCard (TeamDetail)
+
+```text
+┌────────────────────────────────────────────────────────┐
+│ 🖼️ Logótipo da Equipa                                  │
+├────────────────────────────────────────────────────────┤
+│                                                        │
+│     ┌──────────────────────────┐                       │
+│     │                          │                       │
+│     │      [  EMBLEMA  ]       │   [Alterar]           │
+│     │                          │                       │
+│     │       120×120px          │   [Remover]           │
+│     │                          │                       │
+│     └──────────────────────────┘                       │
+│                                                        │
+│  Arraste uma imagem ou clique para selecionar          │
+│  (PNG, JPG - máx. 2MB)                                 │
+│                                                        │
+└────────────────────────────────────────────────────────┘
+```
+
+### Teams.tsx (Lista)
+
+```text
+┌─────────────────────────────────────────┐
+│ [LOGO] Amares SC                    →   │
+│        14 jogadores · J. Silva          │
+└─────────────────────────────────────────┘
+```
+
+Se não houver logótipo, mostra ícone genérico (Users) como atualmente.
+
+---
 
 ## Detalhes Técnicos
 
-### Imports Necessários
+### Hook useTeams - Novas Funções
+
 ```typescript
-import { differenceInYears, parseISO } from 'date-fns';
-import { BarChart3, Ruler, Calendar } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+// Upload de logótipo
+const uploadLogo = useCallback(async (
+  teamId: string,
+  file: File
+): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${teamId}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // Upload para o bucket
+    const { error: uploadError } = await supabase.storage
+      .from('team-logos')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    // Obter URL público
+    const { data: { publicUrl } } = supabase.storage
+      .from('team-logos')
+      .getPublicUrl(filePath);
+
+    // Atualizar tabela teams
+    const { error: updateError } = await supabase
+      .from('teams')
+      .update({ logo_url: publicUrl })
+      .eq('id', teamId);
+
+    if (updateError) throw updateError;
+
+    await loadTeams();
+    toast({ title: 'Logótipo atualizado' });
+    return publicUrl;
+  } catch (error: any) {
+    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    return null;
+  }
+}, [loadTeams, toast]);
+
+// Remover logótipo
+const removeLogo = useCallback(async (teamId: string): Promise<boolean> => {
+  try {
+    // Listar e apagar ficheiros com prefixo do teamId
+    const { data: files } = await supabase.storage
+      .from('team-logos')
+      .list('', { search: teamId });
+
+    if (files && files.length > 0) {
+      await supabase.storage
+        .from('team-logos')
+        .remove(files.map(f => f.name));
+    }
+
+    // Limpar campo na tabela
+    const { error } = await supabase
+      .from('teams')
+      .update({ logo_url: null })
+      .eq('id', teamId);
+
+    if (error) throw error;
+
+    await loadTeams();
+    toast({ title: 'Logótipo removido' });
+    return true;
+  } catch (error: any) {
+    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    return false;
+  }
+}, [loadTeams, toast]);
 ```
 
-### Cálculo das Estatísticas (useMemo)
+### LogoUploadCard Component
+
 ```typescript
-const squadStats = useMemo(() => {
-  const playersWithHeight = players.filter(p => p.height_cm);
-  const avgHeight = playersWithHeight.length > 0
-    ? Math.round(playersWithHeight.reduce((sum, p) => sum + p.height_cm!, 0) / playersWithHeight.length)
-    : null;
+interface LogoUploadCardProps {
+  teamId: string;
+  currentLogoUrl: string | null;
+  onUpload: (teamId: string, file: File) => Promise<string | null>;
+  onRemove: (teamId: string) => Promise<boolean>;
+}
 
-  const today = new Date();
-  const playersWithAge = players.filter(p => p.birth_date).map(p => ({
-    ...p,
-    age: differenceInYears(today, parseISO(p.birth_date!))
-  }));
-  const avgAge = playersWithAge.length > 0
-    ? (playersWithAge.reduce((sum, p) => sum + p.age, 0) / playersWithAge.length).toFixed(1)
-    : null;
+export function LogoUploadCard({ 
+  teamId, 
+  currentLogoUrl, 
+  onUpload, 
+  onRemove 
+}: LogoUploadCardProps) {
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const positionCounts: Record<string, number> = {};
-  players.forEach(p => {
-    const pos = p.position || 'Sem posição';
-    positionCounts[pos] = (positionCounts[pos] || 0) + 1;
-  });
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  return {
-    avgHeight,
-    heightCount: playersWithHeight.length,
-    avgAge,
-    ageCount: playersWithAge.length,
-    positionCounts,
-    totalPlayers: players.length
+    // Validação
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Erro', description: 'Apenas imagens são permitidas' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Erro', description: 'Ficheiro demasiado grande (máx. 2MB)' });
+      return;
+    }
+
+    // Preview local
+    setPreview(URL.createObjectURL(file));
+    
+    // Upload
+    setUploading(true);
+    await onUpload(teamId, file);
+    setUploading(false);
+    setPreview(null);
   };
-}, [players]);
+
+  // ... render com área de drop, preview, botões
+}
 ```
 
-### Componente do Card
-```typescript
-{players.length > 0 && (
-  <Card>
-    <CardHeader className="pb-3">
-      <CardTitle className="text-base flex items-center gap-2">
-        <BarChart3 className="h-4 w-4" />
-        Estatísticas do Plantel
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {/* Altura Média */}
-        <div className="text-center p-3 bg-muted/50 rounded-lg">
-          <Ruler className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-          <div className="text-2xl font-bold">
-            {squadStats.avgHeight ? `${squadStats.avgHeight}` : '-'}
-          </div>
-          <div className="text-xs text-muted-foreground">cm (altura média)</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {squadStats.heightCount}/{squadStats.totalPlayers} com altura
-          </div>
-        </div>
+---
 
-        {/* Idade Média */}
-        <div className="text-center p-3 bg-muted/50 rounded-lg">
-          <Calendar className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-          <div className="text-2xl font-bold">
-            {squadStats.avgAge || '-'}
-          </div>
-          <div className="text-xs text-muted-foreground">anos (idade média)</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {squadStats.ageCount}/{squadStats.totalPlayers} com nascimento
-          </div>
-        </div>
+## Ficheiros a Criar/Alterar
 
-        {/* Distribuição por Posição */}
-        <div className="col-span-2 md:col-span-1 p-3 bg-muted/50 rounded-lg">
-          <div className="text-sm font-medium mb-2">Por Posição</div>
-          {Object.entries(squadStats.positionCounts)
-            .sort(([a], [b]) => {
-              const order = ['OH', 'OP', 'MB', 'S', 'L', 'Sem posição'];
-              return order.indexOf(a) - order.indexOf(b);
-            })
-            .map(([pos, count]) => (
-              <div key={pos} className="flex items-center gap-2 mb-1">
-                <span className="w-12 text-xs font-mono">{pos}</span>
-                <Progress 
-                  value={(count / squadStats.totalPlayers) * 100} 
-                  className="h-2 flex-1" 
-                />
-                <span className="w-4 text-xs text-right">{count}</span>
-              </div>
-            ))}
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-)}
-```
+| Ficheiro | Operação | Descrição |
+|----------|----------|-----------|
+| `supabase/migrations/xxx_create_team_logos_bucket.sql` | Criar | Bucket e políticas RLS |
+| `src/components/team/LogoUploadCard.tsx` | Criar | Componente de upload |
+| `src/hooks/useTeams.ts` | Alterar | Adicionar uploadLogo e removeLogo |
+| `src/pages/TeamDetail.tsx` | Alterar | Integrar LogoUploadCard |
+| `src/pages/Teams.tsx` | Alterar | Mostrar logótipo na lista |
 
-## Posicionamento
+---
 
-O card de estatísticas será inserido **entre o card de Cores** e a **tabela do Plantel**, ficando visível apenas quando existem jogadores no plantel.
+## Validações de Segurança
+
+- **Tipo de ficheiro**: Apenas imagens (image/*)
+- **Tamanho máximo**: 2MB por ficheiro
+- **Nome único**: Usar teamId como nome do ficheiro (previne duplicados)
+- **Bucket público**: Logótipos são visíveis para todos
+- **Upsert**: Substituir ficheiro existente automaticamente
+
+---
 
 ## Critérios de Sucesso
 
-- Altura média calculada corretamente a partir dos jogadores com altura registada
-- Idade média calculada usando date-fns com precisão de 1 casa decimal
-- Indicadores claros de quantos jogadores têm dados preenchidos
-- Distribuição por posição ordenada logicamente (OH, OP, MB, S, L, Sem posição)
-- Card responsivo que funciona bem em mobile e desktop
-- Graceful degradation quando não há dados (mostra "-" em vez de valores)
+- Utilizador pode fazer upload de logótipo na página de detalhes da equipa
+- Preview da imagem mostrado antes de guardar
+- Logótipo aparece na lista de equipas (Teams.tsx)
+- Logótipo aparece na pré-visualização de cores (ColorsCard)
+- Possibilidade de remover logótipo existente
+- Feedback visual durante upload (loading state)
+- Validação de tipo e tamanho de ficheiro
+- Opção de adicionar logótipo na criação de equipa (opcional)
 
