@@ -40,7 +40,8 @@ import { CourtView } from '@/components/live/CourtView';
 import { RefereeModal } from '@/components/live/RefereeModal';
 import { MandatorySubstitutionModal } from '@/components/live/MandatorySubstitutionModal';
 import { TimeoutCard } from '@/components/live/TimeoutCard';
-import { SubsLiberosCard } from '@/components/live/SubsLiberosCard';
+import { SubstitutionsCard } from '@/components/live/SubstitutionsCard';
+import { LiberoCard } from '@/components/live/LiberoCard';
 import { useLiberoTracking } from '@/hooks/useLiberoTracking';
 import { 
   Side, 
@@ -2293,8 +2294,20 @@ export default function Live() {
               onTimeoutCalled={handleTimeoutCalled}
             />
 
-            {/* Subs & Libero Quick Card */}
-            <SubsLiberosCard
+            {/* Substitutions Card */}
+            <SubstitutionsCard
+              homeName={match.home_name}
+              awayName={match.away_name}
+              homeColor={teamColors.home.primary}
+              awayColor={teamColors.away.primary}
+              homeSubsUsed={getSubstitutionsUsed(currentSet, 'CASA')}
+              awaySubsUsed={getSubstitutionsUsed(currentSet, 'FORA')}
+              maxSubstitutions={6}
+              onOpenSubModal={setSubModalSide}
+            />
+
+            {/* Libero Card */}
+            <LiberoCard
               homeName={match.home_name}
               awayName={match.away_name}
               homeColor={teamColors.home.primary}
@@ -2303,10 +2316,6 @@ export default function Live() {
               homeLiberoPlayer={liberoTrackingHome.activeLiberoPlayer}
               awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
               awayLiberoPlayer={liberoTrackingAway.activeLiberoPlayer}
-              homeSubsUsed={getSubstitutionsUsed(currentSet, 'CASA')}
-              awaySubsUsed={getSubstitutionsUsed(currentSet, 'FORA')}
-              maxSubstitutions={6}
-              onOpenSubModal={setSubModalSide}
               onLiberoEntry={(side) => {
                 setManualLiberoPromptSide(side);
               }}
