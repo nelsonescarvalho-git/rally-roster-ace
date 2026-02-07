@@ -283,6 +283,7 @@ export default function Live() {
     currentRally: gameState?.currentRally || 1,
     rotation: gameState?.serveSide === 'CASA' ? (gameState?.serveRot || 1) : (gameState?.recvRot || 1),
     isReceiving: gameState?.recvSide === 'CASA',
+    isSetStart: (gameState?.currentRally || 1) === 1, // Allow libero entry at set start for both teams
     substitutions: substitutions || [],
     getPlayersForSide,
     getPlayersOnCourt,
@@ -298,6 +299,7 @@ export default function Live() {
     currentRally: gameState?.currentRally || 1,
     rotation: gameState?.serveSide === 'FORA' ? (gameState?.serveRot || 1) : (gameState?.recvRot || 1),
     isReceiving: gameState?.recvSide === 'FORA',
+    isSetStart: (gameState?.currentRally || 1) === 1, // Allow libero entry at set start for both teams
     substitutions: substitutions || [],
     getPlayersForSide,
     getPlayersOnCourt,
