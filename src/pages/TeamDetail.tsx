@@ -101,7 +101,17 @@ export default function TeamDetail() {
     return false;
   };
 
-  const handleUpdatePlayer = async (playerId: string, data: { name: string; position: string | null; is_captain: boolean }) => {
+  const handleUpdatePlayer = async (
+    playerId: string, 
+    data: { 
+      name: string; 
+      position: string | null; 
+      is_captain: boolean;
+      height_cm: number | null;
+      birth_date: string | null;
+      federation_id: string | null;
+    }
+  ) => {
     const success = await updateTeamPlayer(playerId, data);
     if (success) {
       loadPlayers();
