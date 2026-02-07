@@ -4,13 +4,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { useServeTypeStats } from '@/hooks/useServeTypeStats';
-import { useRallyActionsForMatch } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useAutoFixRallyActions, useComprehensiveAutoFix } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, AlertTriangle, Pencil, HelpCircle, ChevronDown, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, AlertTriangle, Pencil, HelpCircle, ChevronDown, RefreshCw, Wand2, Loader2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Side, Rally } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
@@ -30,6 +30,10 @@ export default function Stats() {
   const [selectedSet, setSelectedSet] = useState(0); // 0 = all
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
+  const [isComprehensiveFix, setIsComprehensiveFix] = useState(false);
+  
+  const autoFixRallyActions = useAutoFixRallyActions();
+  const comprehensiveAutoFix = useComprehensiveAutoFix();
 
   const handleRecalculate = async () => {
     // Invalidate all queries related to this match
@@ -81,6 +85,52 @@ export default function Stats() {
             <h1 className="font-semibold">Estatísticas</h1>
             <p className="text-xs text-muted-foreground">{match.title}</p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={isComprehensiveFix}
+            onClick={async () => {
+              setIsComprehensiveFix(true);
+              try {
+                // Step 1: Fix player IDs (existing logic)
+                const playerResult = await autoFixRallyActions.mutateAsync({
+                  matchId: matchId!,
+                  players: effectivePlayers
+                });
+                
+                // Step 2: Infer codes from attacks (new logic)
+                const codeResult = await comprehensiveAutoFix.mutateAsync({
+                  matchId: matchId!
+                });
+                
+                const totalFixed = playerResult.fixed + codeResult.setterCodesFixed;
+                
+                if (totalFixed > 0) {
+                  toast.success(`Corrigido: ${playerResult.fixed} jogadores, ${codeResult.setterCodesFixed} códigos`);
+                  await handleRecalculate();
+                } else {
+                  toast.info('Sem dados para corrigir automaticamente');
+                }
+                
+                if (codeResult.settersSkipped > 0) {
+                  toast.warning(`${codeResult.settersSkipped} setters sem attack subsequente`);
+                }
+              } catch (error) {
+                console.error('Comprehensive auto-fix error:', error);
+                toast.error('Erro ao corrigir dados');
+              } finally {
+                setIsComprehensiveFix(false);
+              }
+            }}
+          >
+            {isComprehensiveFix ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+            Fix Tudo
+          </Button>
           <Button variant="outline" size="sm" onClick={handleRecalculate} className="gap-1">
             <RefreshCw className="h-4 w-4" />
             Recalcular

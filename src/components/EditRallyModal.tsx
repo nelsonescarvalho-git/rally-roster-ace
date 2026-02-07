@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { Rally, Player, MatchPlayer, Side, Reason, KillType, PassDestination } from '@/types/volleyball';
 import { AlertTriangle } from 'lucide-react';
 
@@ -118,8 +120,9 @@ export function EditRallyModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-lg flex flex-col p-0 gap-0 max-h-[90vh]">
+        {/* Fixed Header */}
+        <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             Editar Rally #{rally.rally_no}
             {hasIssues && (
@@ -135,10 +138,6 @@ export function EditRallyModal({
               </Badge>
             )}
           </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* Rally Info */}
           <div className="flex gap-2 text-xs text-muted-foreground">
             <span>Set {rally.set_no}</span>
             <span>•</span>
@@ -146,176 +145,181 @@ export function EditRallyModal({
             <span>•</span>
             <span>Serve: {rally.serve_side === 'CASA' ? homeName : awayName}</span>
           </div>
+        </DialogHeader>
 
-          {/* Serve */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Serviço ({rally.serve_side === 'CASA' ? homeName : awayName})</Label>
-            <div className="flex gap-2">
-              <Select
-                value={editData.s_player_id || 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, s_player_id: v === 'none' ? null : v }))}
-              >
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Jogador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {servePlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={editData.s_code?.toString() ?? 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, s_code: v === 'none' ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Cód" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-</SelectItem>
-                  {CODES.map(c => (
-                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Reception */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              Receção ({rally.recv_side === 'CASA' ? homeName : awayName})
-              {hasReceptionIssue && (
-                <Badge variant="destructive" className="text-xs">Necessário</Badge>
-              )}
-            </Label>
-            <div className="flex gap-2">
-              <Select
-                value={editData.r_player_id || 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, r_player_id: v === 'none' ? null : v }))}
-              >
-                <SelectTrigger className={`flex-1 ${hasReceptionIssue ? 'border-destructive' : ''}`}>
-                  <SelectValue placeholder="Jogador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {recvPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={editData.r_code?.toString() ?? 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, r_code: v === 'none' ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Cód" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-</SelectItem>
-                  {CODES.map(c => (
-                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Passe/Distribuição */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              Passe/Distribuição ({attackSide === 'CASA' ? homeName : awayName})
-              {hasSetterIssue && (
-                <Badge variant="destructive" className="text-xs">Necessário</Badge>
-              )}
-            </Label>
-            <div className="flex gap-2">
-              <Select
-                value={editData.setter_player_id || 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, setter_player_id: v === 'none' ? null : v }))}
-              >
-                <SelectTrigger className={`flex-1 ${hasSetterIssue ? 'border-destructive' : ''}`}>
-                  <SelectValue placeholder="Distribuidor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {attackPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={editData.pass_code?.toString() ?? 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, pass_code: v === 'none' ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Cód" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-</SelectItem>
-                  {CODES.map(c => (
-                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Select
-              value={editData.pass_destination || 'none'}
-              onValueChange={(v) => setEditData(prev => ({ ...prev, pass_destination: v === 'none' ? null : v as PassDestination }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Destino do passe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">-</SelectItem>
-                {DESTINATIONS.map(d => (
-                  <SelectItem key={d} value={d}>{d}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Attack */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              Ataque ({attackSide === 'CASA' ? homeName : awayName})
-              {hasAttackIssue && (
-                <Badge variant="destructive" className="text-xs">Necessário</Badge>
-              )}
-            </Label>
-            <div className="flex gap-2">
-              <Select
-                value={editData.a_player_id || 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, a_player_id: v === 'none' ? null : v }))}
-              >
-                <SelectTrigger className={`flex-1 ${hasAttackIssue ? 'border-destructive' : ''}`}>
-                  <SelectValue placeholder="Jogador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {attackPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={editData.a_code?.toString() ?? 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, a_code: v === 'none' ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Cód" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-</SelectItem>
-                  {CODES.map(c => (
-                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {editData.a_code === 3 && (
+        {/* Scrollable Content */}
+        <ScrollArea className="flex-1 px-6">
+          <div className="space-y-3 pb-4">
+            {/* Serve Section */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm font-medium">
+                Serviço ({rally.serve_side === 'CASA' ? homeName : awayName})
+              </Label>
               <div className="flex gap-2">
+                <Select
+                  value={editData.s_player_id || 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, s_player_id: v === 'none' ? null : v }))}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Jogador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {servePlayers.map(p => (
+                      <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editData.s_code?.toString() ?? 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, s_code: v === 'none' ? null : parseInt(v) }))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Cód" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-</SelectItem>
+                    {CODES.map(c => (
+                      <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Reception Section */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                Receção ({rally.recv_side === 'CASA' ? homeName : awayName})
+                {hasReceptionIssue && (
+                  <Badge variant="destructive" className="text-xs">Necessário</Badge>
+                )}
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={editData.r_player_id || 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, r_player_id: v === 'none' ? null : v }))}
+                >
+                  <SelectTrigger className={`flex-1 ${hasReceptionIssue ? 'border-destructive' : ''}`}>
+                    <SelectValue placeholder="Jogador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {recvPlayers.map(p => (
+                      <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editData.r_code?.toString() ?? 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, r_code: v === 'none' ? null : parseInt(v) }))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Cód" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-</SelectItem>
+                    {CODES.map(c => (
+                      <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Pass/Distribution Section */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                Passe/Distribuição ({attackSide === 'CASA' ? homeName : awayName})
+                {hasSetterIssue && (
+                  <Badge variant="destructive" className="text-xs">Necessário</Badge>
+                )}
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={editData.setter_player_id || 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, setter_player_id: v === 'none' ? null : v }))}
+                >
+                  <SelectTrigger className={`flex-1 ${hasSetterIssue ? 'border-destructive' : ''}`}>
+                    <SelectValue placeholder="Distribuidor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {attackPlayers.map(p => (
+                      <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editData.pass_code?.toString() ?? 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, pass_code: v === 'none' ? null : parseInt(v) }))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Cód" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-</SelectItem>
+                    {CODES.map(c => (
+                      <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Select
+                value={editData.pass_destination || 'none'}
+                onValueChange={(v) => setEditData(prev => ({ ...prev, pass_destination: v === 'none' ? null : v as PassDestination }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Destino do passe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-</SelectItem>
+                  {DESTINATIONS.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Attack Section */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                Ataque ({attackSide === 'CASA' ? homeName : awayName})
+                {hasAttackIssue && (
+                  <Badge variant="destructive" className="text-xs">Necessário</Badge>
+                )}
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={editData.a_player_id || 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, a_player_id: v === 'none' ? null : v }))}
+                >
+                  <SelectTrigger className={`flex-1 ${hasAttackIssue ? 'border-destructive' : ''}`}>
+                    <SelectValue placeholder="Jogador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {attackPlayers.map(p => (
+                      <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editData.a_code?.toString() ?? 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, a_code: v === 'none' ? null : parseInt(v) }))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Cód" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-</SelectItem>
+                    {CODES.map(c => (
+                      <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {editData.a_code === 3 && (
                 <Select
                   value={editData.kill_type || 'none'}
                   onValueChange={(v) => setEditData(prev => ({ ...prev, kill_type: v === 'none' ? null : v as KillType }))}
@@ -329,96 +333,99 @@ export function EditRallyModal({
                     <SelectItem value="BLOCKOUT">Block-out</SelectItem>
                   </SelectContent>
                 </Select>
+              )}
+            </div>
+
+            {/* Block Section */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                Bloco ({defSide === 'CASA' ? homeName : awayName})
+                {hasBlockIssue && (
+                  <Badge variant="outline" className="border-warning text-warning text-[10px]">
+                    Jogador em falta
+                  </Badge>
+                )}
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={editData.b1_player_id || 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, b1_player_id: v === 'none' ? null : v }))}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Bloq 1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {defPlayers.map(p => (
+                      <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editData.b_code?.toString() ?? 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, b_code: v === 'none' ? null : parseInt(v) }))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Cód" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-</SelectItem>
+                    {CODES.map(c => (
+                      <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Block */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              Bloco ({defSide === 'CASA' ? homeName : awayName})
-              {hasBlockIssue && (
-                <Badge variant="outline" className="border-warning text-warning text-[10px]">
-                  Jogador em falta
-                </Badge>
-              )}
-            </Label>
-            <div className="flex gap-2">
-              <Select
-                value={editData.b1_player_id || 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, b1_player_id: v === 'none' ? null : v }))}
-              >
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Bloq 1" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {defPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={editData.b_code?.toString() ?? 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, b_code: v === 'none' ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Cód" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-</SelectItem>
-                  {CODES.map(c => (
-                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Defense Section */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                Defesa ({defSide === 'CASA' ? homeName : awayName})
+                {hasDefenseIssue && (
+                  <Badge variant="outline" className="border-warning text-warning text-[10px]">
+                    Código em falta
+                  </Badge>
+                )}
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={editData.d_player_id || 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, d_player_id: v === 'none' ? null : v }))}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Jogador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {defPlayers.map(p => (
+                      <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editData.d_code?.toString() ?? 'none'}
+                  onValueChange={(v) => setEditData(prev => ({ ...prev, d_code: v === 'none' ? null : parseInt(v) }))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Cód" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-</SelectItem>
+                    {CODES.map(c => (
+                      <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
+        </ScrollArea>
 
-          {/* Defense */}
+        {/* Fixed Result Section */}
+        <div className="px-6 py-3 border-t shrink-0">
+          <Separator className="mb-3" />
           <div className="space-y-2">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              Defesa ({defSide === 'CASA' ? homeName : awayName})
-              {hasDefenseIssue && (
-                <Badge variant="outline" className="border-warning text-warning text-[10px]">
-                  Código em falta
-                </Badge>
-              )}
-            </Label>
-            <div className="flex gap-2">
-              <Select
-                value={editData.d_player_id || 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, d_player_id: v === 'none' ? null : v }))}
-              >
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Jogador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {defPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>#{p.jersey_number} {p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={editData.d_code?.toString() ?? 'none'}
-                onValueChange={(v) => setEditData(prev => ({ ...prev, d_code: v === 'none' ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue placeholder="Cód" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-</SelectItem>
-                  {CODES.map(c => (
-                    <SelectItem key={c} value={c.toString()}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Outcome */}
-          <div className="space-y-2 pt-2 border-t">
             <Label className="text-sm font-medium">Resultado</Label>
             <div className="flex gap-2">
               <Select
@@ -452,7 +459,8 @@ export function EditRallyModal({
           </div>
         </div>
 
-        <DialogFooter>
+        {/* Fixed Footer */}
+        <DialogFooter className="px-6 pb-6 pt-3 shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
