@@ -516,3 +516,173 @@ export function useComprehensiveAutoFix() {
     },
   });
 }
+
+// Types for lineup
+interface LineupRow {
+  id: string;
+  match_id: string;
+  set_no: number;
+  side: string;
+  rot1: string | null;
+  rot2: string | null;
+  rot3: string | null;
+  rot4: string | null;
+  rot5: string | null;
+  rot6: string | null;
+}
+
+interface RallyRow {
+  id: string;
+  set_no: number;
+  serve_side: string;
+  serve_rot: number;
+}
+
+/**
+ * Auto-fix serve actions by calculating server from rotation.
+ * 
+ * The serve_rot field indicates which rotation position is serving (1-6).
+ * The lineup stores players by their starting position (rot1-rot6).
+ * 
+ * Rotation logic:
+ * - serve_rot=1: rot1 is in position 1 (serving)
+ * - serve_rot=2: rot2 is in position 1 (serving)
+ * - serve_rot=N: rotN is in position 1 (serving)
+ */
+export function useAutoFixServeByRotation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      matchId,
+      players
+    }: { 
+      matchId: string;
+      players: { id: string; side: string; jersey_number: number }[];
+    }): Promise<{ fixed: number; errors: number; skipped: number }> => {
+      let fixed = 0;
+      let errors = 0;
+      let skipped = 0;
+      
+      // 1. Get all lineups for this match
+      const { data: lineups, error: lineupsError } = await supabase
+        .from('lineups')
+        .select('*')
+        .eq('match_id', matchId)
+        .is('deleted_at', null);
+
+      if (lineupsError) throw lineupsError;
+      if (!lineups?.length) return { fixed: 0, errors: 0, skipped: 0 };
+
+      // Create lineup map: {set_no-side} -> lineup
+      const lineupMap = new Map<string, LineupRow>();
+      (lineups as LineupRow[]).forEach(l => {
+        lineupMap.set(`${l.set_no}-${l.side}`, l);
+      });
+
+      // 2. Get all rallies with serve info
+      const { data: rallies, error: ralliesError } = await supabase
+        .from('rallies')
+        .select('id, set_no, serve_side, serve_rot')
+        .eq('match_id', matchId)
+        .is('deleted_at', null);
+
+      if (ralliesError) throw ralliesError;
+      if (!rallies?.length) return { fixed: 0, errors: 0, skipped: 0 };
+
+      // 3. Get all serve actions that might need fixing
+      const rallyIds = (rallies as RallyRow[]).map(r => r.id);
+      const { data: serveActions, error: serveError } = await supabase
+        .from('rally_actions')
+        .select('id, rally_id, player_id, player_no, side')
+        .eq('action_type', 'serve')
+        .in('rally_id', rallyIds)
+        .is('deleted_at', null);
+
+      if (serveError) throw serveError;
+      if (!serveActions?.length) return { fixed: 0, errors: 0, skipped: 0 };
+
+      // Create rally lookup
+      const rallyMap = new Map<string, RallyRow>();
+      (rallies as RallyRow[]).forEach(r => {
+        rallyMap.set(r.id, r);
+      });
+
+      // Create player lookup by id
+      const playerById = new Map(players.map(p => [p.id, p]));
+
+      // 4. For each serve action, calculate expected server from rotation
+      for (const action of serveActions) {
+        const rally = rallyMap.get(action.rally_id);
+        if (!rally) {
+          skipped++;
+          continue;
+        }
+
+        const lineup = lineupMap.get(`${rally.set_no}-${rally.serve_side}`);
+        if (!lineup) {
+          skipped++;
+          continue;
+        }
+
+        // Get server from rotation
+        // serve_rot indicates which position is serving
+        // rot1 = player starting in zone 1, rot2 = player starting in zone 2, etc.
+        // When serve_rot=N, the player in rotN is the server
+        const rotKey = `rot${rally.serve_rot}` as keyof LineupRow;
+        const expectedServerId = lineup[rotKey] as string | null;
+
+        if (!expectedServerId) {
+          skipped++;
+          continue;
+        }
+
+        // Check if action needs update
+        if (action.player_id === expectedServerId) {
+          // Already correct
+          continue;
+        }
+
+        // Get player jersey number
+        const serverPlayer = playerById.get(expectedServerId);
+        if (!serverPlayer) {
+          skipped++;
+          continue;
+        }
+
+        // Update the serve action
+        const { error } = await supabase
+          .from('rally_actions')
+          .update({ 
+            player_id: expectedServerId,
+            player_no: serverPlayer.jersey_number,
+            side: rally.serve_side // Ensure side is correct
+          })
+          .eq('id', action.id);
+
+        if (error) {
+          errors++;
+          continue;
+        }
+
+        // Also sync to rallies table
+        await supabase
+          .from('rallies')
+          .update({ 
+            s_player_id: expectedServerId,
+            s_no: serverPlayer.jersey_number 
+          })
+          .eq('id', action.rally_id);
+
+        fixed++;
+      }
+      
+      return { fixed, errors, skipped };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rally-actions'] });
+      queryClient.invalidateQueries({ queryKey: ['rally-actions-match'] });
+      queryClient.invalidateQueries({ queryKey: ['rallies'] });
+    },
+  });
+}

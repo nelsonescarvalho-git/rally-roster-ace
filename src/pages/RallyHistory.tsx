@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
-import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions, useComprehensiveAutoFix } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions, useComprehensiveAutoFix, useAutoFixServeByRotation } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -499,6 +499,7 @@ export default function RallyHistory() {
   const [isComprehensiveFix, setIsComprehensiveFix] = useState(false);
   
   const comprehensiveAutoFix = useComprehensiveAutoFix();
+  const autoFixServeByRotation = useAutoFixServeByRotation();
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -703,23 +704,33 @@ export default function RallyHistory() {
                   }))
                 });
                 
+                // Step 2: Fix serve by rotation
+                const serveFixResult = await autoFixServeByRotation.mutateAsync({
+                  matchId,
+                  players: players.map(p => ({
+                    id: p.id,
+                    side: p.side,
+                    jersey_number: p.jersey_number
+                  }))
+                });
+                
                 // Then fix setter codes from attack results
                 const codeFixResult = await comprehensiveAutoFix.mutateAsync({ matchId });
                 
-                const totalFixed = playerFixResult.fixed + codeFixResult.setterCodesFixed;
+                const totalFixed = playerFixResult.fixed + codeFixResult.setterCodesFixed + serveFixResult.fixed;
                 
                 if (totalFixed > 0) {
-                  toast.success(`${totalFixed} correções aplicadas (${playerFixResult.fixed} jogadores, ${codeFixResult.setterCodesFixed} códigos)`);
+                  toast.success(`${totalFixed} correções aplicadas (${playerFixResult.fixed} jogadores, ${serveFixResult.fixed} serviços, ${codeFixResult.setterCodesFixed} códigos)`);
                 } else {
                   toast.info('Nenhuma correção necessária');
                 }
                 
-                if (playerFixResult.skipped > 0 || codeFixResult.settersSkipped > 0) {
-                  toast.warning(`${playerFixResult.skipped + codeFixResult.settersSkipped} ações não inferíveis`);
+                if (playerFixResult.skipped > 0 || codeFixResult.settersSkipped > 0 || serveFixResult.skipped > 0) {
+                  toast.warning(`${playerFixResult.skipped + codeFixResult.settersSkipped + serveFixResult.skipped} ações não inferíveis`);
                 }
                 
-                if (playerFixResult.errors > 0 || codeFixResult.errors > 0) {
-                  toast.error(`${playerFixResult.errors + codeFixResult.errors} erros durante a correção`);
+                if (playerFixResult.errors > 0 || codeFixResult.errors > 0 || serveFixResult.errors > 0) {
+                  toast.error(`${playerFixResult.errors + codeFixResult.errors + serveFixResult.errors} erros durante a correção`);
                 }
                 
                 // Reload match data
