@@ -1,114 +1,54 @@
 
 
-# Plano: Sincronização entre Rally History e Modal de Edição
+# Plano: Corrigir Cálculo de Estatísticas por Destino de Ataque
 
 ## Problema Identificado
 
-Existe uma **inconsistência arquitetural** entre duas tabelas de dados:
+Os dados estão em **duas ações separadas** na tabela `rally_actions`:
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                    ARQUITETURA ATUAL (DUAL-WRITE)                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│   TABELA "rallies" (Legacy)                                         │
-│   ├── 1 serviço (s_player_id, s_code)                               │
-│   ├── 1 receção (r_player_id, r_code)                               │
-│   ├── 1 passe (setter_player_id, pass_destination)                  │
-│   ├── 1 ataque (a_player_id, a_code)                                │
-│   ├── 1 bloco (b1_player_id, b_code)                                │
-│   └── 1 defesa (d_player_id, d_code)                                │
-│                                                                     │
-│   TABELA "rally_actions" (Nova)                                     │
-│   ├── Serviço #12 Rafael (code 1, POWER)                            │
-│   ├── Receção #9 Filipe (code 3)                                    │
-│   ├── Passe → P3 (pass_code 1)                                      │
-│   ├── Ataque #1 Gonçalo (code 1 - Bloqueado)                        │
-│   ├── Bloco (code 2 - Defensivo)                                    │
-│   ├── Defesa #1 Gonçalo (code -)      ← Código em falta             │
-│   ├── Passe → P4 (pass_code 1)        ← 2º passe no rally!          │
-│   ├── Ataque #9 Filipe (code 2)       ← 2º ataque!                  │
-│   ├── Defesa #13 (code -)             ← 2ª defesa!                  │
-│   └── Passe → P4 (pass_code 3)        ← 3º passe!                   │
-│                                                                     │
-│   CONFLITO: Rally #7 tem 10 ações na rally_actions                  │
-│             mas só 1 de cada tipo na rallies                        │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| Seq | action_type | pass_destination | code |
+|-----|-------------|------------------|------|
+| 3 | setter | **P4** | null |
+| 4 | attack | null | **2** (defendido) |
+| 6 | setter | **P4** | null |
+| 7 | attack | null | **1** (bloqueado) |
 
-**O EditRallyModal só lê da tabela `rallies`**, portanto:
-- Não vê os múltiplos ataques, defesas e passes
-- Mostra "Jogador em falta" porque a primeira ação pode não ter todos os dados
-- Não permite editar a sequência completa
+O hook actual (`useDestinationStats`) lê da tabela `rallies` onde assume que `pass_destination` e `a_code` estão na mesma linha. Mas a nova arquitectura `rally_actions` separa estas informações.
+
+**Resultado:** As estatísticas mostram apenas 0% ou dados incorrectos porque o ataque não tem `pass_destination`.
 
 ---
 
-## Solução Proposta: Novo Modal Baseado em rally_actions
+## Solução: Novo Hook para rally_actions
 
-### Estratégia
+Criar um hook que correlacione **setter → attack** pela sequência para calcular estatísticas correctas.
 
-Criar um novo modal de edição que leia e edite diretamente a tabela `rally_actions`, permitindo:
-1. Ver todas as ações na sequência correta
-2. Editar cada ação individualmente
-3. Adicionar ou remover ações
-4. Manter sincronização com a tabela `rallies` para compatibilidade
+### Lógica de Correlação
+
+Para cada par setter→attack consecutivo no mesmo rally e equipa:
+1. O `pass_destination` vem do **setter**
+2. O `code` (resultado) vem do **attack** seguinte
+3. Agregar por destino
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
-│  NOVO MODAL: Editar Rally #7                                        │
-│  Set 1 • Fase 1 • Serve: Póvoa                                      │
+│            CORRELAÇÃO SETTER → ATTACK                               │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  ○ 1. Serviço (Póv)                                                 │
-│     ┌─────────────────────────────────────┐ ┌─────┐ ┌──────────┐   │
-│     │ #12 Rafael Esperanço               │▼│  1  │▼│  POWER  │▼    │
-│     └─────────────────────────────────────┘ └─────┘ └──────────┘   │
+│  Rally 7:                                                           │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ seq 3: setter │ P3 │    │  → conta P3                       │   │
+│  │ seq 4: attack │    │ 1  │  → resultado = bloqueado          │   │
+│  │ seq 6: setter │ P4 │    │  → conta P4                       │   │
+│  │ seq 7: attack │    │ 2  │  → resultado = defendido          │   │
+│  │ seq 9: setter │ P4 │    │  → conta P4                       │   │
+│  │ seq 10: attack│    │ 2  │  → resultado = defendido          │   │
+│  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
-│  ○ 2. Receção (Lic)                                                 │
-│     ┌─────────────────────────────────────┐ ┌─────┐                 │
-│     │ #9 Filipe Ferreira                  │▼│  3  │▼                │
-│     └─────────────────────────────────────┘ └─────┘                 │
+│  Estatísticas Resultantes:                                          │
+│  P3: 1 ataque total, 0 kills → 0/1 · 0%                             │
+│  P4: 2 ataques totais, 0 kills → 0/2 · 0%                           │
 │                                                                     │
-│  ○ 3. Passe (Lic)                                                   │
-│     ┌─────────────────────────────────────┐ ┌─────┐ ┌─────┐         │
-│     │ Nenhum                              │▼│  1  │▼│ P3  │▼        │
-│     └─────────────────────────────────────┘ └─────┘ └─────┘         │
-│                                                                     │
-│  ⚔ 4. Ataque (Lic)                                     [⚠ Parcial] │
-│     ┌─────────────────────────────────────┐ ┌─────┐                 │
-│     │ #1 Gonçalo Mota                     │▼│  1  │▼ ← Bloqueado    │
-│     └─────────────────────────────────────┘ └─────┘                 │
-│                                                                     │
-│  □ 5. Bloco (Póv)                                                   │
-│     ┌─────────────────────────────────────┐ ┌─────┐                 │
-│     │ Nenhum                              │▼│  2  │▼ ← Defensivo    │
-│     └─────────────────────────────────────┘ └─────┘                 │
-│                                                                     │
-│  ◎ 6. Defesa (Lic)                                     [⚠ Código]  │
-│     ┌─────────────────────────────────────┐ ┌─────┐                 │
-│     │ #1 Gonçalo Mota                     │▼│  -  │▼ ← Falta código │
-│     └─────────────────────────────────────┘ └─────┘                 │
-│                                                                     │
-│  ○ 7. Passe (Lic)                                                   │
-│     ┌─────────────────────────────────────┐ ┌─────┐ ┌─────┐         │
-│     │ Nenhum                              │▼│  1  │▼│ P4  │▼        │
-│     └─────────────────────────────────────┘ └─────┘ └─────┘         │
-│                                                                     │
-│  ⚔ 8. Ataque (Lic)                                                  │
-│     ┌─────────────────────────────────────┐ ┌─────┐                 │
-│     │ #9 Filipe Ferreira                  │▼│  2  │▼ ← Defendido    │
-│     └─────────────────────────────────────┘ └─────┘                 │
-│                                                                     │
-│  ... mais 2 ações ...                                               │
-│                                                                     │
-├─────────────────────────────────────────────────────────────────────┤
-│  Resultado                                                          │
-│  ┌────────────┐ ┌────────────┐                                      │
-│  │   Póvoa   │▼ │   KILL    │▼                                      │
-│  └────────────┘ └────────────┘                                      │
-│                                                                     │
-│                              [Cancelar]  [Guardar]                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,93 +56,67 @@ Criar um novo modal de edição que leia e edite diretamente a tabela `rally_act
 
 ## Alterações Técnicas
 
-### 1. Novo Componente: `EditRallyActionsModal`
+### 1. Novo Hook: `useDestinationStatsFromActions`
 
-Substitui o `EditRallyModal` com uma versão que:
-- Recebe as ações de `rally_actions` em vez de ler da tabela `rallies`
-- Permite editar cada ação na sequência
-- Atualiza diretamente a tabela `rally_actions`
-- Sincroniza os campos principais de volta para `rallies` (para compatibilidade)
+Novo ficheiro: `src/hooks/useDestinationStatsFromActions.ts`
 
-```typescript
-interface EditRallyActionsModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  rallyId: string;
-  rallyMeta: {
-    set_no: number;
-    rally_no: number;
-    serve_side: Side;
-    recv_side: Side;
-    point_won_by: Side | null;
-    reason: Reason | null;
-  };
-  actions: RallyActionWithPlayer[];
-  players: (Player | MatchPlayer)[];
-  homeName: string;
-  awayName: string;
-  onSave: (rallyId: string, actions: RallyActionUpdate[], metaUpdates: Partial<Rally>) => Promise<boolean>;
-}
+Parâmetros:
+- `rallyActions: Map<string, RallyActionWithPlayer[]>` - ações por rally_id
+- `side?: Side` - filtrar por equipa
+
+Lógica:
+- Iterar por todas as ações ordenadas por `sequence_no`
+- Para cada `setter`, guardar o `pass_destination`
+- Quando encontrar o próximo `attack` da mesma equipa, associar o resultado ao destino
+- Agregar estatísticas
+
+### 2. Atualizar Live.tsx
+
+Substituir:
+```tsx
+const destinationStats = useDestinationStats(rallies, matchPlayers, pendingAction?.side);
 ```
 
-### 2. Atualizar RallyHistory para Passar Ações
-
-```typescript
-// Em RallyHistory.tsx - passar ações ao modal
-<EditRallyActionsModal
-  open={editModalOpen}
-  onOpenChange={setEditModalOpen}
-  rallyId={selectedPhase.id}
-  rallyMeta={{
-    set_no: selectedPhase.set_no,
-    rally_no: selectedPhase.rally_no,
-    serve_side: selectedPhase.serve_side,
-    recv_side: selectedPhase.recv_side,
-    point_won_by: selectedPhase.point_won_by,
-    reason: selectedPhase.reason,
-  }}
-  actions={rallyActions?.get(selectedPhase.id) || []}
-  players={players}
-  homeName={match.home_name}
-  awayName={match.away_name}
-  onSave={handleSaveRallyActions}
-/>
+Por:
+```tsx
+const destinationStats = useDestinationStatsFromActions(rallyActions, pendingAction?.side);
 ```
 
-### 3. Nova Função de Save que Sincroniza Ambas Tabelas
+### 3. Buscar rally_actions no Live.tsx
 
-```typescript
-const handleSaveRallyActions = async (
-  rallyId: string, 
-  actions: RallyActionUpdate[], 
-  metaUpdates: Partial<Rally>
-) => {
-  // 1. Atualizar cada ação na rally_actions
-  for (const action of actions) {
-    await supabase
+Adicionar query para obter ações do jogo actual:
+
+```tsx
+const { data: allRallyActions } = useQuery({
+  queryKey: ['rally-actions', matchId],
+  queryFn: async () => {
+    const { data } = await supabase
       .from('rally_actions')
-      .update(action)
-      .eq('id', action.id);
-  }
-  
-  // 2. Sincronizar primeira ação de cada tipo para a tabela rallies
-  const firstServe = actions.find(a => a.action_type === 'serve');
-  const firstReception = actions.find(a => a.action_type === 'reception');
-  // ... etc
-  
-  await supabase
-    .from('rallies')
-    .update({
-      s_player_id: firstServe?.player_id,
-      s_code: firstServe?.code,
-      r_player_id: firstReception?.player_id,
-      // ... sincronizar campos principais
-      ...metaUpdates
-    })
-    .eq('id', rallyId);
-    
-  return true;
-};
+      .select('*')
+      .in('rally_id', rallies.map(r => r.id))
+      .is('deleted_at', null)
+      .order('sequence_no');
+    return data || [];
+  },
+  enabled: rallies.length > 0
+});
+```
+
+---
+
+## Interface do Hook
+
+```typescript
+export interface DestinationStatsFromActions {
+  destination: PassDestination;
+  attempts: number;      // Total de passes para este destino
+  kills: number;         // Ataques com code = 3
+  errors: number;        // Ataques com code = 0
+  blocked: number;       // Ataques com code = 1
+  defended: number;      // Ataques com code = 2
+  killRate: number;      // kills / attempts
+  efficiency: number;    // (kills - errors) / attempts
+}
 ```
 
 ---
@@ -211,82 +125,42 @@ const handleSaveRallyActions = async (
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/components/EditRallyActionsModal.tsx` | **NOVO** - Modal baseado em rally_actions |
-| `src/pages/RallyHistory.tsx` | Usar novo modal em vez do antigo |
-| `src/hooks/useRallyActions.ts` | Adicionar hook `useUpdateRallyActions` para batch update |
+| `src/hooks/useDestinationStatsFromActions.ts` | **NOVO** - Hook baseado em rally_actions |
+| `src/pages/Live.tsx` | Usar novo hook em vez do antigo |
 
-### Ficheiros a Manter (deprecar gradualmente)
+### Ficheiro a Manter (Legacy)
 
 | Ficheiro | Estado |
 |----------|--------|
-| `src/components/EditRallyModal.tsx` | Manter como fallback para rallies sem ações detalhadas |
+| `src/hooks/useDestinationStats.ts` | Manter para pages que usam tabela `rallies` |
 
 ---
 
-## Lógica de Sincronização rallies ↔ rally_actions
+## Exemplo de Cálculo Correcto
 
-Para manter compatibilidade com estatísticas existentes que leem da tabela `rallies`:
+Dado os dados do jogo actual:
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                    ESTRATÉGIA DE SINCRONIZAÇÃO                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Ao GUARDAR no novo modal:                                          │
-│                                                                     │
-│  1. Atualizar TODAS as ações na rally_actions                       │
-│                                                                     │
-│  2. Extrair a PRIMEIRA ação de cada tipo:                           │
-│     - Primeiro serve → s_player_id, s_code, s_type                  │
-│     - Primeira receção → r_player_id, r_code                        │
-│     - Primeiro setter → setter_player_id, pass_destination          │
-│     - Primeiro ataque → a_player_id, a_code, kill_type              │
-│     - Primeiro bloco → b1_player_id, b_code                         │
-│     - Primeira defesa → d_player_id, d_code                         │
-│                                                                     │
-│  3. Atualizar a tabela rallies com esses valores                    │
-│     (para manter compatibilidade com estatísticas legacy)           │
-│                                                                     │
-│  4. Resultado (point_won_by, reason) mantido na rallies             │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| pass_destination | count (setters) |
+|------------------|-----------------|
+| P2 | 2 |
+| P3 | 4 |
+| P4 | 9 |
 
----
+E os resultados dos ataques (codes):
+- P3: 1 erro, 1 bloqueado, 1 kill = 3 ataques
+- P4: 3 kills = 3 ataques
 
-## Fallback para Dados Legacy
-
-Rallies antigos que não têm ações na `rally_actions`:
-
-```typescript
-// No RallyHistory, decidir qual modal usar
-const hasDetailedActions = (rallyActions?.get(selectedPhase.id)?.length ?? 0) > 0;
-
-{hasDetailedActions ? (
-  <EditRallyActionsModal ... />
-) : (
-  <EditRallyModal ... /> // Modal legacy para rallies antigos
-)}
-```
+**Estatísticas correctas:**
+- P2: 2/? (precisa correlacionar com attacks)
+- P3: 1/3 · 33% (1 kill de 3 ataques)
+- P4: 3/? · ?% (precisa correlacionar)
 
 ---
 
 ## Critérios de Sucesso
 
-- Modal mostra TODAS as ações registadas no rally (não apenas 1 de cada tipo)
-- Edições são guardadas na `rally_actions` E sincronizadas para `rallies`
-- Badges de "Código em falta" e "Jogador em falta" funcionam por ação
-- Rallies antigos (sem dados em `rally_actions`) usam modal legacy
-- Estatísticas existentes continuam a funcionar (leem de `rallies`)
-
----
-
-## Estimativa de Impacto
-
-```text
-Componentes novos:     1 (EditRallyActionsModal)
-Hooks alterados:       1 (useRallyActions - adicionar batch update)
-Páginas alteradas:     1 (RallyHistory)
-Migrations:            0 (estrutura de BD já existe)
-```
+- Estatísticas mostram **todos** os passes/ataques para cada zona (não apenas kills)
+- Formato: `kills/ataques · eficácia%`
+- Cores de borda baseadas na kill rate real
+- Dados em tempo real actualizados durante o jogo
 
