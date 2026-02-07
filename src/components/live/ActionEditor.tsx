@@ -733,7 +733,7 @@ export function ActionEditor({
                         <span>{dest}</span>
                         {hasData ? (
                           <span className="text-xs opacity-70">
-                            {Math.round(killRate! * 100)}% ({stats.kills}/{stats.attempts})
+                            {stats.kills}/{stats.attempts} · {Math.round(killRate! * 100)}%
                           </span>
                         ) : (
                           <span className="text-xs opacity-50">-</span>

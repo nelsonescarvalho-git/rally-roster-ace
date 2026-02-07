@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
 import { useSetKPIs } from '@/hooks/useSetKPIs';
 import { useTeamColors } from '@/hooks/useTeamColors';
-import { useDestinationStats } from '@/hooks/useDestinationStats';
-import { useCreateRallyActions } from '@/hooks/useRallyActions';
+import { useDestinationStatsFromActions } from '@/hooks/useDestinationStatsFromActions';
+import { useCreateRallyActions, useRallyActionsForMatch } from '@/hooks/useRallyActions';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -478,10 +478,12 @@ export default function Live() {
   );
   const currentSetKPIs = useSetKPIs(rallies, currentSet, previousSetRalliesForKPI, matchPlayers);
 
-  // Calculate destination stats for real-time kill rate display
-  const destinationStats = useDestinationStats(
-    rallies, 
-    matchPlayers,
+  // Fetch rally actions for real-time destination stats
+  const { data: rallyActionsMap } = useRallyActionsForMatch(matchId || null);
+
+  // Calculate destination stats by correlating setter→attack pairs from rally_actions
+  const destinationStats = useDestinationStatsFromActions(
+    rallyActionsMap,
     pendingAction?.side
   );
 
