@@ -1,322 +1,292 @@
 
 
-# Plano: Adicionar Tipo de Serviço (Serve Type) + Atualização do Guia do Sistema
+# Plano: Sincronização entre Rally History e Modal de Edição
 
-## Parte 1: Implementação do Tipo de Serviço
+## Problema Identificado
 
-### Contexto - Tipos de Serviço no DataVolley
-
-De acordo com o manual do DataVolley e análises de scouting, o sistema utiliza códigos de "Ball Type" para identificar a técnica do serviço:
-
-| Código DV | Tipo | Descrição PT |
-|-----------|------|--------------|
-| H (High) | Standing Float | Flutuante Parado |
-| M (Medium) | Jump Float | Flutuante em Salto |
-| Q (Quick) | Jump Topspin | Potência/Topspin |
-| O (Other) | Outros | Serviços atípicos (side-arm, híbrido, etc.) |
-
-### Opções de Tipos de Serviço a Implementar
+Existe uma **inconsistência arquitetural** entre duas tabelas de dados:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     TIPOS DE SERVIÇO                                │
+│                    ARQUITETURA ATUAL (DUAL-WRITE)                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│   │  〰️ FLOAT    │  │ ↗️ JUMP_FLOAT│  │ ⚡ POWER     │              │
-│   │  Flutuante   │  │  Flutuante   │  │  Potência    │              │
-│   │  Parado      │  │  em Salto    │  │  (Topspin)   │              │
-│   └──────────────┘  └──────────────┘  └──────────────┘              │
+│   TABELA "rallies" (Legacy)                                         │
+│   ├── 1 serviço (s_player_id, s_code)                               │
+│   ├── 1 receção (r_player_id, r_code)                               │
+│   ├── 1 passe (setter_player_id, pass_destination)                  │
+│   ├── 1 ataque (a_player_id, a_code)                                │
+│   ├── 1 bloco (b1_player_id, b_code)                                │
+│   └── 1 defesa (d_player_id, d_code)                                │
 │                                                                     │
-│   Opcional:                                                         │
-│   ┌──────────────┐                                                  │
-│   │  ❓ OTHER    │  → Para serviços atípicos                        │
-│   └──────────────┘                                                  │
+│   TABELA "rally_actions" (Nova)                                     │
+│   ├── Serviço #12 Rafael (code 1, POWER)                            │
+│   ├── Receção #9 Filipe (code 3)                                    │
+│   ├── Passe → P3 (pass_code 1)                                      │
+│   ├── Ataque #1 Gonçalo (code 1 - Bloqueado)                        │
+│   ├── Bloco (code 2 - Defensivo)                                    │
+│   ├── Defesa #1 Gonçalo (code -)      ← Código em falta             │
+│   ├── Passe → P4 (pass_code 1)        ← 2º passe no rally!          │
+│   ├── Ataque #9 Filipe (code 2)       ← 2º ataque!                  │
+│   ├── Defesa #13 (code -)             ← 2ª defesa!                  │
+│   └── Passe → P4 (pass_code 3)        ← 3º passe!                   │
+│                                                                     │
+│   CONFLITO: Rally #7 tem 10 ações na rally_actions                  │
+│             mas só 1 de cada tipo na rallies                        │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Alterações Técnicas
+**O EditRallyModal só lê da tabela `rallies`**, portanto:
+- Não vê os múltiplos ataques, defesas e passes
+- Mostra "Jogador em falta" porque a primeira ação pode não ter todos os dados
+- Não permite editar a sequência completa
 
-#### 1. Base de Dados - Nova Coluna
+---
 
-```sql
--- Adicionar coluna serve_type à tabela rally_actions
-ALTER TABLE rally_actions ADD COLUMN serve_type TEXT;
+## Solução Proposta: Novo Modal Baseado em rally_actions
 
--- Opcional: também adicionar à tabela rallies
-ALTER TABLE rallies ADD COLUMN s_type TEXT;
+### Estratégia
+
+Criar um novo modal de edição que leia e edite diretamente a tabela `rally_actions`, permitindo:
+1. Ver todas as ações na sequência correta
+2. Editar cada ação individualmente
+3. Adicionar ou remover ações
+4. Manter sincronização com a tabela `rallies` para compatibilidade
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│  NOVO MODAL: Editar Rally #7                                        │
+│  Set 1 • Fase 1 • Serve: Póvoa                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ○ 1. Serviço (Póv)                                                 │
+│     ┌─────────────────────────────────────┐ ┌─────┐ ┌──────────┐   │
+│     │ #12 Rafael Esperanço               │▼│  1  │▼│  POWER  │▼    │
+│     └─────────────────────────────────────┘ └─────┘ └──────────┘   │
+│                                                                     │
+│  ○ 2. Receção (Lic)                                                 │
+│     ┌─────────────────────────────────────┐ ┌─────┐                 │
+│     │ #9 Filipe Ferreira                  │▼│  3  │▼                │
+│     └─────────────────────────────────────┘ └─────┘                 │
+│                                                                     │
+│  ○ 3. Passe (Lic)                                                   │
+│     ┌─────────────────────────────────────┐ ┌─────┐ ┌─────┐         │
+│     │ Nenhum                              │▼│  1  │▼│ P3  │▼        │
+│     └─────────────────────────────────────┘ └─────┘ └─────┘         │
+│                                                                     │
+│  ⚔ 4. Ataque (Lic)                                     [⚠ Parcial] │
+│     ┌─────────────────────────────────────┐ ┌─────┐                 │
+│     │ #1 Gonçalo Mota                     │▼│  1  │▼ ← Bloqueado    │
+│     └─────────────────────────────────────┘ └─────┘                 │
+│                                                                     │
+│  □ 5. Bloco (Póv)                                                   │
+│     ┌─────────────────────────────────────┐ ┌─────┐                 │
+│     │ Nenhum                              │▼│  2  │▼ ← Defensivo    │
+│     └─────────────────────────────────────┘ └─────┘                 │
+│                                                                     │
+│  ◎ 6. Defesa (Lic)                                     [⚠ Código]  │
+│     ┌─────────────────────────────────────┐ ┌─────┐                 │
+│     │ #1 Gonçalo Mota                     │▼│  -  │▼ ← Falta código │
+│     └─────────────────────────────────────┘ └─────┘                 │
+│                                                                     │
+│  ○ 7. Passe (Lic)                                                   │
+│     ┌─────────────────────────────────────┐ ┌─────┐ ┌─────┐         │
+│     │ Nenhum                              │▼│  1  │▼│ P4  │▼        │
+│     └─────────────────────────────────────┘ └─────┘ └─────┘         │
+│                                                                     │
+│  ⚔ 8. Ataque (Lic)                                                  │
+│     ┌─────────────────────────────────────┐ ┌─────┐                 │
+│     │ #9 Filipe Ferreira                  │▼│  2  │▼ ← Defendido    │
+│     └─────────────────────────────────────┘ └─────┘                 │
+│                                                                     │
+│  ... mais 2 ações ...                                               │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  Resultado                                                          │
+│  ┌────────────┐ ┌────────────┐                                      │
+│  │   Póvoa   │▼ │   KILL    │▼                                      │
+│  └────────────┘ └────────────┘                                      │
+│                                                                     │
+│                              [Cancelar]  [Guardar]                  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 2. Tipos TypeScript
+---
 
-**Ficheiro: `src/types/volleyball.ts`**
+## Alterações Técnicas
+
+### 1. Novo Componente: `EditRallyActionsModal`
+
+Substitui o `EditRallyModal` com uma versão que:
+- Recebe as ações de `rally_actions` em vez de ler da tabela `rallies`
+- Permite editar cada ação na sequência
+- Atualiza diretamente a tabela `rally_actions`
+- Sincroniza os campos principais de volta para `rallies` (para compatibilidade)
+
 ```typescript
-export type ServeType = 'FLOAT' | 'JUMP_FLOAT' | 'POWER' | 'OTHER';
+interface EditRallyActionsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rallyId: string;
+  rallyMeta: {
+    set_no: number;
+    rally_no: number;
+    serve_side: Side;
+    recv_side: Side;
+    point_won_by: Side | null;
+    reason: Reason | null;
+  };
+  actions: RallyActionWithPlayer[];
+  players: (Player | MatchPlayer)[];
+  homeName: string;
+  awayName: string;
+  onSave: (rallyId: string, actions: RallyActionUpdate[], metaUpdates: Partial<Rally>) => Promise<boolean>;
+}
+```
 
-export const SERVE_TYPE_LABELS: Record<ServeType, {
-  emoji: string;
-  label: string;
-  shortLabel: string;
-  description: string;
-}> = {
-  FLOAT: { 
-    emoji: '〰️', 
-    label: 'Flutuante Parado', 
-    shortLabel: 'Float',
-    description: 'Serviço por baixo com trajetória flutuante'
-  },
-  JUMP_FLOAT: { 
-    emoji: '↗️', 
-    label: 'Flutuante em Salto', 
-    shortLabel: 'J.Float',
-    description: 'Serviço em salto com trajetória flutuante'
-  },
-  POWER: { 
-    emoji: '⚡', 
-    label: 'Potência', 
-    shortLabel: 'Power',
-    description: 'Serviço em salto com rotação (topspin)'
-  },
-  OTHER: { 
-    emoji: '❓', 
-    label: 'Outro', 
-    shortLabel: 'Outro',
-    description: 'Serviço atípico (side-arm, híbrido, etc.)'
-  },
+### 2. Atualizar RallyHistory para Passar Ações
+
+```typescript
+// Em RallyHistory.tsx - passar ações ao modal
+<EditRallyActionsModal
+  open={editModalOpen}
+  onOpenChange={setEditModalOpen}
+  rallyId={selectedPhase.id}
+  rallyMeta={{
+    set_no: selectedPhase.set_no,
+    rally_no: selectedPhase.rally_no,
+    serve_side: selectedPhase.serve_side,
+    recv_side: selectedPhase.recv_side,
+    point_won_by: selectedPhase.point_won_by,
+    reason: selectedPhase.reason,
+  }}
+  actions={rallyActions?.get(selectedPhase.id) || []}
+  players={players}
+  homeName={match.home_name}
+  awayName={match.away_name}
+  onSave={handleSaveRallyActions}
+/>
+```
+
+### 3. Nova Função de Save que Sincroniza Ambas Tabelas
+
+```typescript
+const handleSaveRallyActions = async (
+  rallyId: string, 
+  actions: RallyActionUpdate[], 
+  metaUpdates: Partial<Rally>
+) => {
+  // 1. Atualizar cada ação na rally_actions
+  for (const action of actions) {
+    await supabase
+      .from('rally_actions')
+      .update(action)
+      .eq('id', action.id);
+  }
+  
+  // 2. Sincronizar primeira ação de cada tipo para a tabela rallies
+  const firstServe = actions.find(a => a.action_type === 'serve');
+  const firstReception = actions.find(a => a.action_type === 'reception');
+  // ... etc
+  
+  await supabase
+    .from('rallies')
+    .update({
+      s_player_id: firstServe?.player_id,
+      s_code: firstServe?.code,
+      r_player_id: firstReception?.player_id,
+      // ... sincronizar campos principais
+      ...metaUpdates
+    })
+    .eq('id', rallyId);
+    
+  return true;
 };
 ```
 
-#### 3. UI do ActionEditor - Novo Step para Serviço
+---
 
-Transformar o serviço de 2 steps para 3 steps:
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                     SERVIÇO - NOVO FLUXO                            │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Step 1: Quem serve?                                                │
-│  ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐                               │
-│  │#1 │ │#7 │ │#9 │ │#10│ │#12│ │#18│                               │
-│  └───┘ └───┘ └───┘ └───┘ └───┘ └───┘                               │
-│                     ↓                                               │
-│                                                                     │
-│  Step 2: Tipo de serviço? (NOVO)                                    │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                 │
-│  │ 〰️ Flutuante │ │ ↗️ J.Float  │ │ ⚡ Potência  │                 │
-│  └──────────────┘ └──────────────┘ └──────────────┘                 │
-│                     ↓                                               │
-│                                                                     │
-│  Step 3: Resultado?                                                 │
-│  ┌───┐ ┌───┐ ┌───┐ ┌───┐                                           │
-│  │ ✕ │ │ − │ │ + │ │ ★ │                                            │
-│  │ 0 │ │ 1 │ │ 2 │ │ 3 │                                           │
-│  └───┘ └───┘ └───┘ └───┘                                           │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-#### 4. Ficheiros a Alterar (Tipo de Serviço)
+## Ficheiros a Alterar
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/types/volleyball.ts` | Adicionar `ServeType` e `SERVE_TYPE_LABELS` |
-| `src/types/rallyActions.ts` | Adicionar `serve_type` ao interface |
-| `src/components/live/ActionEditor.tsx` | Novo Step 2 para tipo de serviço |
-| `src/pages/Live.tsx` | Passar `selectedServeType` e handler ao ActionEditor |
-| Migração SQL | Adicionar coluna `serve_type` às tabelas |
+| `src/components/EditRallyActionsModal.tsx` | **NOVO** - Modal baseado em rally_actions |
+| `src/pages/RallyHistory.tsx` | Usar novo modal em vez do antigo |
+| `src/hooks/useRallyActions.ts` | Adicionar hook `useUpdateRallyActions` para batch update |
+
+### Ficheiros a Manter (deprecar gradualmente)
+
+| Ficheiro | Estado |
+|----------|--------|
+| `src/components/EditRallyModal.tsx` | Manter como fallback para rallies sem ações detalhadas |
 
 ---
 
-## Parte 2: Atualização do Guia do Sistema
+## Lógica de Sincronização rallies ↔ rally_actions
 
-### Secções a Adicionar/Atualizar em `src/pages/Guide.tsx`
-
-#### 1. Nova Secção: Tipos de Serviço
-
-Adicionar após a secção de códigos por tipo de ação:
-
-```typescript
-// New section for Serve Types
-const SERVE_TYPES = [
-  { 
-    type: 'FLOAT', 
-    emoji: '〰️', 
-    label: 'Flutuante Parado',
-    description: 'Serviço executado sem salto, com trajetória flutuante e imprevisível',
-    datavolleyCode: 'H'
-  },
-  { 
-    type: 'JUMP_FLOAT', 
-    emoji: '↗️', 
-    label: 'Flutuante em Salto',
-    description: 'Serviço em salto mas com contacto flutuante (sem rotação)',
-    datavolleyCode: 'M'
-  },
-  { 
-    type: 'POWER', 
-    emoji: '⚡', 
-    label: 'Potência (Topspin)',
-    description: 'Serviço em salto com rotação forte (topspin), maior velocidade',
-    datavolleyCode: 'Q'
-  },
-  { 
-    type: 'OTHER', 
-    emoji: '❓', 
-    label: 'Outro',
-    description: 'Serviços atípicos (side-arm, híbridos, underhand, etc.)',
-    datavolleyCode: 'O'
-  },
-];
-```
-
-#### 2. Atualizar Secção de Serviço
-
-Adicionar informação sobre tipos na secção existente:
+Para manter compatibilidade com estatísticas existentes que leem da tabela `rallies`:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
-│  🎯 Serviço                                                         │
+│                    ESTRATÉGIA DE SINCRONIZAÇÃO                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  Códigos de Resultado:                                              │
-│  ┌─────┬─────────────────┬─────────────────────────────────┐        │
-│  │  0  │ Erro de serviço │ Bola na rede ou fora            │        │
-│  │  1  │ Serviço fraco   │ Receção fácil para adversário   │        │
-│  │  2  │ Serviço bom     │ Receção dificultada             │        │
-│  │  3  │ Ás              │ Ponto direto ou falha receção   │        │
-│  └─────┴─────────────────┴─────────────────────────────────┘        │
+│  Ao GUARDAR no novo modal:                                          │
 │                                                                     │
-│  Tipos de Serviço: (NOVO)                                           │
-│  ┌──────────┬─────────────────┬─────────────────────────────┐       │
-│  │ 〰️ Float │ Flutuante Parado│ Sem salto, trajetória flutuante│     │
-│  │ ↗️ J.Float│ Flutuante Salto │ Salto + contacto flutuante  │       │
-│  │ ⚡ Power │ Potência/Topspin│ Salto + rotação forte       │       │
-│  │ ❓ Outro │ Atípico         │ Side-arm, underhand, etc.   │       │
-│  └──────────┴─────────────────┴─────────────────────────────┘       │
+│  1. Atualizar TODAS as ações na rally_actions                       │
 │                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-#### 3. Adicionar Secção: Regras de Bloco (Atualizado)
-
-Documentar as regras de elegibilidade de bloco recentemente implementadas:
-
-```typescript
-const BLOCK_RULES = {
-  eligibleZones: [2, 3, 4],
-  excludedPositions: ['L', 'LIBERO'],
-  description: 'Apenas jogadores na linha de ataque podem bloquear legalmente'
-};
-```
-
-Conteúdo da secção:
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  🛡️ Regras de Bloco                                                 │
-├─────────────────────────────────────────────────────────────────────┤
+│  2. Extrair a PRIMEIRA ação de cada tipo:                           │
+│     - Primeiro serve → s_player_id, s_code, s_type                  │
+│     - Primeira receção → r_player_id, r_code                        │
+│     - Primeiro setter → setter_player_id, pass_destination          │
+│     - Primeiro ataque → a_player_id, a_code, kill_type              │
+│     - Primeiro bloco → b1_player_id, b_code                         │
+│     - Primeira defesa → d_player_id, d_code                         │
 │                                                                     │
-│  Quem pode bloquear:                                                │
-│  ✅ Jogadores em Z2, Z3 ou Z4 (linha de ataque)                     │
-│  ❌ Líberos (posição L) - nunca podem bloquear                      │
-│  ❌ Jogadores em Z1, Z5 ou Z6 - falta de posição                    │
+│  3. Atualizar a tabela rallies com esses valores                    │
+│     (para manter compatibilidade com estatísticas legacy)           │
 │                                                                     │
-│     ┌───────┐   ┌───────┐   ┌───────┐                               │
-│     │  Z4   │   │  Z3   │   │  Z2   │  ← Podem bloquear             │
-│     │  ✅   │   │  ✅   │   │  ✅   │                               │
-│     └───────┘   └───────┘   └───────┘                               │
-│     ═══════════════════════════════════  ← REDE                     │
-│     ┌───────┐   ┌───────┐   ┌───────┐                               │
-│     │  Z5   │   │  Z6   │   │  Z1   │  ← NÃO podem bloquear         │
-│     │  ❌   │   │  ❌   │   │  ❌   │                               │
-│     └───────┘   └───────┘   └───────┘                               │
-│                                                                     │
-│  Bloco Ponto (Stuff Block):                                         │
-│  • Quando a_code=1 e b_code=3                                       │
-│  • O sistema mostra apenas jogadores elegíveis do adversário        │
-│  • Selecionar o bloqueador principal para atribuir o ponto          │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-#### 4. Adicionar Secção: Líbero no Início do Set
-
-Documentar a funcionalidade recentemente adicionada:
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  🔄 Entrada do Líbero no Início do Set                              │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  No Rally 1 de cada set:                                            │
-│                                                                     │
-│  Equipa que RECEBE:                                                 │
-│  • Pode trocar jogador pelo líbero em Z1, Z5 ou Z6                  │
-│  • Prompt automático aparece se houver líbero disponível            │
-│                                                                     │
-│  Equipa que SERVE:                                                  │
-│  • Pode trocar jogador pelo líbero em Z5 ou Z6 apenas               │
-│  • Z1 está a servir, normalmente não se substitui                   │
-│  • Botão "Entrar" disponível no LiberoCard                          │
-│                                                                     │
-│  Após Rally 1:                                                      │
-│  • Líbero só pode entrar quando a equipa recebe                     │
-│  • Segue regras normais de substituição de líbero                   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-#### 5. Atualizar Secção: Fluxo de Distribuição para Ataque
-
-Documentar o encadeamento automático:
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  👐 Distribuição → Ataque (Encadeamento Automático)                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Após registar uma distribuição:                                    │
-│  1. Selecionar distribuidor                                         │
-│  2. Selecionar qualidade (Q0-Q3)                                    │
-│  3. Selecionar destino (P2, P3, P4, etc.)                           │
-│     ↓                                                               │
-│  4. Sistema abre AUTOMATICAMENTE o ataque para a mesma equipa       │
-│     - Step 1 já preenchido com o destino como zona                  │
-│     - Qualidade do passe herdada para contexto                      │
+│  4. Resultado (point_won_by, reason) mantido na rallies             │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Resumo de Ficheiros a Alterar
+## Fallback para Dados Legacy
 
-| Ficheiro | Tipo de Alteração |
-|----------|-------------------|
-| `src/types/volleyball.ts` | Adicionar `ServeType` e constantes |
-| `src/types/rallyActions.ts` | Adicionar `serve_type` ao interface |
-| `src/components/live/ActionEditor.tsx` | Novo Step 2 para tipo de serviço |
-| `src/pages/Live.tsx` | Gerir estado `selectedServeType` |
-| `src/pages/Guide.tsx` | Adicionar 4 novas secções de documentação |
-| Migração SQL | Adicionar coluna `serve_type` |
+Rallies antigos que não têm ações na `rally_actions`:
+
+```typescript
+// No RallyHistory, decidir qual modal usar
+const hasDetailedActions = (rallyActions?.get(selectedPhase.id)?.length ?? 0) > 0;
+
+{hasDetailedActions ? (
+  <EditRallyActionsModal ... />
+) : (
+  <EditRallyModal ... /> // Modal legacy para rallies antigos
+)}
+```
 
 ---
 
 ## Critérios de Sucesso
 
-### Tipo de Serviço
-- Novo step aparece entre seleção de jogador e qualidade
-- 3 opções principais visíveis (Float, J.Float, Power)
-- Opção "Outro" discreta mas acessível
-- Campo guardado na base de dados
-- Compatível com dados existentes (nullable)
+- Modal mostra TODAS as ações registadas no rally (não apenas 1 de cada tipo)
+- Edições são guardadas na `rally_actions` E sincronizadas para `rallies`
+- Badges de "Código em falta" e "Jogador em falta" funcionam por ação
+- Rallies antigos (sem dados em `rally_actions`) usam modal legacy
+- Estatísticas existentes continuam a funcionar (leem de `rallies`)
 
-### Guia do Sistema
-- Nova secção "Tipos de Serviço" com todos os tipos documentados
-- Secção "Regras de Bloco" com zonas elegíveis e exclusão de líberos
-- Secção "Líbero no Início do Set" com regras por equipa
-- Secção "Encadeamento Distribuição → Ataque" documentada
-- Todas as secções com exemplos visuais e explicações claras
+---
+
+## Estimativa de Impacto
+
+```text
+Componentes novos:     1 (EditRallyActionsModal)
+Hooks alterados:       1 (useRallyActions - adicionar batch update)
+Páginas alteradas:     1 (RallyHistory)
+Migrations:            0 (estrutura de BD já existe)
+```
 
