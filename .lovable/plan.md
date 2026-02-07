@@ -1,196 +1,179 @@
 
-# Plano: Corrigir Contagem de Distribuições e Kills por Zona
+# Plano: Auto-Fix para Ações na tabela rally_actions
 
 ## Problema Identificado
 
-### Análise da Base de Dados
+O auto-fix actual no `useMatch.ts` apenas corrige dados na tabela `rallies` (legacy), mas **não corrige** a tabela `rally_actions` (nova arquitectura sequencial).
 
-Existem **duas arquitecturas de dados diferentes** a serem usadas em paralelo:
+### Estado Actual dos Dados
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      ARQUITECTURA 1: SETTER + ATTACK SEPARADOS                  │
+│                         DADOS INCOMPLETOS EM RALLY_ACTIONS                      │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Ações registadas separadamente:                                                │
-│  ├── seq 3: setter → pass_destination=P4, code=NULL                             │
-│  └── seq 4: attack → code=2 (defendido)                                         │
+│  action_type   │ Total │ Sem player_id │ Sem code                               │
+│  ─────────────────────────────────────────────────────                          │
+│  setter        │  25   │     17        │   17                                   │
+│  attack        │  14   │      0        │    0                                   │
+│  reception     │  14   │      0        │    0                                   │
+│  defense       │  13   │      0        │    0                                   │
+│  serve         │  20   │      0        │    0                                   │
+│  block         │   4   │      1        │    0                                   │
 │                                                                                 │
-│  O hook actual procura por esta estrutura                                       │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      ARQUITECTURA 2: SETTER COM CODE (COMBO)                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  Fluxo simplificado ou legacy onde o code está no setter:                       │
-│  └── seq 7: setter → pass_destination=P2, code=3 (KILL!)                        │
-│                                                                                 │
-│  O hook actual IGNORA o code nestes setters                                     │
+│  PROBLEMA PRINCIPAL: 17 ações de setter sem player_id                           │
+│  (têm pass_destination mas falta identificar o distribuidor)                    │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Dados Reais
+### Causa Raiz
 
-A query mostra que muitas ações de `setter` têm `code` directamente preenchido:
-- setter code=3 → KILL
-- setter code=2 → Defendido
-- setter code=1 → Bloqueado
+Na nova arquitectura (`rally_actions`), as ações de setter foram registadas com:
+- `pass_destination` preenchido (P2, P3, P4, etc.)
+- `player_id` em falta
+- `code` em falta (pode não ser necessário para todas as acções)
 
-Para o match actual (Póvoa vs Liceu), existem setters com código:
-- Rally `a1986455...`: setter CASA → P2, code=3 (KILL!)
-- Rally `caee639f...`: setter CASA → P4, code=3 (KILL!)
-
-### O Hook Actual
-
-O `useDestinationStatsFromActions` **só conta kills quando encontra uma ação `attack` separada**:
-
-```typescript
-// Linha 68-91 - só procura por ações attack
-if (action.action_type === 'attack' && pendingDestination !== null) {
-  // Só conta quando há attack action
-  stats[dest].attempts++;
-  if (code === 3) stats[dest].kills++;
-}
-```
-
-Isto significa que kills registados directamente no setter (code=3) são **completamente ignorados**.
+O auto-fix existente só opera na tabela `rallies`.
 
 ---
 
 ## Solução
 
-Actualizar o hook para considerar **ambas as arquitecturas**:
+Criar uma nova função `autoFixRallyActions` que:
 
-1. Se o setter tem `code`, usar esse código directamente
-2. Se o setter não tem `code`, procurar por uma ação `attack` subsequente
+1. **Preenche player_id para setters** baseado no side da ação e posição 'S'
+2. **Opcionalmente preenche codes em falta** com valores padrão sensatos
 
-### Lógica Corrigida
+### Lógica de Auto-Fix para Setters
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         NOVA LÓGICA                                             │
+│                         LÓGICA DE IDENTIFICAÇÃO DE SETTERS                      │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Para cada setter com pass_destination:                                         │
+│  Para cada ação de setter sem player_id:                                        │
 │                                                                                 │
-│  1. Contar como attempt IMEDIATAMENTE                                           │
+│  1. Identificar o side da ação (CASA ou FORA)                                   │
 │                                                                                 │
-│  2. Verificar se o setter tem code:                                             │
-│     ├── SE setter.code !== null → usar esse código                              │
-│     │   (arquitectura combo/legacy)                                             │
-│     │                                                                           │
-│     └── SE setter.code === null → procurar attack subsequente                   │
-│         (arquitectura modular)                                                  │
+│  2. Procurar jogador com position='S' nesse side                                │
+│     - CASA: #8 ou #16 (preferir o mais provável baseado em lineups)             │
+│     - FORA: #3 (Ethel Mach) ou #10 (João Cardoso)                               │
 │                                                                                 │
-│  3. Categorizar resultado:                                                      │
-│     ├── code 3 → kill                                                           │
-│     ├── code 2 → defended                                                       │
-│     ├── code 1 → blocked                                                        │
-│     └── code 0 → error                                                          │
+│  3. Usar o primeiro setter encontrado como fallback                             │
+│     (se houver múltiplos, poderia usar rotação, mas simplificamos)              │
+│                                                                                 │
+│  4. Atribuir player_id e player_no correspondentes                              │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Regras de Auto-Fix por Tipo de Ação
+
+| Tipo | Campo em Falta | Regra de Preenchimento |
+|------|----------------|------------------------|
+| setter | player_id | Primeiro jogador com position='S' no mesmo side |
+| setter | code | Manter NULL (não obrigatório para distribuições) |
+| block | player_id | Não auto-fix (requer conhecimento específico) |
+| outros | code | Não auto-fix (requer validação manual) |
 
 ---
 
 ## Alterações Técnicas
 
-### Ficheiro: `src/hooks/useDestinationStatsFromActions.ts`
+### 1. Novo Hook/Função em useRallyActions.ts
 
-**Código actual** (linhas 61-102):
+Adicionar função `useAutoFixRallyActions`:
+
 ```typescript
-for (const action of sortedActions) {
-  if (action.action_type === 'setter' && action.pass_destination) {
-    pendingDestination = action.pass_destination as PassDestination;
-    pendingSetterSide = action.side as Side;
-  }
+export function useAutoFixRallyActions() {
+  const queryClient = useQueryClient();
   
-  if (action.action_type === 'attack' && pendingDestination !== null) {
-    // ... só conta aqui
-  }
-}
-```
-
-**Código corrigido**:
-```typescript
-for (const action of sortedActions) {
-  if (action.action_type === 'setter' && action.pass_destination) {
-    const dest = action.pass_destination as PassDestination;
-    const setterSide = action.side as Side;
-    
-    // Aplicar filtro de equipa
-    if (!side || setterSide === side) {
-      // 1. Contar SEMPRE como attempt
-      stats[dest].attempts++;
+  return useMutation({
+    mutationFn: async ({ 
+      matchId, 
+      players 
+    }: { 
+      matchId: string; 
+      players: (Player | MatchPlayer)[];
+    }): Promise<{ fixed: number; errors: number }> => {
+      let fixed = 0;
+      let errors = 0;
       
-      // 2. Se o setter tem code, usar directamente (arquitectura combo)
-      if (action.code !== null && action.code !== undefined) {
-        if (action.code === 3) stats[dest].kills++;
-        else if (action.code === 0) stats[dest].errors++;
-        else if (action.code === 1) stats[dest].blocked++;
-        else if (action.code === 2) stats[dest].defended++;
-        // Não guardar pending - já processámos o resultado
-        continue;
+      // Buscar todas as ações de setter sem player_id
+      const { data: settersToFix } = await supabase
+        .from('rally_actions')
+        .select('id, side, player_id')
+        .eq('action_type', 'setter')
+        .is('player_id', null)
+        .is('deleted_at', null)
+        .in('rally_id', /* rally ids do match */);
+      
+      for (const action of settersToFix) {
+        // Encontrar setter do lado correto
+        const setter = players.find(p => 
+          p.side === action.side && 
+          p.position === 'S'
+        );
+        
+        if (setter) {
+          const { error } = await supabase
+            .from('rally_actions')
+            .update({ 
+              player_id: setter.id,
+              player_no: setter.jersey_number 
+            })
+            .eq('id', action.id);
+          
+          if (error) errors++;
+          else fixed++;
+        }
       }
-    }
-    
-    // 3. Se não tem code, guardar para correlacionar com attack
-    pendingDestination = dest;
-    pendingSetterSide = setterSide;
-    pendingSetterAlreadyCounted = !side || setterSide === side;
-  }
-  
-  // Procurar attack para setters sem code
-  if (action.action_type === 'attack' && pendingDestination !== null) {
-    const attackSide = action.side as Side;
-    
-    if (pendingSetterSide === attackSide && (!side || attackSide === side)) {
-      const dest = pendingDestination;
-      const code = action.code;
       
-      // Não incrementar attempts de novo (já contámos no setter)
-      if (code === 3) stats[dest].kills++;
-      else if (code === 0) stats[dest].errors++;
-      else if (code === 1) stats[dest].blocked++;
-      else if (code === 2) stats[dest].defended++;
+      return { fixed, errors };
     }
-    
-    pendingDestination = null;
-    pendingSetterSide = null;
-    pendingSetterAlreadyCounted = false;
-  }
+  });
 }
 ```
+
+### 2. Adicionar Botão no RallyHistory.tsx
+
+Usar a nova função para corrigir ações na tabela `rally_actions`:
+
+```typescript
+// Novo botão para fix em rally_actions
+<Button onClick={() => autoFixRallyActions({ matchId, players })}>
+  Fix Distribuições
+</Button>
+```
+
+### 3. Sincronização com Tabela Rallies
+
+Após corrigir `rally_actions`, sincronizar com `rallies` usando o `useBatchUpdateRallyActions` existente ou uma versão simplificada.
 
 ---
 
-## Impacto da Alteração
+## Ficheiros a Alterar
 
-| Aspecto | Detalhe |
-|---------|---------|
-| Ficheiros alterados | 1 (`useDestinationStatsFromActions.ts`) |
-| Linhas alteradas | ~30 |
-| Risco | Baixo - apenas adiciona lógica para arquitectura alternativa |
+| Ficheiro | Alteração |
+|----------|-----------|
+| `src/hooks/useRallyActions.ts` | Adicionar `useAutoFixRallyActions` mutation |
+| `src/pages/RallyHistory.tsx` | Adicionar botão e integrar nova função |
 
 ---
 
 ## Resultados Esperados
 
-| Destino | Antes | Depois |
-|---------|-------|--------|
-| P2 | 0/1 · 0% | **1/3 · 33%** (1 kill encontrado) |
-| P3 | 0/1 · 0% | 0/2 · 0% |
-| P4 | 0/2 · 0% | **1/6 · 17%** (1 kill encontrado) |
-| **Total** | 0 kills | **2 kills** |
+| Antes | Depois |
+|-------|--------|
+| 17 setters sem player_id | 0 setters sem player_id |
+| Stats mostram "-" na coluna Dist | Stats mostram "#8" ou "#3" na coluna Dist |
 
 ---
 
 ## Critérios de Sucesso
 
-- Distribuições com code no setter são contadas correctamente
-- Distribuições com attack separado continuam a funcionar
-- Kills aparecem nas estatísticas de eficácia por zona
-- Dados consistentes em todas as páginas (Live, Stats)
+- Todas as ações de setter têm player_id preenchido
+- Sincronização mantém tabela rallies actualizada
+- Estatísticas de distribuição mostram jogador identificado
+- Não há regressões nas métricas existentes
