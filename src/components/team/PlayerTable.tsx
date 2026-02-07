@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, UserMinus, Crown } from 'lucide-react';
+import { Plus, Pencil, UserMinus, Crown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { TeamPlayer } from '@/types/volleyball';
 import { EditPlayerDialog } from './EditPlayerDialog';
 import { differenceInYears } from 'date-fns';
+
+type SortField = 'jersey_number' | 'name' | 'position' | 'height_cm';
+type SortDirection = 'asc' | 'desc';
 
 interface PlayerTableProps {
   players: TeamPlayer[];
@@ -26,6 +29,15 @@ function calculateAge(birthDate: string | null): number | null {
   return differenceInYears(new Date(), new Date(birthDate));
 }
 
+function SortIcon({ field, sortField, sortDirection }: { field: SortField; sortField: SortField | null; sortDirection: SortDirection }) {
+  if (sortField !== field) {
+    return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+  }
+  return sortDirection === 'asc' 
+    ? <ArrowUp className="ml-1 h-3 w-3" /> 
+    : <ArrowDown className="ml-1 h-3 w-3" />;
+}
+
 export function PlayerTable({
   players,
   onAddClick,
@@ -33,6 +45,51 @@ export function PlayerTable({
   onDeactivatePlayer,
 }: PlayerTableProps) {
   const [editingPlayer, setEditingPlayer] = useState<TeamPlayer | null>(null);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedPlayers = useMemo(() => {
+    if (!sortField) return players;
+    
+    return [...players].sort((a, b) => {
+      let aVal: string | number | null;
+      let bVal: string | number | null;
+      
+      switch (sortField) {
+        case 'jersey_number':
+          aVal = a.jersey_number;
+          bVal = b.jersey_number;
+          break;
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'position':
+          aVal = a.position?.toLowerCase() ?? '';
+          bVal = b.position?.toLowerCase() ?? '';
+          break;
+        case 'height_cm':
+          aVal = a.height_cm ?? 0;
+          bVal = b.height_cm ?? 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [players, sortField, sortDirection]);
 
   const handleDeactivate = async (playerId: string) => {
     await onDeactivatePlayer(playerId);
@@ -67,16 +124,48 @@ export function PlayerTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-14 text-center">#</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead className="w-16 text-center">Pos.</TableHead>
-                <TableHead className="w-16 text-center">Alt.</TableHead>
+                <TableHead 
+                  className="w-14 text-center cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('jersey_number')}
+                >
+                  <div className="flex items-center justify-center">
+                    #
+                    <SortIcon field="jersey_number" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('name')}
+                >
+                  <div className="flex items-center">
+                    Nome
+                    <SortIcon field="name" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="w-20 text-center cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('position')}
+                >
+                  <div className="flex items-center justify-center">
+                    Pos.
+                    <SortIcon field="position" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="w-20 text-center cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('height_cm')}
+                >
+                  <div className="flex items-center justify-center">
+                    Alt.
+                    <SortIcon field="height_cm" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
                 <TableHead className="w-14 text-center">Idade</TableHead>
                 <TableHead className="w-20 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {players.map((player) => {
+              {sortedPlayers.map((player) => {
                 const age = calculateAge(player.birth_date);
                 return (
                   <TableRow key={player.id}>
