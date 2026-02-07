@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
-import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions, useComprehensiveAutoFix } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -496,6 +496,9 @@ export default function RallyHistory() {
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [isAutoFixingKillTypes, setIsAutoFixingKillTypes] = useState(false);
   const [isAutoFixingActions, setIsAutoFixingActions] = useState(false);
+  const [isComprehensiveFix, setIsComprehensiveFix] = useState(false);
+  
+  const comprehensiveAutoFix = useComprehensiveAutoFix();
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -680,16 +683,17 @@ export default function RallyHistory() {
           
           {/* Auto-fix Buttons */}
           
-          {/* Fix Distributions (rally_actions table) */}
+          {/* Comprehensive Fix (rally_actions table) */}
           <Button
             variant="outline"
             size="sm"
             className="gap-1.5"
             onClick={async () => {
               if (!matchId) return;
-              setIsAutoFixingActions(true);
+              setIsComprehensiveFix(true);
               try {
-                const result = await autoFixRallyActionsMutation.mutateAsync({
+                // First fix player_id for setters
+                const playerFixResult = await autoFixRallyActionsMutation.mutateAsync({
                   matchId,
                   players: players.map(p => ({
                     id: p.id,
@@ -698,32 +702,41 @@ export default function RallyHistory() {
                     jersey_number: p.jersey_number
                   }))
                 });
-                if (result.fixed > 0) {
-                  toast.success(`${result.fixed} distribuições corrigidas`);
+                
+                // Then fix setter codes from attack results
+                const codeFixResult = await comprehensiveAutoFix.mutateAsync({ matchId });
+                
+                const totalFixed = playerFixResult.fixed + codeFixResult.setterCodesFixed;
+                
+                if (totalFixed > 0) {
+                  toast.success(`${totalFixed} correções aplicadas (${playerFixResult.fixed} jogadores, ${codeFixResult.setterCodesFixed} códigos)`);
                 } else {
-                  toast.info('Nenhuma distribuição precisou de correção');
+                  toast.info('Nenhuma correção necessária');
                 }
-                if (result.skipped > 0) {
-                  toast.warning(`${result.skipped} ações ignoradas (sem setter no side)`);
+                
+                if (playerFixResult.skipped > 0 || codeFixResult.settersSkipped > 0) {
+                  toast.warning(`${playerFixResult.skipped + codeFixResult.settersSkipped} ações não inferíveis`);
                 }
-                if (result.errors > 0) {
-                  toast.error(`${result.errors} erros durante a correção`);
+                
+                if (playerFixResult.errors > 0 || codeFixResult.errors > 0) {
+                  toast.error(`${playerFixResult.errors + codeFixResult.errors} erros durante a correção`);
                 }
+                
                 // Reload match data
                 loadMatch();
               } finally {
-                setIsAutoFixingActions(false);
+                setIsComprehensiveFix(false);
               }
             }}
-            disabled={isAutoFixingActions}
-            title="Corrigir distribuições sem jogador identificado"
+            disabled={isComprehensiveFix || isAutoFixingActions}
+            title="Corrigir automaticamente todas as ações incompletas"
           >
-            {isAutoFixingActions ? (
+            {isComprehensiveFix ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Target className="h-4 w-4" />
+              <Wand2 className="h-4 w-4" />
             )}
-            <span className="hidden sm:inline">Fix Dist</span>
+            <span className="hidden sm:inline">Fix Tudo</span>
           </Button>
           
           {killTypeIssueCount > 0 && (

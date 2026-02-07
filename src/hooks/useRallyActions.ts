@@ -421,3 +421,98 @@ export function useAutoFixRallyActions() {
     },
   });
 }
+
+// Comprehensive auto-fix: fills in setter codes based on subsequent attack results
+export function useComprehensiveAutoFix() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      matchId 
+    }: { 
+      matchId: string;
+    }): Promise<{
+      setterCodesFixed: number;
+      settersSkipped: number;
+      errors: number;
+    }> => {
+      const results = { setterCodesFixed: 0, settersSkipped: 0, errors: 0 };
+      
+      // 1. Get all rally IDs for this match
+      const { data: rallies, error: ralliesError } = await supabase
+        .from('rallies')
+        .select('id')
+        .eq('match_id', matchId)
+        .is('deleted_at', null);
+
+      if (ralliesError) throw ralliesError;
+      if (!rallies?.length) return results;
+
+      const rallyIds = rallies.map(r => r.id);
+
+      // 2. Get all actions for these rallies
+      const { data: allActions, error: actionsError } = await supabase
+        .from('rally_actions')
+        .select('*')
+        .in('rally_id', rallyIds)
+        .is('deleted_at', null)
+        .order('rally_id', { ascending: true })
+        .order('sequence_no', { ascending: true });
+
+      if (actionsError) throw actionsError;
+      if (!allActions?.length) return results;
+
+      // 3. Group actions by rally_id
+      const actionsByRally = new Map<string, typeof allActions>();
+      allActions.forEach(action => {
+        const existing = actionsByRally.get(action.rally_id) || [];
+        existing.push(action);
+        actionsByRally.set(action.rally_id, existing);
+      });
+
+      // 4. For each rally, infer missing codes
+      for (const [rallyId, actions] of actionsByRally.entries()) {
+        for (const action of actions) {
+          // Fix setter codes based on subsequent attack
+          if (action.action_type === 'setter' && action.code === null) {
+            // Find next attack from same side
+            const nextAttack = actions.find(a => 
+              a.sequence_no > action.sequence_no &&
+              a.action_type === 'attack' &&
+              a.side === action.side
+            );
+            
+            if (nextAttack && nextAttack.code !== null) {
+              // Infer code from attack result
+              const { error } = await supabase
+                .from('rally_actions')
+                .update({ code: nextAttack.code })
+                .eq('id', action.id);
+              
+              if (error) {
+                results.errors++;
+              } else {
+                results.setterCodesFixed++;
+                
+                // Sync to rallies table (pass_code)
+                await supabase
+                  .from('rallies')
+                  .update({ pass_code: nextAttack.code })
+                  .eq('id', rallyId);
+              }
+            } else {
+              results.settersSkipped++;
+            }
+          }
+        }
+      }
+      
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rally-actions'] });
+      queryClient.invalidateQueries({ queryKey: ['rally-actions-match'] });
+      queryClient.invalidateQueries({ queryKey: ['rallies'] });
+    },
+  });
+}
