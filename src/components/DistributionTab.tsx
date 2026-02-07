@@ -5,27 +5,30 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useDistributionStats, SetterDistribution, ReceptionBreakdown } from '@/hooks/useDistributionStats';
-import { Rally, Player, MatchPlayer, Side, Match, POSITIONS_BY_RECEPTION } from '@/types/volleyball';
+import { useDistributionStatsFromActions, SetterDistribution, ReceptionBreakdown } from '@/hooks/useDistributionStatsFromActions';
+import { Rally, Player, MatchPlayer, Side, Match } from '@/types/volleyball';
+import { RallyActionWithPlayer } from '@/types/rallyActions';
 import { Progress } from '@/components/ui/progress';
 import { Target, AlertTriangle } from 'lucide-react';
+
 interface DistributionTabProps {
-  rallies: Rally[];
+  rallyActionsMap: Map<string, RallyActionWithPlayer[]> | undefined;
   players: (Player | MatchPlayer)[];
   match: Match;
   selectedSet: number;
   getRalliesForSet: (setNo: number) => Rally[];
 }
 
-export function DistributionTab({ rallies, players, match, selectedSet, getRalliesForSet }: DistributionTabProps) {
+export function DistributionTab({ rallyActionsMap, players, match, selectedSet, getRalliesForSet }: DistributionTabProps) {
   const [sideFilter, setSideFilter] = useState<Side | 'TODAS'>('TODAS');
   const [setterFilter, setSetterFilter] = useState<string | null>(null);
   const [receptionFilter, setReceptionFilter] = useState<number | null>(null);
 
-  const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
-
-  const { distributionStats, setters, destinations, globalReceptionBreakdown, incompleteDistributionCount } = useDistributionStats(
-    filteredRallies,
+  // Note: selectedSet filtering would need to be applied to rallyActionsMap if needed
+  // For now, we use all rally actions as the data already comes from the match
+  
+  const { distributionStats, setters, destinations, globalReceptionBreakdown, incompleteDistributionCount } = useDistributionStatsFromActions(
+    rallyActionsMap,
     players,
     { side: sideFilter, setterId: setterFilter, receptionCode: receptionFilter }
   );

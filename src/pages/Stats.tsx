@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { useServeTypeStats } from '@/hooks/useServeTypeStats';
+import { useRallyActionsForMatch } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +25,7 @@ export default function Stats() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { match, rallies, loading, loadMatch, getRalliesForSet, getEffectivePlayers, updateRally } = useMatch(matchId || null);
+  const { data: rallyActionsMap } = useRallyActionsForMatch(matchId || null);
   const effectivePlayers = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0); // 0 = all
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
@@ -589,7 +591,7 @@ export default function Stats() {
 
           <TabsContent value="distribution">
             <DistributionTab
-              rallies={rallies}
+              rallyActionsMap={rallyActionsMap}
               players={effectivePlayers}
               match={match}
               selectedSet={selectedSet}
