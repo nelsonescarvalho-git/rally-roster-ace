@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Trophy, Circle } from 'lucide-react';
+import { AlertTriangle, Trophy, Circle, GitCompare } from 'lucide-react';
 import { Rally } from '@/types/volleyball';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,24 @@ interface RallySummaryProps {
   hasBlockInconsistency?: boolean;
   hasPartialData?: boolean;
   isExpanded?: boolean;
+  /** Number of actions in rally_actions table */
+  actionsCount?: number;
+  /** Number of actions detected from legacy rallies table */
+  legacyActionsCount?: number;
+}
+
+/**
+ * Count legacy actions from a Rally record (rallies table flat structure)
+ */
+export function countLegacyActions(rally: Rally): number {
+  let count = 0;
+  if (rally.s_player_id || rally.s_code !== null) count++;
+  if (rally.r_player_id || rally.r_code !== null) count++;
+  if (rally.setter_player_id || rally.pass_destination || rally.pass_code !== null) count++;
+  if (rally.a_player_id || rally.a_code !== null) count++;
+  if (rally.b1_player_id || rally.b_code !== null) count++;
+  if (rally.d_player_id || rally.d_code !== null) count++;
+  return count;
 }
 
 export function RallySummary({
@@ -26,7 +44,9 @@ export function RallySummary({
   hasIssue = false,
   hasBlockInconsistency = false,
   hasPartialData = false,
-  isExpanded = false
+  isExpanded = false,
+  actionsCount,
+  legacyActionsCount
 }: RallySummaryProps) {
   const finalPhase = phases[phases.length - 1];
   const serveSide = phases[0]?.serve_side;
@@ -38,11 +58,18 @@ export function RallySummary({
   
   const isHomeWin = winnerSide === 'CASA';
   
+  // Check for discrepancy between legacy and rally_actions data
+  const hasDiscrepancy = actionsCount !== undefined && 
+    legacyActionsCount !== undefined && 
+    actionsCount !== legacyActionsCount;
+  
   return (
     <div className={cn(
       'flex items-center gap-3 p-3 rounded-lg transition-all',
       hasIssue ? 'bg-destructive/5 border border-destructive/20' : 
-        hasPartialData ? 'bg-warning/5 border border-warning/20' : 'hover:bg-muted/50',
+        hasPartialData ? 'bg-warning/5 border border-warning/20' : 
+        hasDiscrepancy ? 'bg-orange-500/5 border border-orange-500/20' :
+        'hover:bg-muted/50',
       isExpanded && 'bg-muted/30'
     )}>
       {/* Rally Number */}
@@ -83,6 +110,15 @@ export function RallySummary({
       
       {/* Spacer */}
       <div className="flex-1" />
+      
+      {/* Discrepancy Warning (legacy vs rally_actions) */}
+      {hasDiscrepancy && (
+        <Badge variant="outline" className="text-[10px] gap-1 flex-shrink-0 border-orange-500 text-orange-500">
+          <GitCompare className="h-3 w-3" />
+          <span className="hidden sm:inline">{legacyActionsCount}L/{actionsCount}A</span>
+          <span className="sm:hidden">Sync</span>
+        </Badge>
+      )}
       
       {/* Issue Warning */}
       {hasIssue && (
