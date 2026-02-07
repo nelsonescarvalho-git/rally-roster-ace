@@ -477,6 +477,98 @@ export type Database = {
           },
         ]
       }
+      rally_actions: {
+        Row: {
+          action_type: string
+          b2_no: number | null
+          b2_player_id: string | null
+          b3_no: number | null
+          b3_player_id: string | null
+          code: number | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          id: string
+          kill_type: string | null
+          pass_code: number | null
+          pass_destination: string | null
+          player_id: string | null
+          player_no: number | null
+          rally_id: string
+          sequence_no: number
+          side: string
+        }
+        Insert: {
+          action_type: string
+          b2_no?: number | null
+          b2_player_id?: string | null
+          b3_no?: number | null
+          b3_player_id?: string | null
+          code?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          kill_type?: string | null
+          pass_code?: number | null
+          pass_destination?: string | null
+          player_id?: string | null
+          player_no?: number | null
+          rally_id: string
+          sequence_no: number
+          side: string
+        }
+        Update: {
+          action_type?: string
+          b2_no?: number | null
+          b2_player_id?: string | null
+          b3_no?: number | null
+          b3_player_id?: string | null
+          code?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          kill_type?: string | null
+          pass_code?: number | null
+          pass_destination?: string | null
+          player_id?: string | null
+          player_no?: number | null
+          rally_id?: string
+          sequence_no?: number
+          side?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rally_actions_b2_player_id_fkey"
+            columns: ["b2_player_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rally_actions_b3_player_id_fkey"
+            columns: ["b3_player_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rally_actions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "match_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rally_actions_rally_id_fkey"
+            columns: ["rally_id"]
+            isOneToOne: false
+            referencedRelation: "rallies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sanctions: {
         Row: {
           away_score: number | null
