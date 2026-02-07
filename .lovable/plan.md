@@ -1,103 +1,95 @@
 
-# Plano: Corrigir Inconsistências na Sincronização de Distribuições
+# Plano: Corrigir Contagem de Distribuições e Kills por Zona
 
 ## Problema Identificado
 
-### Análise dos Dados
+### Análise da Base de Dados
 
-A base de dados mostra **três problemas distintos** que causam inconsistências nas estatísticas de distribuição:
+Existem **duas arquitecturas de dados diferentes** a serem usadas em paralelo:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         PROBLEMA 1: SINCRONIZAÇÃO ERRADA                        │
+│                      ARQUITECTURA 1: SETTER + ATTACK SEPARADOS                  │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Rally 7: recv_side = FORA                                                      │
+│  Ações registadas separadamente:                                                │
+│  ├── seq 3: setter → pass_destination=P4, code=NULL                             │
+│  └── seq 4: attack → code=2 (defendido)                                         │
 │                                                                                 │
-│  tabela rally_actions:                                                          │
-│  ├── seq 3: setter FORA → P3                                                    │
-│  ├── seq 7: setter FORA → P4                                                    │
-│  └── seq 10: setter CASA → P4   ← Contra-ataque de Póvoa!                       │
-│                                                                                 │
-│  tabela rallies:                                                                │
-│  └── pass_destination = P3      ← Sincronizou do FORA (1º setter), não do CASA │
-│                                                                                 │
-│  O sistema apenas considera o PRIMEIRO setter do rally, ignorando              │
-│  os contra-ataques da equipa adversária.                                        │
+│  O hook actual procura por esta estrutura                                       │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      PROBLEMA 2: DADOS EM TABELA ERRADA                         │
+│                      ARQUITECTURA 2: SETTER COM CODE (COMBO)                    │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  useDistributionStats lê da tabela "rallies" que só guarda:                     │
-│  - O setter_player_id e pass_destination do PRIMEIRO setter do rally           │
-│  - Ignora completamente distribuições de contra-ataque                          │
+│  Fluxo simplificado ou legacy onde o code está no setter:                       │
+│  └── seq 7: setter → pass_destination=P2, code=3 (KILL!)                        │
 │                                                                                 │
-│  DADOS REAIS na rally_actions:                                                  │
-│  ├── Póvoa tem 11 distribuições registadas                                      │
-│  └── Destinos: P2(3), P3(2), P4(6)                                              │
-│                                                                                 │
-│  DADOS na rallies (usados nas stats):                                           │
-│  ├── Póvoa tem 4 distribuições (só as que recv_side = CASA)                     │
-│  └── Destinos: P3(2), P4(2) ← Faltam 7 distribuições!                           │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      PROBLEMA 3: HOOK LEGACY                                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  O hook useDistributionStats.ts (usado no DistributionTab):                     │
-│                                                                                 │
-│  ❌ Lê da tabela rallies (estrutura legacy de 1 ação por tipo)                  │
-│  ❌ Filtra por setter.side = filters.side (correto) mas...                      │
-│  ❌ ...os dados na tabela rallies só têm o primeiro setter do rally!            │
-│                                                                                 │
-│  Precisa ler da tabela rally_actions para ver TODAS as distribuições            │
+│  O hook actual IGNORA o code nestes setters                                     │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Dados Reais
+
+A query mostra que muitas ações de `setter` têm `code` directamente preenchido:
+- setter code=3 → KILL
+- setter code=2 → Defendido
+- setter code=1 → Bloqueado
+
+Para o match actual (Póvoa vs Liceu), existem setters com código:
+- Rally `a1986455...`: setter CASA → P2, code=3 (KILL!)
+- Rally `caee639f...`: setter CASA → P4, code=3 (KILL!)
+
+### O Hook Actual
+
+O `useDestinationStatsFromActions` **só conta kills quando encontra uma ação `attack` separada**:
+
+```typescript
+// Linha 68-91 - só procura por ações attack
+if (action.action_type === 'attack' && pendingDestination !== null) {
+  // Só conta quando há attack action
+  stats[dest].attempts++;
+  if (code === 3) stats[dest].kills++;
+}
+```
+
+Isto significa que kills registados directamente no setter (code=3) são **completamente ignorados**.
+
 ---
 
-## Raiz do Problema
+## Solução
 
-A arquitectura actual tem duas fontes de verdade:
+Actualizar o hook para considerar **ambas as arquitecturas**:
 
-| Tabela | Contém | Usado Por |
-|--------|--------|-----------|
-| `rallies` | 1 setter por rally (o primeiro) | `useDistributionStats` (Stats) |
-| `rally_actions` | TODOS os setters (incluindo contra-ataques) | `useDestinationStatsFromActions` (Live) |
+1. Se o setter tem `code`, usar esse código directamente
+2. Se o setter não tem `code`, procurar por uma ação `attack` subsequente
 
-O `DistributionTab` na página Stats usa o hook `useDistributionStats` que lê da tabela `rallies`, onde só existe a primeira distribuição de cada rally.
-
----
-
-## Solução: Migrar useDistributionStats para rally_actions
-
-### Nova Arquitectura
-
-Criar um novo hook `useDistributionStatsFromActions` que:
-1. Lê TODAS as distribuições da tabela `rally_actions`
-2. Agrupa por setter (baseado no `side` de cada ação, não no `recv_side` do rally)
-3. Mantém compatibilidade com a interface `SetterDistribution` existente
+### Lógica Corrigida
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         FLUXO CORRIGIDO                                         │
+│                         NOVA LÓGICA                                             │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Rally 8 (rally complexo):                                                      │
+│  Para cada setter com pass_destination:                                         │
 │                                                                                 │
-│  seq 3:  setter FORA → P4     ┐                                                 │
-│  seq 6:  setter CASA → P4     │  O novo hook conta TODAS estas distribuições    │
-│  seq 9:  setter FORA → P2     │  separadas por equipa (side)                    │
-│  seq 13: setter FORA → P4     │                                                 │
-│  seq 17: setter CASA → P4     │  CASA: 3 distribuições (seq 6, 17, 23)          │
-│  seq 20: setter FORA → P4     │  FORA: 4 distribuições (seq 3, 9, 13, 20)       │
-│  seq 23: setter CASA → P2     ┘                                                 │
+│  1. Contar como attempt IMEDIATAMENTE                                           │
+│                                                                                 │
+│  2. Verificar se o setter tem code:                                             │
+│     ├── SE setter.code !== null → usar esse código                              │
+│     │   (arquitectura combo/legacy)                                             │
+│     │                                                                           │
+│     └── SE setter.code === null → procurar attack subsequente                   │
+│         (arquitectura modular)                                                  │
+│                                                                                 │
+│  3. Categorizar resultado:                                                      │
+│     ├── code 3 → kill                                                           │
+│     ├── code 2 → defended                                                       │
+│     ├── code 1 → blocked                                                        │
+│     └── code 0 → error                                                          │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -106,92 +98,99 @@ Criar um novo hook `useDistributionStatsFromActions` que:
 
 ## Alterações Técnicas
 
-### 1. Novo Hook: `useDistributionStatsFromActions`
+### Ficheiro: `src/hooks/useDestinationStatsFromActions.ts`
 
-Criar: `src/hooks/useDistributionStatsFromActions.ts`
-
-Interface compatível com `SetterDistribution`:
+**Código actual** (linhas 61-102):
 ```typescript
-export function useDistributionStatsFromActions(
-  rallyActions: Map<string, RallyActionWithPlayer[]> | undefined,
-  players: (Player | MatchPlayer)[],
-  filters: {
-    side: Side | 'TODAS';
-    setterId: string | null;
-    receptionCode?: number | null;
+for (const action of sortedActions) {
+  if (action.action_type === 'setter' && action.pass_destination) {
+    pendingDestination = action.pass_destination as PassDestination;
+    pendingSetterSide = action.side as Side;
   }
-): {
-  distributionStats: SetterDistribution[];
-  setters: Array<{ id: string; name: string; jerseyNumber: number; side: Side }>;
-  globalReceptionBreakdown: ReceptionBreakdown[];
-  incompleteDistributionCount: number;
+  
+  if (action.action_type === 'attack' && pendingDestination !== null) {
+    // ... só conta aqui
+  }
 }
 ```
 
-Lógica:
-- Iterar todas as ações de tipo `setter` em `rally_actions`
-- Agrupar por `player_id` do setter (ou criar grupo genérico se não tiver player_id)
-- Usar `action.side` para filtrar por equipa
-- Correlacionar com qualidade de receção do mesmo rally
-
-### 2. Atualizar Stats.tsx
-
-Adicionar query para `rally_actions`:
+**Código corrigido**:
 ```typescript
-const { data: rallyActions } = useRallyActionsForMatch(match?.id ?? null);
-```
-
-### 3. Atualizar DistributionTab
-
-Substituir:
-```typescript
-const { distributionStats, ... } = useDistributionStats(rallies, players, filters);
-```
-
-Por:
-```typescript
-const { distributionStats, ... } = useDistributionStatsFromActions(
-  rallyActions,
-  players,
-  filters
-);
+for (const action of sortedActions) {
+  if (action.action_type === 'setter' && action.pass_destination) {
+    const dest = action.pass_destination as PassDestination;
+    const setterSide = action.side as Side;
+    
+    // Aplicar filtro de equipa
+    if (!side || setterSide === side) {
+      // 1. Contar SEMPRE como attempt
+      stats[dest].attempts++;
+      
+      // 2. Se o setter tem code, usar directamente (arquitectura combo)
+      if (action.code !== null && action.code !== undefined) {
+        if (action.code === 3) stats[dest].kills++;
+        else if (action.code === 0) stats[dest].errors++;
+        else if (action.code === 1) stats[dest].blocked++;
+        else if (action.code === 2) stats[dest].defended++;
+        // Não guardar pending - já processámos o resultado
+        continue;
+      }
+    }
+    
+    // 3. Se não tem code, guardar para correlacionar com attack
+    pendingDestination = dest;
+    pendingSetterSide = setterSide;
+    pendingSetterAlreadyCounted = !side || setterSide === side;
+  }
+  
+  // Procurar attack para setters sem code
+  if (action.action_type === 'attack' && pendingDestination !== null) {
+    const attackSide = action.side as Side;
+    
+    if (pendingSetterSide === attackSide && (!side || attackSide === side)) {
+      const dest = pendingDestination;
+      const code = action.code;
+      
+      // Não incrementar attempts de novo (já contámos no setter)
+      if (code === 3) stats[dest].kills++;
+      else if (code === 0) stats[dest].errors++;
+      else if (code === 1) stats[dest].blocked++;
+      else if (code === 2) stats[dest].defended++;
+    }
+    
+    pendingDestination = null;
+    pendingSetterSide = null;
+    pendingSetterAlreadyCounted = false;
+  }
+}
 ```
 
 ---
 
-## Ficheiros a Alterar
+## Impacto da Alteração
 
-| Ficheiro | Alteração |
-|----------|-----------|
-| `src/hooks/useDistributionStatsFromActions.ts` | **NOVO** - Hook baseado em rally_actions |
-| `src/pages/Stats.tsx` | Adicionar query para rally_actions |
-| `src/components/DistributionTab.tsx` | Usar novo hook e receber rallyActions como prop |
-
----
-
-## Manter Legacy
-
-| Ficheiro | Estado |
-|----------|--------|
-| `src/hooks/useDistributionStats.ts` | Manter para referência, deprecar gradualmente |
+| Aspecto | Detalhe |
+|---------|---------|
+| Ficheiros alterados | 1 (`useDestinationStatsFromActions.ts`) |
+| Linhas alteradas | ~30 |
+| Risco | Baixo - apenas adiciona lógica para arquitectura alternativa |
 
 ---
 
-## Estatísticas Esperadas Após Correcção
+## Resultados Esperados
 
-| Equipa | Fonte Actual | Fonte Corrigida |
-|--------|--------------|-----------------|
-| Póvoa (CASA) | 4 distribuições | 11 distribuições |
-| Destinos P2 | 0 | 3 |
-| Destinos P3 | 2 | 2 |
-| Destinos P4 | 2 | 6 |
+| Destino | Antes | Depois |
+|---------|-------|--------|
+| P2 | 0/1 · 0% | **1/3 · 33%** (1 kill encontrado) |
+| P3 | 0/1 · 0% | 0/2 · 0% |
+| P4 | 0/2 · 0% | **1/6 · 17%** (1 kill encontrado) |
+| **Total** | 0 kills | **2 kills** |
 
 ---
 
 ## Critérios de Sucesso
 
-- Estatísticas de distribuição incluem TODAS as distribuições (incluindo contra-ataques)
-- Filtro por equipa funciona baseado no `side` da ação, não no `recv_side` do rally
-- Dados consistentes entre página Live e página Stats
-- Valores mostrados: P2, P3, P4 com contagens correctas
-
+- Distribuições com code no setter são contadas correctamente
+- Distribuições com attack separado continuam a funcionar
+- Kills aparecem nas estatísticas de eficácia por zona
+- Dados consistentes em todas as páginas (Live, Stats)
