@@ -252,7 +252,7 @@ export function ActionEditor({
       requestAnimationFrame(() => {
         setTimeout(() => {
           showConfirmToast(player?.jersey_number, code);
-          onConfirm();
+          onConfirm({ code: code });
         }, 0);
       });
       return;
