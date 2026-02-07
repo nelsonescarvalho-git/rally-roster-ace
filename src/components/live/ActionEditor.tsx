@@ -32,6 +32,8 @@ interface ActionEditorProps {
   players: PlayerLike[];
   homeName: string;
   awayName: string;
+  // Opponent players eligible for block (Z2,Z3,Z4, no liberos)
+  opponentBlockers?: PlayerLike[];
   // Current values
   selectedPlayer?: string | null;
   selectedCode?: number | null;
@@ -122,6 +124,7 @@ export function ActionEditor({
   players,
   homeName,
   awayName,
+  opponentBlockers,
   selectedPlayer,
   selectedCode,
   selectedKillType,
@@ -392,10 +395,23 @@ export function ActionEditor({
     });
   }, [onBlockCodeChange, onConfirm, onAutoFinishPoint, onChainAction, side, selectedPlayer, players]);
 
+  // Blockers pool for Step 4 (stuff block) - use opponentBlockers if available
+  const blockersPool = useMemo(() => {
+    // Use opponentBlockers if provided (for stuff block - shows opponent's front row)
+    if (opponentBlockers && opponentBlockers.length > 0) {
+      return opponentBlockers;
+    }
+    // Fallback: filter liberos from players (for standalone block action)
+    return players.filter(p => {
+      const pos = p.position?.toUpperCase();
+      return pos !== 'L' && pos !== 'LIBERO';
+    });
+  }, [opponentBlockers, players]);
+
   // Handler for stuff block confirmation after blocker selection
   const handleStuffBlockConfirm = useCallback((blockerId: string) => {
     onBlocker1Change?.(blockerId);
-    const blocker = players.find(p => p.id === blockerId);
+    const blocker = blockersPool.find(p => p.id === blockerId);
     const attacker = players.find(p => p.id === selectedPlayer);
     const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
     
@@ -416,7 +432,7 @@ export function ActionEditor({
         });
       }, 0);
     });
-  }, [onBlocker1Change, players, selectedPlayer, side, onConfirm, onAutoFinishPoint]);
+  }, [onBlocker1Change, blockersPool, players, selectedPlayer, side, onConfirm, onAutoFinishPoint]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
@@ -883,37 +899,45 @@ export function ActionEditor({
                 <div className="text-center p-3 rounded-lg bg-destructive/10 border border-destructive/30">
                   <span className="text-lg">🧱</span>
                   <p className="text-sm font-medium text-destructive mt-1">Bloco Ponto</p>
-                  <p className="text-xs text-muted-foreground">Quem fez o bloco?</p>
+                  <p className="text-xs text-muted-foreground">Quem fez o bloco? (Adversário)</p>
                 </div>
                 
                 <div className="text-xs font-medium text-muted-foreground text-center">
                   Selecionar Bloqueador <span className="text-destructive">*</span>
+                  <span className="block text-[10px] opacity-70 mt-0.5">Linha de Ataque (Z2, Z3, Z4)</span>
                 </div>
                 
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {players.map((player) => (
-                    <Button
-                      key={player.id}
-                      variant={selectedBlocker1 === player.id ? 'default' : 'outline'}
-                      className={cn(
-                        'h-14 flex flex-col gap-0.5',
-                        selectedBlocker1 === player.id && 'ring-2 ring-offset-2 bg-destructive hover:bg-destructive/90'
-                      )}
-                      onClick={() => handleStuffBlockConfirm(player.id)}
-                    >
-                      <span className="text-lg font-bold">#{player.jersey_number}</span>
-                      {player.position && (
-                        <span className="text-[10px] opacity-70">
-                          {player.position === 'Middle Blocker' ? 'MB' : 
-                           player.position === 'Outside Hitter' ? 'OH' :
-                           player.position === 'Opposite' ? 'OP' :
-                           player.position === 'Setter' ? 'S' : 
-                           player.position?.substring(0, 2).toUpperCase()}
-                        </span>
-                      )}
-                    </Button>
-                  ))}
-                </div>
+                {blockersPool.length > 0 ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {blockersPool.map((player) => (
+                      <Button
+                        key={player.id}
+                        variant={selectedBlocker1 === player.id ? 'default' : 'outline'}
+                        className={cn(
+                          'h-14 flex flex-col gap-0.5',
+                          selectedBlocker1 === player.id && 'ring-2 ring-offset-2 bg-destructive hover:bg-destructive/90'
+                        )}
+                        onClick={() => handleStuffBlockConfirm(player.id)}
+                      >
+                        <span className="text-lg font-bold">#{player.jersey_number}</span>
+                        {player.position && (
+                          <span className="text-[10px] opacity-70">
+                            {player.position === 'Middle Blocker' ? 'MB' : 
+                             player.position === 'Outside Hitter' ? 'OH' :
+                             player.position === 'Opposite' ? 'OP' :
+                             player.position === 'Setter' ? 'S' : 
+                             player.position?.substring(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <p className="text-sm text-muted-foreground">Sem bloqueadores elegíveis</p>
+                    <p className="text-xs opacity-70 mt-1">Nenhum jogador na linha de ataque</p>
+                  </div>
+                )}
                 
                 {/* Skip blocker identification */}
                 <Button

@@ -491,9 +491,12 @@ export default function Live() {
     if (!gameState) return [];
     const onCourt = getPlayersOnCourt(currentSet, side, gameState.currentRally);
     
-    // Serve and Block: only players on court (libero cannot serve or block)
+    // Serve and Block: only players on court, exclude liberos (cannot serve or block)
     if (actionType === 'serve' || actionType === 'block') {
-      return onCourt;
+      return onCourt.filter(p => {
+        const pos = p.position?.toUpperCase();
+        return pos !== 'L' && pos !== 'LIBERO';
+      });
     }
     
     // Reception, Defense, Setter, Attack: include all liberos from the team
@@ -510,6 +513,26 @@ export default function Live() {
       }
     });
     return combined;
+  };
+
+  // Get opponent blockers eligible for stuff block selection (Z2, Z3, Z4 only, no liberos)
+  const getOpponentBlockers = (attackerSide: Side): Player[] => {
+    if (!gameState) return [];
+    
+    // Blocker is on the OPPOSITE side of the attacker
+    const blockerSide: Side = attackerSide === 'CASA' ? 'FORA' : 'CASA';
+    const onCourt = getPlayersOnCourt(currentSet, blockerSide, gameState.currentRally);
+    const rotation = blockerSide === gameState.serveSide ? gameState.serveRot : gameState.recvRot;
+    
+    return onCourt.filter(player => {
+      // Exclude liberos - they cannot block
+      const pos = player.position?.toUpperCase();
+      if (pos === 'L' || pos === 'LIBERO') return false;
+      
+      // Only players in front row (Z2, Z3, Z4) can legally block
+      const zone = getPlayerZone(currentSet, blockerSide, player.id, rotation, gameState.currentRally);
+      return zone !== null && [2, 3, 4].includes(zone);
+    });
   };
 
   // Helper to get zone label for a player
@@ -2665,6 +2688,7 @@ export default function Live() {
               actionType={pendingAction.type}
               side={pendingAction.side}
               players={getPlayersForAction(pendingAction.type, pendingAction.side)}
+              opponentBlockers={getOpponentBlockers(pendingAction.side)}
               homeName={match.home_name}
               awayName={match.away_name}
               selectedPlayer={pendingAction.playerId}
