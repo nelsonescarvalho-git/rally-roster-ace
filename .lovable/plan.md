@@ -1,134 +1,96 @@
 
-# Plano: Auto-Fix na Página Stats e Melhoria da UI do Modal de Edição
+# Plano: Usar Modal de Ações Completo na Página Stats
 
-## Problemas Identificados
+## Problema Identificado
 
-### 1. Ausência de Auto-Fix na Página Stats
-A página Stats (`/stats/:matchId`) não tem acesso aos botões de auto-fix que existem no Rally History. Os utilizadores têm de navegar para o histórico para corrigir dados.
+O Rally #7 tem **10 ações detalhadas** na tabela `rally_actions`:
 
-### 2. UI do Modal Cortada
-O `EditRallyModal` mostra todas as secções (Serviço, Receção, Passe, Ataque, Bloco, Defesa, Resultado) num formulário longo sem scroll adequado. Em ecrãs mais pequenos ou quando há muitos campos visíveis, o conteúdo é cortado.
+| # | Tipo | Side | Jogador | Código | Destino |
+|---|------|------|---------|--------|---------|
+| 1 | serve | CASA | #8 | 1 | - |
+| 2 | reception | FORA | - | 3 | - |
+| 3 | setter | FORA | #10 | 1 | P3 |
+| 4 | attack | FORA | #1 | 1 | - |
+| 5 | block | CASA | #6 | 2 | - |
+| 6 | defense | FORA | #1 | 2 | - |
+| 7 | setter | FORA | #10 | 2 | P4 |
+| 8 | attack | FORA | #9 | 2 | - |
+| 9 | defense | CASA | #13 | 2 | - |
+| 10 | setter | CASA | #16 | NULL | P4 |
+
+**Mas a página Stats usa o `EditRallyModal` que só mostra UMA ação de cada tipo**, perdendo 7 das 10 ações (os segundos/terceiros setters, ataques e defesas).
 
 ---
 
 ## Solução
 
-### Parte A: Botão Auto-Fix na Página Stats
+Replicar a lógica da página `RallyHistory.tsx` na página `Stats.tsx`:
 
-Adicionar o mesmo botão "Fix Tudo" que existe no Rally History à página Stats:
-
-**Ficheiro**: `src/pages/Stats.tsx`
-
-- Importar os hooks `useAutoFixRallyActions` e `useComprehensiveAutoFix`
-- Adicionar estados de loading (`isComprehensiveFix`)
-- Adicionar botão ao lado do "Recalcular" com a mesma lógica do Rally History
-
-```text
-┌────────────────────────────────────────────────────────────────────────────────┐
-│  Header da Página Stats (ANTES)                                                │
-├────────────────────────────────────────────────────────────────────────────────┤
-│  [←] Estatísticas        [Recalcular] [CSV] [Histórico]                        │
-└────────────────────────────────────────────────────────────────────────────────┘
-
-┌────────────────────────────────────────────────────────────────────────────────┐
-│  Header da Página Stats (DEPOIS)                                               │
-├────────────────────────────────────────────────────────────────────────────────┤
-│  [←] Estatísticas    [🪄 Fix Tudo] [Recalcular] [CSV] [Histórico]              │
-└────────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Parte B: Melhoria da UI do Modal de Edição
-
-Reformular o `EditRallyModal` para apresentar uma UI mais organizada e sem cortes:
-
-**Ficheiro**: `src/components/EditRallyModal.tsx`
-
-#### Opção Implementada: Scroll Area com Secções Compactas
-
-1. **Substituir estrutura por ScrollArea** igual ao `EditRallyActionsModal`
-2. **Reorganizar layout** para ser mais compacto:
-   - Cada secção num card com bordas subtis
-   - Selectores de jogador e código lado a lado
-   - Altura máxima controlada com scroll interno
-3. **Separador visual** antes do Resultado
-
-```text
-┌────────────────────────────────────────────────────────────────────────────────┐
-│  NOVA ESTRUTURA DO MODAL                                                       │
-├────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                │
-│  ┌─ Header (fixo) ──────────────────────────────────────────────────────────┐  │
-│  │  Editar Rally #2  [⚠️ Dados em falta]                                    │  │
-│  │  Set 1 • Fase 1 • Serve: Liceu                                           │  │
-│  └──────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                │
-│  ┌─ ScrollArea (flex-1) ────────────────────────────────────────────────────┐  │
-│  │                                                                          │  │
-│  │  ┌─ Serviço (Liceu) ───────────────────────────────────────────────────┐ │  │
-│  │  │  [Dropdown Jogador        ▼] [Código ▼]                             │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘ │  │
-│  │                                                                          │  │
-│  │  ┌─ Receção (Póvoa) ───────────────────────────────────────────────────┐ │  │
-│  │  │  [Dropdown Jogador        ▼] [Código ▼]                             │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘ │  │
-│  │                                                                          │  │
-│  │  ┌─ Passe/Distribuição (Póvoa) ────────────────────────────────────────┐ │  │
-│  │  │  [Dropdown Jogador        ▼] [Código ▼]                             │ │  │
-│  │  │  [Destino do passe                                               ▼] │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘ │  │
-│  │                                                                          │  │
-│  │  ┌─ Ataque (Póvoa) ────────────────────────────────────────────────────┐ │  │
-│  │  │  [Dropdown Jogador        ▼] [Código ▼]                             │ │  │
-│  │  │  [Kill Type ▼] (se code=3)                                          │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘ │  │
-│  │                                                                          │  │
-│  │  ┌─ Bloco (Liceu) ─────────────────────────────────────────────────────┐ │  │
-│  │  │  [Bloq 1                  ▼] [Código ▼]                             │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘ │  │
-│  │                                                                          │  │
-│  │  ┌─ Defesa (Liceu) ────────────────────────────────────────────────────┐ │  │
-│  │  │  [Dropdown Jogador        ▼] [Código ▼]                             │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘ │  │
-│  │                                                                          │  │
-│  └──────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                │
-│  ─────────────────────── Separador ───────────────────────────────────────────  │
-│                                                                                │
-│  ┌─ Resultado (fixo no fundo) ──────────────────────────────────────────────┐  │
-│  │  [Vencedor        ▼] [Razão        ▼]                                    │  │
-│  └──────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                │
-│  ┌─ Footer (fixo) ──────────────────────────────────────────────────────────┐  │
-│  │                                         [Cancelar]  [Guardar]            │  │
-│  └──────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                │
-└────────────────────────────────────────────────────────────────────────────────┘
-```
+1. Detectar se o rally tem ações na tabela `rally_actions`
+2. Se sim → usar `EditRallyActionsModal` (mostra TODAS as ações)
+3. Se não → fallback para `EditRallyModal` (dados legacy)
 
 ---
 
 ## Alterações Técnicas
 
-### Ficheiro 1: `src/pages/Stats.tsx`
+### Ficheiro: `src/pages/Stats.tsx`
 
 | Alteração | Descrição |
 |-----------|-----------|
-| Imports | Adicionar `useAutoFixRallyActions`, `useComprehensiveAutoFix`, `Wand2`, `Loader2` |
-| Estado | Adicionar `isComprehensiveFix` state |
-| Header | Adicionar botão "Fix Tudo" antes do "Recalcular" |
-| Players | Usar `getEffectivePlayers()` para passar ao hook |
+| Import | Adicionar `EditRallyActionsModal`, `ActionEditState`, tipos do `rallyActions` |
+| Import | Adicionar `useBatchUpdateRallyActions` hook |
+| Estado | Adicionar `editingRallyActions` state |
+| Botão Edit | Modificar onClick para verificar se há actions e escolher o modal |
+| JSX | Adicionar `EditRallyActionsModal` ao final do componente |
 
-### Ficheiro 2: `src/components/EditRallyModal.tsx`
+### Mudanças de código
 
-| Alteração | Descrição |
-|-----------|-----------|
-| Layout | Mudar para estrutura flex com ScrollArea |
-| DialogContent | Adicionar `flex flex-col p-0` |
-| Header | Mover para fora do scroll, adicionar padding `px-6 pt-6 pb-2` |
-| Body | Envolver em `ScrollArea` com `flex-1 px-6` |
-| Secções | Compactar com cards de borda subtil (`border rounded-lg p-3`) |
-| Resultado | Mover para fora do scroll, separador antes |
-| Footer | Manter separado do scroll |
+```typescript
+// 1. Novos imports
+import { EditRallyActionsModal, ActionEditState } from '@/components/EditRallyActionsModal';
+import { useBatchUpdateRallyActions } from '@/hooks/useRallyActions';
+import type { RallyActionUpdate, RallyActionWithPlayer } from '@/types/rallyActions';
+
+// 2. Novo estado
+const [editingRallyActions, setEditingRallyActions] = useState<{
+  rallyId: string;
+  meta: { set_no: number; rally_no: number; serve_side: Side; recv_side: Side; point_won_by: Side | null; reason: Reason | null };
+  actions: RallyActionWithPlayer[];
+} | null>(null);
+
+// 3. Hook
+const batchUpdateActions = useBatchUpdateRallyActions();
+
+// 4. Modificar onClick do botão Pencil
+onClick={() => {
+  const actions = rallyActionsMap?.get(r.id) || [];
+  if (actions.length > 0) {
+    setEditingRallyActions({
+      rallyId: r.id,
+      meta: { set_no: r.set_no, rally_no: r.rally_no, serve_side: r.serve_side, recv_side: r.recv_side, point_won_by: r.point_won_by, reason: r.reason },
+      actions,
+    });
+  } else {
+    setEditingRally(r);
+  }
+}}
+
+// 5. Adicionar novo modal antes do EditRallyModal
+<EditRallyActionsModal
+  open={!!editingRallyActions}
+  onOpenChange={(open) => !open && setEditingRallyActions(null)}
+  rallyId={editingRallyActions?.rallyId || ''}
+  rallyMeta={editingRallyActions?.meta || defaultMeta}
+  actions={editingRallyActions?.actions || []}
+  players={effectivePlayers}
+  homeName={match.home_name}
+  awayName={match.away_name}
+  onSave={async (rallyId, actions, metaUpdates) => {
+    // Save logic (igual ao RallyHistory)
+  }}
+/>
+```
 
 ---
 
@@ -136,8 +98,7 @@ Reformular o `EditRallyModal` para apresentar uma UI mais organizada e sem corte
 
 | Ficheiro | Tipo de Alteração |
 |----------|-------------------|
-| `src/pages/Stats.tsx` | Adicionar botão Auto-Fix + hooks |
-| `src/components/EditRallyModal.tsx` | Reestruturar UI com ScrollArea |
+| `src/pages/Stats.tsx` | Adicionar modal de ações + lógica de detecção |
 
 ---
 
@@ -145,7 +106,15 @@ Reformular o `EditRallyModal` para apresentar uma UI mais organizada e sem corte
 
 | Antes | Depois |
 |-------|--------|
-| Stats sem auto-fix | Stats com botão "Fix Tudo" funcional |
-| Modal corta conteúdo | Modal com scroll interno suave |
-| Secções dispersas | Secções em cards compactos organizados |
-| Footer oculto | Footer sempre visível no fundo |
+| Modal mostra apenas 6 campos | Modal mostra TODAS as 10 ações |
+| Ações repetidas (2º setter, 2º attack) invisíveis | Sequência completa editável |
+| Dados cortados/perdidos | Scroll com todas as ações visíveis |
+
+---
+
+## Notas Técnicas
+
+- A página Stats já tem o `rallyActionsMap` carregado via `useRallyActionsForMatch(matchId)`
+- O modal `EditRallyActionsModal` já tem scroll interno funcional
+- A lógica de save é idêntica à do RallyHistory (usa `useBatchUpdateRallyActions`)
+- Rallies sem dados em `rally_actions` continuam a usar o modal legacy (retro-compatibilidade)
