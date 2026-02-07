@@ -13,9 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, Plus, Trash2, Save, Play, Users, Download } from 'lucide-react';
-import { Side, TeamPlayer } from '@/types/volleyball';
+import { Side, TeamPlayer, Team } from '@/types/volleyball';
 import { useToast } from '@/hooks/use-toast';
+import { CreateTeamDialog } from '@/components/CreateTeamDialog';
 
+const POSITIONS = [
+  { value: 'OH', label: 'Ponta (OH)' },
+  { value: 'OP', label: 'Oposto (OP)' },
+  { value: 'MB', label: 'Central (MB)' },
+  { value: 'S', label: 'Levantador (S)' },
+  { value: 'L', label: 'Líbero (L)' },
+];
 export default function Setup() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
@@ -33,6 +41,9 @@ export default function Setup() {
   
   const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([]);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  
+  // Create team dialog
+  const [createTeamOpen, setCreateTeamOpen] = useState(false);
   
   // New player form
   const [newPlayer, setNewPlayer] = useState({ number: '', name: '', position: '' });
@@ -319,6 +330,24 @@ export default function Setup() {
                     ))}
                   </SelectContent>
                 </Select>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">ou</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2"
+                  onClick={() => setCreateTeamOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Criar Nova Equipa
+                </Button>
               </CardContent>
             </Card>
 
@@ -344,12 +373,21 @@ export default function Setup() {
                       />
                     </div>
                     <div className="flex gap-2">
-                      <Input
-                        placeholder="Posição (opcional)"
-                        value={newPlayer.position}
-                        onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
-                        className="flex-1"
-                      />
+                      <Select 
+                        value={newPlayer.position} 
+                        onValueChange={(value) => setNewPlayer({ ...newPlayer, position: value })}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Posição (opcional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {POSITIONS.map((pos) => (
+                            <SelectItem key={pos.value} value={pos.value}>
+                              {pos.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button onClick={handleAddPlayerToTeam} disabled={!newPlayer.number || !newPlayer.name}>
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -534,6 +572,15 @@ export default function Setup() {
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* Create Team Dialog */}
+      <CreateTeamDialog 
+        open={createTeamOpen} 
+        onOpenChange={setCreateTeamOpen}
+        onTeamCreated={(team: Team) => {
+          handleSelectTeam(team.id);
+        }}
+      />
     </div>
   );
 }

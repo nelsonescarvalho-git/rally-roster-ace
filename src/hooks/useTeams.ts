@@ -29,11 +29,27 @@ export function useTeams() {
     loadTeams();
   }, [loadTeams]);
 
-  const createTeam = useCallback(async (name: string): Promise<Team | null> => {
+  const createTeam = useCallback(async (
+    name: string,
+    options?: {
+      coach_name?: string | null;
+      assistant_coach?: string | null;
+      team_manager?: string | null;
+      primary_color?: string | null;
+      secondary_color?: string | null;
+    }
+  ): Promise<Team | null> => {
     try {
       const { data, error } = await supabase
         .from('teams')
-        .insert([{ name: name.trim() }])
+        .insert([{
+          name: name.trim(),
+          coach_name: options?.coach_name?.trim() || null,
+          assistant_coach: options?.assistant_coach?.trim() || null,
+          team_manager: options?.team_manager?.trim() || null,
+          primary_color: options?.primary_color || null,
+          secondary_color: options?.secondary_color || null,
+        }])
         .select()
         .single();
 
@@ -77,7 +93,13 @@ export function useTeams() {
     teamId: string,
     jerseyNumber: number,
     name: string,
-    position: string | null
+    position: string | null,
+    options?: {
+      height_cm?: number | null;
+      birth_date?: string | null;
+      federation_id?: string | null;
+      is_captain?: boolean;
+    }
   ): Promise<TeamPlayer | null> => {
     try {
       const { data, error } = await supabase
@@ -87,6 +109,10 @@ export function useTeams() {
           jersey_number: jerseyNumber,
           name: name.trim(),
           position: position?.trim() || null,
+          height_cm: options?.height_cm || null,
+          birth_date: options?.birth_date || null,
+          federation_id: options?.federation_id?.trim() || null,
+          is_captain: options?.is_captain || false,
         }])
         .select()
         .single();
@@ -124,7 +150,14 @@ export function useTeams() {
 
   const updateTeam = useCallback(async (
     teamId: string,
-    updates: { name?: string; primary_color?: string | null; secondary_color?: string | null }
+    updates: {
+      name?: string;
+      primary_color?: string | null;
+      secondary_color?: string | null;
+      coach_name?: string | null;
+      assistant_coach?: string | null;
+      team_manager?: string | null;
+    }
   ): Promise<boolean> => {
     try {
       const { error } = await supabase
