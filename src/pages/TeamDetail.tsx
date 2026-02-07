@@ -12,6 +12,7 @@ import { ColorsCard } from '@/components/team/ColorsCard';
 import { SquadStatsCard } from '@/components/team/SquadStatsCard';
 import { PlayerTable } from '@/components/team/PlayerTable';
 import { AddPlayerDialog } from '@/components/team/AddPlayerDialog';
+import { LogoUploadCard } from '@/components/team/LogoUploadCard';
 
 const DEFAULT_COLORS = {
   primary: '#3B82F6',
@@ -20,7 +21,7 @@ const DEFAULT_COLORS = {
 
 export default function TeamDetail() {
   const { teamId } = useParams<{ teamId: string }>();
-  const { teams, getTeamPlayers, addTeamPlayer, updateTeamPlayer, deactivateTeamPlayer, updateTeam } = useTeams();
+  const { teams, getTeamPlayers, addTeamPlayer, updateTeamPlayer, deactivateTeamPlayer, updateTeam, uploadLogo, removeLogo } = useTeams();
   const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -145,6 +146,13 @@ export default function TeamDetail() {
             onAddPlayer={handleAddPlayer}
           />
         </div>
+
+        <LogoUploadCard
+          teamId={teamId!}
+          currentLogoUrl={team.logo_url}
+          onUpload={uploadLogo}
+          onRemove={removeLogo}
+        />
 
         <StaffCard
           coachName={coachName}

@@ -77,17 +77,27 @@ export default function Teams() {
                 <Card className="cursor-pointer transition-all hover:shadow-md">
                   <CardContent className="flex items-center justify-between py-4">
                     <div className="flex items-center gap-3">
-                      <div 
-                        className="flex h-10 w-10 items-center justify-center rounded-full"
-                        style={{ 
-                          backgroundColor: team.primary_color ? `${team.primary_color}20` : 'hsl(var(--primary) / 0.1)',
-                        }}
-                      >
-                        <Users 
-                          className="h-5 w-5" 
-                          style={{ color: team.primary_color || 'hsl(var(--primary))' }}
-                        />
-                      </div>
+                      {team.logo_url ? (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden border border-border bg-background">
+                          <img 
+                            src={team.logo_url} 
+                            alt={`${team.name} logo`}
+                            className="h-full w-full object-contain p-0.5"
+                          />
+                        </div>
+                      ) : (
+                        <div 
+                          className="flex h-10 w-10 items-center justify-center rounded-full"
+                          style={{ 
+                            backgroundColor: team.primary_color ? `${team.primary_color}20` : 'hsl(var(--primary) / 0.1)',
+                          }}
+                        >
+                          <Users 
+                            className="h-5 w-5" 
+                            style={{ color: team.primary_color || 'hsl(var(--primary))' }}
+                          />
+                        </div>
+                      )}
                       <div>
                         <h3 className="font-medium">{team.name}</h3>
                         <p className="text-xs text-muted-foreground">
