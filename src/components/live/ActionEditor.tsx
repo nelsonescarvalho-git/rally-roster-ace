@@ -14,6 +14,8 @@ import {
   Reason,
   PassDestination, 
   KillType,
+  ServeType,
+  SERVE_TYPE_LABELS,
   POSITIONS_BY_RECEPTION,
   MatchPlayer,
   Player
@@ -38,6 +40,7 @@ interface ActionEditorProps {
   selectedPlayer?: string | null;
   selectedCode?: number | null;
   selectedKillType?: KillType | null;
+  selectedServeType?: ServeType | null;
   selectedSetter?: string | null;
   selectedDestination?: PassDestination | null;
   selectedPassCode?: number | null;
@@ -63,6 +66,7 @@ interface ActionEditorProps {
   onPlayerChange: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
   onKillTypeChange?: (type: KillType | null) => void;
+  onServeTypeChange?: (type: ServeType | null) => void;
   onSetterChange?: (id: string | null) => void;
   onDestinationChange?: (dest: PassDestination | null) => void;
   onPassCodeChange?: (code: number | null) => void;
@@ -128,6 +132,7 @@ export function ActionEditor({
   selectedPlayer,
   selectedCode,
   selectedKillType,
+  selectedServeType,
   selectedSetter,
   selectedDestination,
   selectedPassCode,
@@ -144,6 +149,7 @@ export function ActionEditor({
   onPlayerChange,
   onCodeChange,
   onKillTypeChange,
+  onServeTypeChange,
   onSetterChange,
   onDestinationChange,
   onPassCodeChange,
@@ -181,7 +187,7 @@ export function ActionEditor({
   // Calculate total steps based on action type and selected code
   const totalSteps = useMemo(() => {
     switch (actionType) {
-      case 'serve': return 2;      // Player → Quality
+      case 'serve': return 3;      // Player → Type → Quality
       case 'reception': return 2;  // Player → Quality
       case 'defense': return 2;    // Player → Quality
       case 'setter': return 3;     // Player → Quality → Destination
@@ -551,6 +557,69 @@ export function ActionEditor({
   const renderContent = () => {
     switch (actionType) {
       case 'serve':
+        return (
+          <div className="space-y-4">
+            {currentStep === 1 ? (
+              <PlayerStrip
+                players={players}
+                selectedPlayerId={selectedPlayer || null}
+                onSelect={(playerId) => {
+                  onPlayerChange(playerId);
+                  setCurrentStep(2);
+                }}
+                teamSide={teamSide}
+                lastUsedPlayerId={lastUsedPlayerId}
+                showZones={!!getZoneLabel}
+                getZoneLabel={getZoneLabelWrapper}
+              />
+            ) : currentStep === 2 ? (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Tipo de Serviço
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['FLOAT', 'JUMP_FLOAT', 'POWER'] as ServeType[]).map((type) => {
+                    const typeInfo = SERVE_TYPE_LABELS[type];
+                    return (
+                      <Button
+                        key={type}
+                        variant={selectedServeType === type ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1 text-base font-semibold transition-all',
+                          selectedServeType === type && 'ring-2 ring-offset-2'
+                        )}
+                        onClick={() => {
+                          onServeTypeChange?.(type);
+                          setCurrentStep(3);
+                        }}
+                      >
+                        <span className="text-lg">{typeInfo.emoji}</span>
+                        <span className="text-xs">{typeInfo.shortLabel}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={() => {
+                    onServeTypeChange?.('OTHER');
+                    setCurrentStep(3);
+                  }}
+                >
+                  ❓ Outro tipo
+                </Button>
+              </div>
+            ) : (
+              <QualityPad
+                selectedCode={selectedCode ?? null}
+                onSelect={handleCodeWithAutoConfirm}
+              />
+            )}
+          </div>
+        );
+
       case 'reception':
       case 'defense':
         return (
