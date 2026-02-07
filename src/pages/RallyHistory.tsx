@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
-import { useRallyActionsForMatch } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useBatchUpdateRallyActions } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,9 +33,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Rally, Player, MatchPlayer } from '@/types/volleyball';
-import type { RallyActionWithPlayer } from '@/types/rallyActions';
+import { Rally, Player, MatchPlayer, Side, Reason } from '@/types/volleyball';
+import type { RallyActionWithPlayer, RallyActionUpdate } from '@/types/rallyActions';
 import { EditRallyModal } from '@/components/EditRallyModal';
+import { EditRallyActionsModal, ActionEditState } from '@/components/EditRallyActionsModal';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { RallySummary } from '@/components/rally/RallySummary';
@@ -480,11 +481,17 @@ export default function RallyHistory() {
   const navigate = useNavigate();
   const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet, autoFixMissingPlayerIds, autoFixMissingKillTypes } = useMatch(matchId || null);
   const { data: rallyActionsMap, isLoading: actionsLoading } = useRallyActionsForMatch(matchId || null);
+  const batchUpdateActions = useBatchUpdateRallyActions();
   const players = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0);
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('actions'); // Default to actions view
+  const [editingRallyActions, setEditingRallyActions] = useState<{
+    rallyId: string;
+    meta: { set_no: number; rally_no: number; serve_side: Side; recv_side: Side; point_won_by: Side | null; reason: Reason | null };
+    actions: RallyActionWithPlayer[];
+  } | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('actions');
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [isAutoFixingKillTypes, setIsAutoFixingKillTypes] = useState(false);
 
@@ -858,7 +865,28 @@ export default function RallyHistory() {
                         players={players}
                         homeName={match.home_name}
                         awayName={match.away_name}
-                        onEdit={setEditingRally}
+                        onEdit={(rally) => {
+                          // Check if this rally has detailed actions
+                          const actions = rallyActionsMap?.get(rally.id) || [];
+                          if (actions.length > 0) {
+                            // Use new actions-based modal
+                            setEditingRallyActions({
+                              rallyId: rally.id,
+                              meta: {
+                                set_no: rally.set_no,
+                                rally_no: rally.rally_no,
+                                serve_side: rally.serve_side,
+                                recv_side: rally.recv_side,
+                                point_won_by: rally.point_won_by,
+                                reason: rally.reason,
+                              },
+                              actions,
+                            });
+                          } else {
+                            // Fallback to legacy modal
+                            setEditingRally(rally);
+                          }
+                        }}
                         scoreBefore={scores?.before}
                         scoreAfter={scores?.after}
                         viewMode={viewMode}
@@ -880,6 +908,7 @@ export default function RallyHistory() {
         </div>
       </div>
 
+      {/* Legacy Modal for rallies without detailed actions */}
       <EditRallyModal
         open={!!editingRally}
         onOpenChange={(open) => !open && setEditingRally(null)}
@@ -888,6 +917,53 @@ export default function RallyHistory() {
         onSave={updateRally}
         homeName={match.home_name}
         awayName={match.away_name}
+      />
+
+      {/* New Modal for rallies with detailed actions */}
+      <EditRallyActionsModal
+        open={!!editingRallyActions}
+        onOpenChange={(open) => !open && setEditingRallyActions(null)}
+        rallyId={editingRallyActions?.rallyId || ''}
+        rallyMeta={editingRallyActions?.meta || { set_no: 0, rally_no: 0, serve_side: 'CASA', recv_side: 'FORA', point_won_by: null, reason: null }}
+        actions={editingRallyActions?.actions || []}
+        players={players}
+        homeName={match.home_name}
+        awayName={match.away_name}
+        onSave={async (rallyId, actions, metaUpdates) => {
+          try {
+            // Build action updates
+            const actionUpdates = actions.map(a => ({
+              id: a.id,
+              updates: {
+                player_id: a.player_id,
+                player_no: a.player_no,
+                code: a.code,
+                pass_destination: a.pass_destination,
+                pass_code: a.pass_code,
+                kill_type: a.kill_type,
+                serve_type: a.serve_type,
+                b2_player_id: a.b2_player_id,
+                b2_no: a.b2_no,
+                b3_player_id: a.b3_player_id,
+                b3_no: a.b3_no,
+              } as RallyActionUpdate,
+            }));
+
+            await batchUpdateActions.mutateAsync({
+              rallyId,
+              actions: actionUpdates,
+              metaUpdates,
+            });
+
+            toast.success('Rally atualizado com sucesso');
+            loadMatch(); // Refresh data
+            return true;
+          } catch (error) {
+            console.error('Error saving rally actions:', error);
+            toast.error('Erro ao guardar alterações');
+            return false;
+          }
+        }}
       />
     </div>
   );
