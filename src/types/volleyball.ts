@@ -219,6 +219,7 @@ export interface Rally {
   s_player_id: string | null;
   s_no: number | null;
   s_code: number | null;
+  s_type: ServeType | null;
   r_player_id: string | null;
   r_no: number | null;
   r_code: number | null;
