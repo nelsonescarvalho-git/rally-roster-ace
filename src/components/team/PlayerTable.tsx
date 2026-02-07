@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Pencil, UserMinus, Crown } from 'lucide-react';
 import { TeamPlayer } from '@/types/volleyball';
 import { EditPlayerDialog } from './EditPlayerDialog';
+import { differenceInYears } from 'date-fns';
 
 interface PlayerTableProps {
   players: TeamPlayer[];
@@ -18,6 +19,11 @@ interface PlayerTableProps {
     federation_id: string | null;
   }) => Promise<boolean>;
   onDeactivatePlayer: (playerId: string) => Promise<boolean>;
+}
+
+function calculateAge(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  return differenceInYears(new Date(), new Date(birthDate));
 }
 
 export function PlayerTable({
@@ -61,51 +67,70 @@ export function PlayerTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16 text-center">#</TableHead>
+                <TableHead className="w-14 text-center">#</TableHead>
                 <TableHead>Nome</TableHead>
-                <TableHead className="w-20">Pos.</TableHead>
-                <TableHead className="w-24 text-right">Ações</TableHead>
+                <TableHead className="w-16 text-center">Pos.</TableHead>
+                <TableHead className="w-16 text-center">Alt.</TableHead>
+                <TableHead className="w-14 text-center">Idade</TableHead>
+                <TableHead className="w-20 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {players.map((player) => (
-                <TableRow key={player.id}>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <span className="font-mono font-bold">{player.jersey_number}</span>
-                      {player.is_captain && (
-                        <Crown className="h-3 w-3 text-yellow-500" />
+              {players.map((player) => {
+                const age = calculateAge(player.birth_date);
+                return (
+                  <TableRow key={player.id}>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-mono font-bold">{player.jersey_number}</span>
+                        {player.is_captain && (
+                          <Crown className="h-3 w-3 text-yellow-500" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">{player.name}</TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-muted-foreground">
+                        {player.position || '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {player.height_cm ? (
+                        <span className="text-sm">{player.height_cm} cm</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{player.name}</TableCell>
-                  <TableCell>
-                    <span className="text-muted-foreground">
-                      {player.position || '-'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setEditingPlayer(player)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleDeactivate(player.id)}
-                      >
-                        <UserMinus className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {age !== null ? (
+                        <span className="text-sm">{age}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEditingPlayer(player)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleDeactivate(player.id)}
+                        >
+                          <UserMinus className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
