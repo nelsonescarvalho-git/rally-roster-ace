@@ -149,6 +149,24 @@ export function useLiberoTracking({
     return allPlayers.find(p => p.id === currentLiberoState.replacedPlayerId) || null;
   }, [currentLiberoState.replacedPlayerId, getPlayersForSide, side]);
   
+  // Check if can swap libero for another libero (L-L substitution)
+  const canSwapLibero = useMemo(() => {
+    if (!currentLiberoState.isOnCourt) return false;
+    if (availableLiberos.length < 2) return false;
+    
+    // The other libero that's not on court
+    const otherLibero = availableLiberos.find(
+      l => l.id !== currentLiberoState.liberoId
+    );
+    return !!otherLibero;
+  }, [currentLiberoState.isOnCourt, currentLiberoState.liberoId, availableLiberos]);
+  
+  // Get the other available libero for L-L swap
+  const otherAvailableLibero = useMemo((): (Player | MatchPlayer) | null => {
+    if (!currentLiberoState.liberoId) return null;
+    return availableLiberos.find(l => l.id !== currentLiberoState.liberoId) || null;
+  }, [currentLiberoState.liberoId, availableLiberos]);
+  
   // Enter libero on court
   const enterLibero = useCallback(async (
     liberoId: string, 
@@ -179,6 +197,42 @@ export function useLiberoTracking({
       true                                  // is_libero = true
     );
   }, [matchId, currentSet, side, currentRally, currentLiberoState, makeSubstitution]);
+  
+  // Swap libero for another libero (L-L substitution - unlimited)
+  const swapLibero = useCallback(async (
+    newLiberoId: string
+  ): Promise<boolean> => {
+    if (!matchId || !currentLiberoState.isOnCourt) return false;
+    if (!currentLiberoState.liberoId || !currentLiberoState.replacedPlayerId) return false;
+    
+    // L-L swap is recorded as two substitutions:
+    // 1. Current libero out -> Original player in
+    // 2. Original player out -> New libero in
+    
+    // First: exit current libero
+    const exitSuccess = await makeSubstitution(
+      currentSet,
+      side,
+      currentRally,
+      currentLiberoState.liberoId,        // Current libero going out
+      currentLiberoState.replacedPlayerId, // Original player coming in (temporarily)
+      true                                  // is_libero = true
+    );
+    
+    if (!exitSuccess) return false;
+    
+    // Second: enter new libero
+    const entrySuccess = await makeSubstitution(
+      currentSet,
+      side,
+      currentRally,
+      currentLiberoState.replacedPlayerId, // Original player going out
+      newLiberoId,                          // New libero coming in
+      true                                  // is_libero = true
+    );
+    
+    return entrySuccess;
+  }, [matchId, currentLiberoState, currentSet, side, currentRally, makeSubstitution]);
   
   // Get active libero player object
   const activeLiberoPlayer = useMemo((): (Player | MatchPlayer) | null => {
@@ -221,8 +275,13 @@ export function useLiberoTracking({
     mustExitLibero,
     playerToReturn,
     
+    // L-L Swap
+    canSwapLibero,
+    otherAvailableLibero,
+    
     // Actions
     enterLibero,
     exitLibero,
+    swapLibero,
   };
 }

@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowRightLeft, UserCheck, UserMinus, Users } from 'lucide-react';
+import { ArrowRightLeft, UserCheck, UserMinus, Users, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Side, Player, MatchPlayer } from '@/types/volleyball';
 
@@ -24,11 +24,15 @@ interface SubsLiberosCardProps {
   onOpenSubModal: (side: Side) => void;
   onLiberoEntry: (side: Side) => void;
   onLiberoExit: (side: Side) => void;
+  onLiberoSwap?: (side: Side) => void;
   // Eligibility
   homeCanEnterLibero: boolean;
   awayCanEnterLibero: boolean;
   homeMustExitLibero: boolean;
   awayMustExitLibero: boolean;
+  // L-L Swap eligibility
+  homeCanSwapLibero?: boolean;
+  awayCanSwapLibero?: boolean;
   // Optional: available liberos
   homeHasLibero?: boolean;
   awayHasLibero?: boolean;
@@ -49,10 +53,13 @@ export function SubsLiberosCard({
   onOpenSubModal,
   onLiberoEntry,
   onLiberoExit,
+  onLiberoSwap,
   homeCanEnterLibero,
   awayCanEnterLibero,
   homeMustExitLibero,
   awayMustExitLibero,
+  homeCanSwapLibero = false,
+  awayCanSwapLibero = false,
   homeHasLibero = true,
   awayHasLibero = true,
 }: SubsLiberosCardProps) {
@@ -64,6 +71,7 @@ export function SubsLiberosCard({
     canEnter: boolean,
     mustExit: boolean,
     hasLibero: boolean,
+    canSwap: boolean,
     color?: string
   ) => {
     // No libero available
@@ -94,17 +102,32 @@ export function SubsLiberosCard({
       );
     }
 
-    // On court - can exit
+    // On court - can exit or swap
     if (isOnCourt && liberoPlayer) {
       return (
         <div className="flex items-center gap-2">
-        <Badge 
+          <Badge 
             variant="secondary"
             className="text-xs gap-1 border-primary/30"
           >
             <UserCheck className="h-3 w-3 text-primary" />
             #{liberoPlayer.jersey_number}
           </Badge>
+          {canSwap && onLiberoSwap && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2 text-accent-foreground hover:text-accent-foreground hover:bg-accent/20"
+              onClick={(e) => {
+                e.stopPropagation();
+                onLiberoSwap(side);
+              }}
+              title="Trocar por outro líbero"
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Trocar
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -156,7 +179,8 @@ export function SubsLiberosCard({
     subsUsed: number,
     canEnter: boolean,
     mustExit: boolean,
-    hasLibero: boolean
+    hasLibero: boolean,
+    canSwap: boolean
   ) => {
     const isHome = side === 'CASA';
     
@@ -174,7 +198,7 @@ export function SubsLiberosCard({
         {/* Libero status */}
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Líbero</span>
-          {renderLiberoStatus(side, isOnCourt, liberoPlayer, canEnter, mustExit, hasLibero, color)}
+          {renderLiberoStatus(side, isOnCourt, liberoPlayer, canEnter, mustExit, hasLibero, canSwap, color)}
         </div>
 
         {/* Substitutions */}
@@ -224,7 +248,8 @@ export function SubsLiberosCard({
             homeSubsUsed,
             homeCanEnterLibero,
             homeMustExitLibero,
-            homeHasLibero
+            homeHasLibero,
+            homeCanSwapLibero
           )}
           
           <Separator orientation="vertical" className="h-auto" />
@@ -238,7 +263,8 @@ export function SubsLiberosCard({
             awaySubsUsed,
             awayCanEnterLibero,
             awayMustExitLibero,
-            awayHasLibero
+            awayHasLibero,
+            awayCanSwapLibero
           )}
         </div>
       </CardContent>
