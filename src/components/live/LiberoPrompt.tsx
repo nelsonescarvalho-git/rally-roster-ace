@@ -2,19 +2,24 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, UserRoundCheck, ArrowRightLeft, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { X, UserRoundCheck, ArrowRightLeft, ChevronDown, ChevronUp, Star, RefreshCw } from 'lucide-react';
 import { Player, MatchPlayer, Side } from '@/types/volleyball';
 import { cn } from '@/lib/utils';
 
 interface LiberoPromptProps {
-  type: 'entry' | 'exit';
+  type: 'entry' | 'exit' | 'swap';
   side: Side;
-  libero: Player | MatchPlayer;
+  // For single libero mode or swap (current libero)
+  libero?: Player | MatchPlayer;
+  // For multiple libero selection
+  availableLiberos?: (Player | MatchPlayer)[];
+  // For swap: the libero currently on court
+  liberoOnCourt?: Player | MatchPlayer | null;
   eligiblePlayers?: (Player | MatchPlayer)[]; // For entry
   playerToReturn?: Player | MatchPlayer | null; // For exit
   recommendedPlayer?: Player | MatchPlayer | null; // Pre-selected MB
   getZoneLabel?: (playerId: string) => string;
-  onConfirm: (playerId?: string) => void;
+  onConfirm: (playerId?: string, selectedLiberoId?: string) => void;
   onSkip?: () => void; // Only for entry (can skip)
   isLoading?: boolean;
   teamColor?: string;
@@ -24,6 +29,8 @@ export function LiberoPrompt({
   type,
   side,
   libero,
+  availableLiberos = [],
+  liberoOnCourt,
   eligiblePlayers = [],
   playerToReturn,
   recommendedPlayer,
@@ -33,13 +40,25 @@ export function LiberoPrompt({
   isLoading = false,
   teamColor,
 }: LiberoPromptProps) {
+  // Compute effective liberos list
+  const effectiveLiberos = availableLiberos.length > 0 
+    ? availableLiberos 
+    : (libero ? [libero] : []);
+  
+  // For swap, get the other libero (not the one on court)
+  const swapTargetLibero = type === 'swap' && liberoOnCourt
+    ? effectiveLiberos.find(l => l.id !== liberoOnCourt.id)
+    : null;
+  
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [selectedLiberoId, setSelectedLiberoId] = useState<string | null>(
+    effectiveLiberos.length === 1 ? effectiveLiberos[0].id : null
+  );
   const [showAllPlayers, setShowAllPlayers] = useState(false);
   
   // Pre-select recommended player when available, reset when eligiblePlayers change
   useEffect(() => {
     // Reset selection when eligible players change (e.g., rally changed)
-    const eligibleIds = eligiblePlayers.map(p => p.id).sort().join(',');
     if (selectedPlayer && !eligiblePlayers.some(p => p.id === selectedPlayer)) {
       setSelectedPlayer(null);
     }
@@ -49,9 +68,18 @@ export function LiberoPrompt({
     }
   }, [recommendedPlayer?.id, eligiblePlayers.map(p => p.id).join(',')]);
   
+  // Reset libero selection when liberos change
+  useEffect(() => {
+    if (effectiveLiberos.length === 1) {
+      setSelectedLiberoId(effectiveLiberos[0].id);
+    } else if (selectedLiberoId && !effectiveLiberos.some(l => l.id === selectedLiberoId)) {
+      setSelectedLiberoId(null);
+    }
+  }, [effectiveLiberos.map(l => l.id).join(',')]);
+  
   const handleConfirmEntry = () => {
-    if (selectedPlayer) {
-      onConfirm(selectedPlayer);
+    if (selectedPlayer && selectedLiberoId) {
+      onConfirm(selectedPlayer, selectedLiberoId);
     }
   };
   
@@ -59,14 +87,103 @@ export function LiberoPrompt({
     onConfirm();
   };
   
+  const handleConfirmSwap = () => {
+    if (swapTargetLibero) {
+      onConfirm(undefined, swapTargetLibero.id);
+    }
+  };
+  
   const teamLabel = side === 'CASA' ? 'Casa' : 'Fora';
   
   // Other eligible players (excluding recommended)
   const otherPlayers = eligiblePlayers.filter(p => p.id !== recommendedPlayer?.id);
   
+  // Get selected libero object
+  const selectedLibero = effectiveLiberos.find(l => l.id === selectedLiberoId);
+  
+  // SWAP type - Simple confirmation for L-L swap
+  if (type === 'swap' && liberoOnCourt && swapTargetLibero) {
+    return (
+      <div className="fixed inset-x-0 top-16 z-50 px-4 animate-in slide-in-from-top-4 duration-300">
+        <Card className="border-2 border-accent/50 shadow-lg max-w-md mx-auto bg-card/95 backdrop-blur-sm">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 text-accent" />
+                <span className="font-semibold">Trocar Líbero</span>
+                <Badge variant="outline" className="text-xs">{teamLabel}</Badge>
+              </div>
+              {onSkip && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onSkip}
+                  disabled={isLoading}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            
+            <div className="flex items-center justify-center gap-4 py-2">
+              <div className="text-center">
+                <Badge variant="secondary" className="text-lg py-1 px-3">
+                  #{liberoOnCourt.jersey_number}
+                </Badge>
+                <p className="text-xs text-muted-foreground mt-1 truncate max-w-[100px]">
+                  {liberoOnCourt.name}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Sai</p>
+              </div>
+              
+              <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+              
+              <div className="text-center">
+                <Badge variant="default" className="text-lg py-1 px-3">
+                  #{swapTargetLibero.jersey_number}
+                </Badge>
+                <p className="text-xs text-muted-foreground mt-1 truncate max-w-[100px]">
+                  {swapTargetLibero.name}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Entra</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-center text-muted-foreground">
+              (Troca de líbero por líbero - ilimitada)
+            </p>
+            
+            <div className="flex gap-2">
+              {onSkip && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={onSkip}
+                  disabled={isLoading}
+                >
+                  Cancelar
+                </Button>
+              )}
+              <Button
+                className="flex-1"
+                onClick={handleConfirmSwap}
+                disabled={isLoading}
+              >
+                {isLoading ? 'A registar...' : 'Confirmar'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // ENTRY type
   if (type === 'entry') {
+    const hasMultipleLiberos = effectiveLiberos.length > 1;
     const hasRecommended = !!recommendedPlayer;
-    const showQuickConfirm = hasRecommended && selectedPlayer === recommendedPlayer.id && !showAllPlayers;
+    const showQuickConfirm = hasRecommended && selectedPlayer === recommendedPlayer.id && !showAllPlayers && selectedLiberoId;
     
     return (
       <div className="fixed inset-x-0 top-16 z-50 px-4 animate-in slide-in-from-top-4 duration-300">
@@ -91,13 +208,40 @@ export function LiberoPrompt({
               )}
             </div>
             
-            <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">#{libero.jersey_number} {libero.name}</span>
-              {' '}entra por:
-            </div>
+            {/* Libero Selection (when multiple liberos) */}
+            {hasMultipleLiberos && (
+              <div className="space-y-2">
+                <span className="text-sm text-muted-foreground">Escolher líbero:</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {effectiveLiberos.map(lib => (
+                    <Button
+                      key={lib.id}
+                      variant={selectedLiberoId === lib.id ? 'default' : 'outline'}
+                      className={cn(
+                        'h-auto py-2 flex flex-col gap-0.5',
+                        selectedLiberoId === lib.id && 'ring-2 ring-primary ring-offset-2'
+                      )}
+                      onClick={() => setSelectedLiberoId(lib.id)}
+                      disabled={isLoading}
+                    >
+                      <span className="text-lg font-bold">#{lib.jersey_number}</span>
+                      <span className="text-xs truncate max-w-full">{lib.name}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Show selected libero info */}
+            {selectedLibero && (
+              <div className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">#{selectedLibero.jersey_number} {selectedLibero.name}</span>
+                {' '}entra por:
+              </div>
+            )}
             
             {/* Quick confirm for recommended player (MB) */}
-            {hasRecommended && (
+            {hasRecommended && selectedLiberoId && (
               <div className="space-y-2">
                 <Button
                   variant={selectedPlayer === recommendedPlayer.id ? 'default' : 'outline'}
@@ -144,7 +288,7 @@ export function LiberoPrompt({
             )}
             
             {/* Toggle to show other players */}
-            {otherPlayers.length > 0 && (
+            {otherPlayers.length > 0 && selectedLiberoId && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -166,7 +310,7 @@ export function LiberoPrompt({
             )}
             
             {/* Other players grid */}
-            {showAllPlayers && otherPlayers.length > 0 && (
+            {showAllPlayers && otherPlayers.length > 0 && selectedLiberoId && (
               <div className="grid grid-cols-2 gap-2">
                 {otherPlayers.map(player => {
                   const zone = getZoneLabel?.(player.id) || '';
@@ -196,7 +340,7 @@ export function LiberoPrompt({
             )}
             
             {/* Action buttons when showing all or no recommended */}
-            {(showAllPlayers || !hasRecommended) && (
+            {((showAllPlayers || !hasRecommended) && selectedLiberoId) && (
               <div className="flex gap-2">
                 {onSkip && (
                   <Button
@@ -211,7 +355,7 @@ export function LiberoPrompt({
                 <Button
                   className="flex-1"
                   onClick={handleConfirmEntry}
-                  disabled={!selectedPlayer || isLoading}
+                  disabled={!selectedPlayer || !selectedLiberoId || isLoading}
                 >
                   {isLoading ? 'A registar...' : 'Confirmar'}
                 </Button>
@@ -230,6 +374,13 @@ export function LiberoPrompt({
                 Não usar libero neste rally
               </Button>
             )}
+            
+            {/* Prompt to select libero first */}
+            {hasMultipleLiberos && !selectedLiberoId && (
+              <p className="text-sm text-center text-muted-foreground">
+                Seleciona um líbero para continuar
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -237,6 +388,8 @@ export function LiberoPrompt({
   }
   
   // Exit prompt
+  const exitLibero = libero || (liberoOnCourt ? liberoOnCourt : effectiveLiberos[0]);
+  
   return (
     <div className="fixed inset-x-0 top-16 z-50 px-4 animate-in slide-in-from-top-4 duration-300">
       <Card className="border-2 border-warning/50 shadow-lg max-w-md mx-auto bg-card/95 backdrop-blur-sm">
@@ -252,7 +405,9 @@ export function LiberoPrompt({
               Rotação chegou a Z4. O libero tem de sair.
             </p>
             <div className="flex items-center gap-2 text-foreground">
-              <span className="font-medium">#{libero.jersey_number} {libero.name}</span>
+              {exitLibero && (
+                <span className="font-medium">#{exitLibero.jersey_number} {exitLibero.name}</span>
+              )}
               <span className="text-muted-foreground">sai, entra:</span>
               {playerToReturn && (
                 <span className="font-medium">#{playerToReturn.jersey_number} {playerToReturn.name}</span>

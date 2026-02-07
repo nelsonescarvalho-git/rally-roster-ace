@@ -272,6 +272,7 @@ export default function Live() {
   const [liberoPromptDismissedForRally, setLiberoPromptDismissedForRally] = useState<number | null>(null);
   const [liberoLoading, setLiberoLoading] = useState(false);
   const [manualLiberoPromptSide, setManualLiberoPromptSide] = useState<Side | null>(null);
+  const [liberoSwapPromptSide, setLiberoSwapPromptSide] = useState<Side | null>(null);
   
   // Libero tracking for receiving team (CASA)
   const liberoTrackingHome = useLiberoTracking({
@@ -597,7 +598,7 @@ export default function Live() {
   }, [gameState, serveData, receptionData, registeredActions, getEffectivePlayers]);
 
   // Libero entry/exit handlers
-  const handleLiberoEntry = async (replacedPlayerId: string) => {
+  const handleLiberoEntry = async (replacedPlayerId: string, selectedLiberoId?: string) => {
     if (!activeLiberoTracking.availableLiberos.length || !gameState) return;
     
     // VALIDATION: Verify player is actually on court and in back row using snapshot
@@ -620,9 +621,10 @@ export default function Live() {
       return;
     }
     
-    const libero = activeLiberoTracking.availableLiberos[0]; // Use first available libero
+    // Use selected libero or first available
+    const liberoId = selectedLiberoId || activeLiberoTracking.availableLiberos[0].id;
     setLiberoLoading(true);
-    await activeLiberoTracking.enterLibero(libero.id, replacedPlayerId);
+    await activeLiberoTracking.enterLibero(liberoId, replacedPlayerId);
     setLiberoLoading(false);
   };
 
@@ -1855,7 +1857,7 @@ export default function Live() {
             key={`${currentSet}-${gameState!.currentRally}-${gameState!.recvSide}-entry`}
             type="entry"
             side={gameState!.recvSide}
-            libero={activeLiberoTracking.availableLiberos[0]}
+            availableLiberos={activeLiberoTracking.availableLiberos}
             eligiblePlayers={eligibleFromSnapshot}
             recommendedPlayer={recommended}
             getZoneLabel={(id) => getZoneLabel(id, gameState!.recvSide)}
@@ -1900,11 +1902,11 @@ export default function Live() {
             key={`${currentSet}-${gameState!.currentRally}-${manualLiberoPromptSide}-manual`}
             type="entry"
             side={manualLiberoPromptSide}
-            libero={tracking.availableLiberos[0]}
+            availableLiberos={tracking.availableLiberos}
             eligiblePlayers={eligibleFromSnapshot}
             recommendedPlayer={recommended}
             getZoneLabel={(id) => getZoneLabel(id, manualLiberoPromptSide)}
-            onConfirm={async (replacedPlayerId?: string) => {
+            onConfirm={async (replacedPlayerId?: string, selectedLiberoId?: string) => {
               if (!replacedPlayerId || !snapshot) return;
               
               // VALIDATION: Verify player is on court and in back row
@@ -1919,9 +1921,12 @@ export default function Live() {
                 return;
               }
               
+              // Use selected libero or first available
+              const liberoId = selectedLiberoId || tracking.availableLiberos[0].id;
+              
               setLiberoLoading(true);
               try {
-                await tracking.enterLibero(tracking.availableLiberos[0].id, replacedPlayerId);
+                await tracking.enterLibero(liberoId, replacedPlayerId);
                 setManualLiberoPromptSide(null);
               } finally {
                 setLiberoLoading(false);
@@ -1935,6 +1940,39 @@ export default function Live() {
           />
         );
       })()}
+      
+      {/* Libero Swap Prompt - Triggered from SubsLiberosCard for L-L swap */}
+      {liberoSwapPromptSide && (() => {
+        const tracking = liberoSwapPromptSide === 'CASA' ? liberoTrackingHome : liberoTrackingAway;
+        if (!tracking.canSwapLibero || !tracking.activeLiberoPlayer || !tracking.otherAvailableLibero) return null;
+        
+        return (
+          <LiberoPrompt
+            key={`${currentSet}-${gameState!.currentRally}-${liberoSwapPromptSide}-swap`}
+            type="swap"
+            side={liberoSwapPromptSide}
+            availableLiberos={tracking.availableLiberos}
+            liberoOnCourt={tracking.activeLiberoPlayer}
+            onConfirm={async (_?: string, newLiberoId?: string) => {
+              if (!newLiberoId) return;
+              
+              setLiberoLoading(true);
+              try {
+                await tracking.swapLibero(newLiberoId);
+                setLiberoSwapPromptSide(null);
+              } finally {
+                setLiberoLoading(false);
+              }
+            }}
+            onSkip={() => setLiberoSwapPromptSide(null)}
+            isLoading={liberoLoading}
+            teamColor={liberoSwapPromptSide === 'CASA' 
+              ? teamColors.home.primary 
+              : teamColors.away.primary}
+          />
+        );
+      })()}
+
 
       {/* Set End Overlay */}
       {(() => {
@@ -2279,10 +2317,15 @@ export default function Live() {
                   await liberoTrackingAway.exitLibero();
                 }
               }}
+              onLiberoSwap={(side) => {
+                setLiberoSwapPromptSide(side);
+              }}
               homeCanEnterLibero={liberoTrackingHome.shouldPromptLiberoEntry}
               awayCanEnterLibero={liberoTrackingAway.shouldPromptLiberoEntry}
               homeMustExitLibero={liberoTrackingHome.mustExitLibero}
               awayMustExitLibero={liberoTrackingAway.mustExitLibero}
+              homeCanSwapLibero={liberoTrackingHome.canSwapLibero}
+              awayCanSwapLibero={liberoTrackingAway.canSwapLibero}
               homeHasLibero={liberoTrackingHome.availableLiberos.length > 0}
               awayHasLibero={liberoTrackingAway.availableLiberos.length > 0}
             />
