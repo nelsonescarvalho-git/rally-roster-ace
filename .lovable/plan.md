@@ -1,105 +1,197 @@
 
-# Plano: Corrigir Registo da Qualidade da Defesa
+# Plano: Corrigir Inconsistências na Sincronização de Distribuições
 
 ## Problema Identificado
 
-A aplicação não está a registar o código de qualidade (0-3) para ações de defesa porque existe uma **race condition** no fluxo de auto-confirmação.
+### Análise dos Dados
 
-### Análise do Código
+A base de dados mostra **três problemas distintos** que causam inconsistências nas estatísticas de distribuição:
 
-No ficheiro `ActionEditor.tsx`, linhas 243-258:
+```text
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         PROBLEMA 1: SINCRONIZAÇÃO ERRADA                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Rally 7: recv_side = FORA                                                      │
+│                                                                                 │
+│  tabela rally_actions:                                                          │
+│  ├── seq 3: setter FORA → P3                                                    │
+│  ├── seq 7: setter FORA → P4                                                    │
+│  └── seq 10: setter CASA → P4   ← Contra-ataque de Póvoa!                       │
+│                                                                                 │
+│  tabela rallies:                                                                │
+│  └── pass_destination = P3      ← Sincronizou do FORA (1º setter), não do CASA │
+│                                                                                 │
+│  O sistema apenas considera o PRIMEIRO setter do rally, ignorando              │
+│  os contra-ataques da equipa adversária.                                        │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-```typescript
-onCodeChange(code); // Chamado setPendingAction assíncrono
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      PROBLEMA 2: DADOS EM TABELA ERRADA                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  useDistributionStats lê da tabela "rallies" que só guarda:                     │
+│  - O setter_player_id e pass_destination do PRIMEIRO setter do rally           │
+│  - Ignora completamente distribuições de contra-ataque                          │
+│                                                                                 │
+│  DADOS REAIS na rally_actions:                                                  │
+│  ├── Póvoa tem 11 distribuições registadas                                      │
+│  └── Destinos: P2(3), P3(2), P4(6)                                              │
+│                                                                                 │
+│  DADOS na rallies (usados nas stats):                                           │
+│  ├── Póvoa tem 4 distribuições (só as que recv_side = CASA)                     │
+│  └── Destinos: P3(2), P4(2) ← Faltam 7 distribuições!                           │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-if (actionType === 'block' || actionType === 'defense') {
-  // ...
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      showConfirmToast(player?.jersey_number, code);
-      onConfirm(); // ← PROBLEMA: não passa o código como override!
-    }, 0);
-  });
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      PROBLEMA 3: HOOK LEGACY                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  O hook useDistributionStats.ts (usado no DistributionTab):                     │
+│                                                                                 │
+│  ❌ Lê da tabela rallies (estrutura legacy de 1 ação por tipo)                  │
+│  ❌ Filtra por setter.side = filters.side (correto) mas...                      │
+│  ❌ ...os dados na tabela rallies só têm o primeiro setter do rally!            │
+│                                                                                 │
+│  Precisa ler da tabela rally_actions para ver TODAS as distribuições            │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-O `onCodeChange(code)` actualiza o state via `setPendingAction`, que é **assíncrono**. Quando `onConfirm()` é chamado logo de seguida (mesmo com `requestAnimationFrame` e `setTimeout`), o estado `pendingAction.code` pode ainda estar desactualizado.
-
-No `handleConfirmAction` (Live.tsx, linha 945):
-```typescript
-const effectiveCode = overrides?.code ?? pendingAction.code;
-```
-
-Como não é passado `overrides.code`, o sistema usa `pendingAction.code` que ainda pode ser `null`.
-
-### Evidência nos Screenshots
-
-Os screenshots mostram múltiplas defesas com "⚠ Código em falta":
-- Rally 8: Defesa #13 (Póv), Defesa #14 Duarte (Lic), Defesa #18 João Cardoso (Lic), Defesa #8 (Póv)
-- Rally 11: Defesa #8 (Póv), Defesa #18 João Cardoso (Lic)
-- Rally 14: Defesa #11 (Póv)
-
-O jogador é registado correctamente (player_id preenchido), mas o código fica `null`.
 
 ---
 
-## Solução
+## Raiz do Problema
 
-Passar o código explicitamente como override no `onConfirm()` para evitar a race condition:
+A arquitectura actual tem duas fontes de verdade:
 
-### Ficheiro: `src/components/live/ActionEditor.tsx`
+| Tabela | Contém | Usado Por |
+|--------|--------|-----------|
+| `rallies` | 1 setter por rally (o primeiro) | `useDistributionStats` (Stats) |
+| `rally_actions` | TODOS os setters (incluindo contra-ataques) | `useDestinationStatsFromActions` (Live) |
 
-**Antes (linha 255):**
-```typescript
-onConfirm();
+O `DistributionTab` na página Stats usa o hook `useDistributionStats` que lê da tabela `rallies`, onde só existe a primeira distribuição de cada rally.
+
+---
+
+## Solução: Migrar useDistributionStats para rally_actions
+
+### Nova Arquitectura
+
+Criar um novo hook `useDistributionStatsFromActions` que:
+1. Lê TODAS as distribuições da tabela `rally_actions`
+2. Agrupa por setter (baseado no `side` de cada ação, não no `recv_side` do rally)
+3. Mantém compatibilidade com a interface `SetterDistribution` existente
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         FLUXO CORRIGIDO                                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Rally 8 (rally complexo):                                                      │
+│                                                                                 │
+│  seq 3:  setter FORA → P4     ┐                                                 │
+│  seq 6:  setter CASA → P4     │  O novo hook conta TODAS estas distribuições    │
+│  seq 9:  setter FORA → P2     │  separadas por equipa (side)                    │
+│  seq 13: setter FORA → P4     │                                                 │
+│  seq 17: setter CASA → P4     │  CASA: 3 distribuições (seq 6, 17, 23)          │
+│  seq 20: setter FORA → P4     │  FORA: 4 distribuições (seq 3, 9, 13, 20)       │
+│  seq 23: setter CASA → P2     ┘                                                 │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Depois:**
+---
+
+## Alterações Técnicas
+
+### 1. Novo Hook: `useDistributionStatsFromActions`
+
+Criar: `src/hooks/useDistributionStatsFromActions.ts`
+
+Interface compatível com `SetterDistribution`:
 ```typescript
-onConfirm({ code: code });
-```
-
-### Código Completo da Alteração
-
-Linha ~243-258 (função `handleCodeWithAutoConfirm`):
-
-```typescript
-onCodeChange(code);
-
-// Auto-confirm for Block and Defense (no additional input needed)
-if (actionType === 'block' || actionType === 'defense') {
-  if (!selectedPlayer) {
-    toast.warning('Selecione um jogador primeiro');
-    return;
+export function useDistributionStatsFromActions(
+  rallyActions: Map<string, RallyActionWithPlayer[]> | undefined,
+  players: (Player | MatchPlayer)[],
+  filters: {
+    side: Side | 'TODAS';
+    setterId: string | null;
+    receptionCode?: number | null;
   }
-  const player = players.find(p => p.id === selectedPlayer);
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      showConfirmToast(player?.jersey_number, code);
-      onConfirm({ code: code }); // ← CORRECÇÃO: passar código como override
-    }, 0);
-  });
-  return;
+): {
+  distributionStats: SetterDistribution[];
+  setters: Array<{ id: string; name: string; jerseyNumber: number; side: Side }>;
+  globalReceptionBreakdown: ReceptionBreakdown[];
+  incompleteDistributionCount: number;
 }
 ```
 
+Lógica:
+- Iterar todas as ações de tipo `setter` em `rally_actions`
+- Agrupar por `player_id` do setter (ou criar grupo genérico se não tiver player_id)
+- Usar `action.side` para filtrar por equipa
+- Correlacionar com qualidade de receção do mesmo rally
+
+### 2. Atualizar Stats.tsx
+
+Adicionar query para `rally_actions`:
+```typescript
+const { data: rallyActions } = useRallyActionsForMatch(match?.id ?? null);
+```
+
+### 3. Atualizar DistributionTab
+
+Substituir:
+```typescript
+const { distributionStats, ... } = useDistributionStats(rallies, players, filters);
+```
+
+Por:
+```typescript
+const { distributionStats, ... } = useDistributionStatsFromActions(
+  rallyActions,
+  players,
+  filters
+);
+```
+
 ---
 
-## Impacto da Alteração
+## Ficheiros a Alterar
 
-| Aspecto | Detalhe |
-|---------|---------|
-| Ficheiros alterados | 1 (`ActionEditor.tsx`) |
-| Linhas alteradas | 1 |
-| Risco | Baixo - apenas adiciona parâmetro |
-| Testes | Registar defesas e verificar que o código aparece no histórico |
+| Ficheiro | Alteração |
+|----------|-----------|
+| `src/hooks/useDistributionStatsFromActions.ts` | **NOVO** - Hook baseado em rally_actions |
+| `src/pages/Stats.tsx` | Adicionar query para rally_actions |
+| `src/components/DistributionTab.tsx` | Usar novo hook e receber rallyActions como prop |
 
 ---
 
-## Verificação
+## Manter Legacy
 
-Após a correcção:
-1. No jogo em Live, registar um ataque "Defendido" (code 2)
-2. O sistema encadeia automaticamente para Defesa
-3. Seleccionar jogador da defesa
-4. Seleccionar qualidade (0-3)
-5. Verificar no Histórico que a defesa tem código preenchido (sem badge "Código em falta")
+| Ficheiro | Estado |
+|----------|--------|
+| `src/hooks/useDistributionStats.ts` | Manter para referência, deprecar gradualmente |
+
+---
+
+## Estatísticas Esperadas Após Correcção
+
+| Equipa | Fonte Actual | Fonte Corrigida |
+|--------|--------------|-----------------|
+| Póvoa (CASA) | 4 distribuições | 11 distribuições |
+| Destinos P2 | 0 | 3 |
+| Destinos P3 | 2 | 2 |
+| Destinos P4 | 2 | 6 |
+
+---
+
+## Critérios de Sucesso
+
+- Estatísticas de distribuição incluem TODAS as distribuições (incluindo contra-ataques)
+- Filtro por equipa funciona baseado no `side` da ação, não no `recv_side` do rally
+- Dados consistentes entre página Live e página Stats
+- Valores mostrados: P2, P3, P4 com contagens correctas
+
