@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
-import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions, useComprehensiveAutoFix, useAutoFixServeByRotation } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions, useComprehensiveAutoFix, useAutoFixServeByRotation, useSyncMissingActions } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -500,6 +500,7 @@ export default function RallyHistory() {
   
   const comprehensiveAutoFix = useComprehensiveAutoFix();
   const autoFixServeByRotation = useAutoFixServeByRotation();
+  const syncMissingActions = useSyncMissingActions();
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -693,6 +694,9 @@ export default function RallyHistory() {
               if (!matchId) return;
               setIsComprehensiveFix(true);
               try {
+                // Step 0: Sync missing actions from rallies table
+                const syncResult = await syncMissingActions.mutateAsync({ matchId });
+                
                 // First fix player_id for setters
                 const playerFixResult = await autoFixRallyActionsMutation.mutateAsync({
                   matchId,
@@ -717,10 +721,15 @@ export default function RallyHistory() {
                 // Then fix setter codes from attack results
                 const codeFixResult = await comprehensiveAutoFix.mutateAsync({ matchId });
                 
-                const totalFixed = playerFixResult.fixed + codeFixResult.setterCodesFixed + serveFixResult.fixed;
+                const totalFixed = playerFixResult.fixed + codeFixResult.setterCodesFixed + serveFixResult.fixed + syncResult.synced;
                 
                 if (totalFixed > 0) {
-                  toast.success(`${totalFixed} correções aplicadas (${playerFixResult.fixed} jogadores, ${serveFixResult.fixed} serviços, ${codeFixResult.setterCodesFixed} códigos)`);
+                  const parts = [];
+                  if (syncResult.synced > 0) parts.push(`${syncResult.synced} sincronizadas`);
+                  if (playerFixResult.fixed > 0) parts.push(`${playerFixResult.fixed} jogadores`);
+                  if (serveFixResult.fixed > 0) parts.push(`${serveFixResult.fixed} serviços`);
+                  if (codeFixResult.setterCodesFixed > 0) parts.push(`${codeFixResult.setterCodesFixed} códigos`);
+                  toast.success(`${totalFixed} correções (${parts.join(', ')})`);
                 } else {
                   toast.info('Nenhuma correção necessária');
                 }
@@ -729,10 +738,10 @@ export default function RallyHistory() {
                   toast.warning(`${playerFixResult.skipped + codeFixResult.settersSkipped + serveFixResult.skipped} ações não inferíveis`);
                 }
                 
-                if (playerFixResult.errors > 0 || codeFixResult.errors > 0 || serveFixResult.errors > 0) {
-                  toast.error(`${playerFixResult.errors + codeFixResult.errors + serveFixResult.errors} erros durante a correção`);
+                if (playerFixResult.errors > 0 || codeFixResult.errors > 0 || serveFixResult.errors > 0 || syncResult.errors > 0) {
+                  toast.error(`${playerFixResult.errors + codeFixResult.errors + serveFixResult.errors + syncResult.errors} erros durante a correção`);
                 }
-                
+
                 // Reload match data
                 loadMatch();
               } finally {

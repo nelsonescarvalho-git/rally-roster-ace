@@ -686,3 +686,174 @@ export function useAutoFixServeByRotation() {
     },
   });
 }
+
+/**
+ * Sync missing actions from rallies table to rally_actions table.
+ * 
+ * This function detects when data exists in the rallies table (legacy format)
+ * but is missing from the rally_actions table, and creates the missing actions.
+ * 
+ * Example: If rallies has s_player_id, r_player_id, a_player_id but rally_actions
+ * only has serve and reception records, this will create the missing attack record.
+ */
+export function useSyncMissingActions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      matchId 
+    }: { 
+      matchId: string;
+    }): Promise<{ synced: number; errors: number }> => {
+      let synced = 0;
+      let errors = 0;
+      
+      // 1. Get all rallies for this match with their legacy data
+      const { data: rallies, error: ralliesError } = await supabase
+        .from('rallies')
+        .select('*')
+        .eq('match_id', matchId)
+        .is('deleted_at', null);
+
+      if (ralliesError) throw ralliesError;
+      if (!rallies?.length) return { synced: 0, errors: 0 };
+
+      // 2. Get all existing rally_actions
+      const rallyIds = rallies.map(r => r.id);
+      const { data: existingActions, error: actionsError } = await supabase
+        .from('rally_actions')
+        .select('rally_id, action_type')
+        .in('rally_id', rallyIds)
+        .is('deleted_at', null);
+
+      if (actionsError) throw actionsError;
+
+      // Group existing actions by rally_id and action_type
+      const existingMap = new Map<string, Set<string>>();
+      (existingActions || []).forEach(a => {
+        const key = a.rally_id;
+        if (!existingMap.has(key)) {
+          existingMap.set(key, new Set());
+        }
+        existingMap.get(key)!.add(a.action_type);
+      });
+
+      // 3. For each rally, check what's missing and create it
+      for (const rally of rallies) {
+        const existingTypes = existingMap.get(rally.id) || new Set();
+        const actionsToCreate: any[] = [];
+
+        // Determine next sequence number
+        let nextSeq = existingTypes.size + 1;
+
+        // Check serve
+        if (rally.s_player_id && !existingTypes.has('serve')) {
+          actionsToCreate.push({
+            rally_id: rally.id,
+            sequence_no: 1,
+            action_type: 'serve',
+            side: rally.serve_side,
+            player_id: rally.s_player_id,
+            player_no: rally.s_no,
+            code: rally.s_code,
+            serve_type: rally.s_type,
+          });
+        }
+
+        // Check reception
+        if (rally.r_player_id && !existingTypes.has('reception')) {
+          actionsToCreate.push({
+            rally_id: rally.id,
+            sequence_no: existingTypes.has('serve') ? nextSeq++ : 2,
+            action_type: 'reception',
+            side: rally.recv_side,
+            player_id: rally.r_player_id,
+            player_no: rally.r_no,
+            code: rally.r_code,
+          });
+        }
+
+        // Check setter
+        if (rally.setter_player_id && !existingTypes.has('setter')) {
+          actionsToCreate.push({
+            rally_id: rally.id,
+            sequence_no: nextSeq++,
+            action_type: 'setter',
+            side: rally.recv_side, // Setter is usually on receiving side in K1
+            player_id: rally.setter_player_id,
+            code: rally.pass_code,
+            pass_destination: rally.pass_destination,
+            pass_code: rally.pass_code,
+          });
+        }
+
+        // Check attack
+        if (rally.a_player_id && !existingTypes.has('attack')) {
+          actionsToCreate.push({
+            rally_id: rally.id,
+            sequence_no: nextSeq++,
+            action_type: 'attack',
+            side: rally.phase % 2 === 1 ? rally.recv_side : rally.serve_side,
+            player_id: rally.a_player_id,
+            player_no: rally.a_no,
+            code: rally.a_code,
+            kill_type: rally.kill_type,
+          });
+        }
+
+        // Check block
+        if (rally.b1_player_id && !existingTypes.has('block')) {
+          const blockSide = rally.phase % 2 === 1 ? rally.serve_side : rally.recv_side;
+          actionsToCreate.push({
+            rally_id: rally.id,
+            sequence_no: nextSeq++,
+            action_type: 'block',
+            side: blockSide,
+            player_id: rally.b1_player_id,
+            player_no: rally.b1_no,
+            code: rally.b_code,
+            b2_player_id: rally.b2_player_id,
+            b2_no: rally.b2_no,
+            b3_player_id: rally.b3_player_id,
+            b3_no: rally.b3_no,
+          });
+        }
+
+        // Check defense
+        if (rally.d_player_id && !existingTypes.has('defense')) {
+          const defSide = rally.phase % 2 === 1 ? rally.serve_side : rally.recv_side;
+          actionsToCreate.push({
+            rally_id: rally.id,
+            sequence_no: nextSeq++,
+            action_type: 'defense',
+            side: defSide,
+            player_id: rally.d_player_id,
+            player_no: rally.d_no,
+            code: rally.d_code,
+          });
+        }
+
+        // Insert missing actions
+        if (actionsToCreate.length > 0) {
+          const { error } = await supabase
+            .from('rally_actions')
+            .insert(actionsToCreate);
+
+          if (error) {
+            console.error('Error syncing actions for rally', rally.id, error);
+            errors++;
+          } else {
+            synced += actionsToCreate.length;
+          }
+        }
+      }
+      
+      return { synced, errors };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rally-actions'] });
+      queryClient.invalidateQueries({ queryKey: ['rally-actions-match'] });
+      queryClient.invalidateQueries({ queryKey: ['rallies'] });
+    },
+  });
+}
