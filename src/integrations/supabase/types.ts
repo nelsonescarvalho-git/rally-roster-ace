@@ -857,6 +857,13 @@ export type Database = {
         Args: { p_match_id: string; p_set_no: number }
         Returns: undefined
       }
+      migrate_rallies_to_actions: {
+        Args: never
+        Returns: {
+          created_actions: number
+          migrated_rallies: number
+        }[]
+      }
       purge_deleted: { Args: never; Returns: undefined }
       soft_delete_match: { Args: { p_match_id: string }; Returns: undefined }
       soft_delete_set: {
