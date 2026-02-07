@@ -175,6 +175,75 @@ export function useTeams() {
     }
   }, [loadTeams, toast]);
 
+  const uploadLogo = useCallback(async (
+    teamId: string,
+    file: File
+  ): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const fileName = `${teamId}.${fileExt}`;
+
+      // Upload para o bucket
+      const { error: uploadError } = await supabase.storage
+        .from('team-logos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL público com cache busting
+      const { data: { publicUrl } } = supabase.storage
+        .from('team-logos')
+        .getPublicUrl(fileName);
+
+      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
+
+      // Atualizar tabela teams
+      const { error: updateError } = await supabase
+        .from('teams')
+        .update({ logo_url: urlWithCacheBust })
+        .eq('id', teamId);
+
+      if (updateError) throw updateError;
+
+      await loadTeams();
+      toast({ title: 'Logótipo atualizado' });
+      return urlWithCacheBust;
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return null;
+    }
+  }, [loadTeams, toast]);
+
+  const removeLogo = useCallback(async (teamId: string): Promise<boolean> => {
+    try {
+      // Listar ficheiros com prefixo do teamId
+      const { data: files } = await supabase.storage
+        .from('team-logos')
+        .list('', { search: teamId });
+
+      if (files && files.length > 0) {
+        await supabase.storage
+          .from('team-logos')
+          .remove(files.map(f => f.name));
+      }
+
+      // Limpar campo na tabela
+      const { error } = await supabase
+        .from('teams')
+        .update({ logo_url: null })
+        .eq('id', teamId);
+
+      if (error) throw error;
+
+      await loadTeams();
+      toast({ title: 'Logótipo removido' });
+      return true;
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return false;
+    }
+  }, [loadTeams, toast]);
+
   return {
     teams,
     loading,
@@ -185,5 +254,7 @@ export function useTeams() {
     addTeamPlayer,
     updateTeamPlayer,
     deactivateTeamPlayer,
+    uploadLogo,
+    removeLogo,
   };
 }
