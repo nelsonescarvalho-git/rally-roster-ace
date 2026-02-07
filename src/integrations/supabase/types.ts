@@ -313,6 +313,7 @@ export type Database = {
           s_code: number | null
           s_no: number | null
           s_player_id: string | null
+          s_type: string | null
           serve_rot: number
           serve_side: string
           set_no: number
@@ -356,6 +357,7 @@ export type Database = {
           s_code?: number | null
           s_no?: number | null
           s_player_id?: string | null
+          s_type?: string | null
           serve_rot: number
           serve_side: string
           set_no: number
@@ -399,6 +401,7 @@ export type Database = {
           s_code?: number | null
           s_no?: number | null
           s_player_id?: string | null
+          s_type?: string | null
           serve_rot?: number
           serve_side?: string
           set_no?: number
@@ -496,6 +499,7 @@ export type Database = {
           player_no: number | null
           rally_id: string
           sequence_no: number
+          serve_type: string | null
           side: string
         }
         Insert: {
@@ -516,6 +520,7 @@ export type Database = {
           player_no?: number | null
           rally_id: string
           sequence_no: number
+          serve_type?: string | null
           side: string
         }
         Update: {
@@ -536,6 +541,7 @@ export type Database = {
           player_no?: number | null
           rally_id?: string
           sequence_no?: number
+          serve_type?: string | null
           side?: string
         }
         Relationships: [

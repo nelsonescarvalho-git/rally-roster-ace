@@ -51,6 +51,7 @@ import {
   Lineup,
   PassDestination, 
   KillType,
+  ServeType,
   RallyAction,
   RallyActionType,
   Sanction,
@@ -81,6 +82,7 @@ interface PendingAction {
   playerId: string | null;
   code: number | null;
   killType: KillType | null;
+  serveType: ServeType | null;
   setterId: string | null;
   passDestination: PassDestination | null;
   passCode: number | null;
@@ -878,6 +880,7 @@ export default function Live() {
       playerId: null,
       code: null,
       killType: null,
+      serveType: null,
       setterId: null,
       passDestination: null,
       passCode: null,
@@ -999,6 +1002,7 @@ export default function Live() {
       playerNo: player?.jersey_number || null,
       code: effectiveCode,
       killType: effectiveKillType,
+      serveType: pendingAction.serveType,
       // Use overrides with priority to avoid race conditions
       setterId: overrides?.setterId ?? pendingAction.setterId,
       passDestination: overrides?.passDestination ?? pendingAction.passDestination,
@@ -1099,6 +1103,7 @@ export default function Live() {
       playerId: action.playerId || null,
       code: action.code ?? null,
       killType: action.killType || null,
+      serveType: action.serveType || null,
       setterId: action.setterId || null,
       passDestination: action.passDestination || null,
       passCode: action.passCode ?? null,
@@ -1154,6 +1159,7 @@ export default function Live() {
       playerId: prevAction.playerId || null,
       code: prevAction.code ?? null,
       killType: prevAction.killType || null,
+      serveType: prevAction.serveType || null,
       setterId: prevAction.setterId || null,
       passDestination: prevAction.passDestination || null,
       passCode: prevAction.passCode ?? null,
@@ -1208,6 +1214,7 @@ export default function Live() {
       playerId: nextAction.playerId || null,
       code: nextAction.code ?? null,
       killType: nextAction.killType || null,
+      serveType: nextAction.serveType || null,
       setterId: nextAction.setterId || null,
       passDestination: nextAction.passDestination || null,
       passCode: nextAction.passCode ?? null,
@@ -1420,6 +1427,7 @@ export default function Live() {
           pass_destination: action.passDestination || null,
           pass_code: action.passCode ?? null,
           kill_type: action.killType || null,
+          serve_type: action.serveType || null,
           b2_player_id: action.b2PlayerId || null,
           b3_player_id: action.b3PlayerId || null,
           b2_no: null, // Will be populated if needed
@@ -2694,6 +2702,7 @@ export default function Live() {
               selectedPlayer={pendingAction.playerId}
               selectedCode={pendingAction.code}
               selectedKillType={pendingAction.killType}
+              selectedServeType={pendingAction.serveType}
               selectedSetter={pendingAction.setterId}
               selectedDestination={pendingAction.passDestination}
               selectedPassCode={pendingAction.passCode}
@@ -2709,6 +2718,7 @@ export default function Live() {
               onPlayerChange={(id) => setPendingAction(prev => prev ? { ...prev, playerId: id } : null)}
               onCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, code } : null)}
               onKillTypeChange={(type) => setPendingAction(prev => prev ? { ...prev, killType: type } : null)}
+              onServeTypeChange={(type) => setPendingAction(prev => prev ? { ...prev, serveType: type } : null)}
               onSetterChange={(id) => setPendingAction(prev => prev ? { ...prev, setterId: id } : null)}
               onDestinationChange={(dest) => setPendingAction(prev => prev ? { ...prev, passDestination: dest } : null)}
               onPassCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, passCode: code } : null)}

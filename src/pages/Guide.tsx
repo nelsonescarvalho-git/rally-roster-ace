@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronDown, Zap, Target, Users, RotateCcw, MapPin, Trophy, ArrowRight, Calculator } from 'lucide-react';
+import { ChevronDown, Zap, Target, Users, RotateCcw, MapPin, Trophy, ArrowRight, Calculator, Shield, CircleDot, Link } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +25,12 @@ const ACTION_DEFINITIONS = {
       { code: 1, label: 'Serviço fraco', description: 'Receção fácil para adversário' },
       { code: 2, label: 'Serviço bom', description: 'Receção dificultada' },
       { code: 3, label: 'Ás', description: 'Ponto direto ou falha de receção' },
+    ],
+    serveTypes: [
+      { type: 'FLOAT', emoji: '〰️', label: 'Flutuante Parado', description: 'Serviço sem salto com trajetória flutuante', datavolleyCode: 'H' },
+      { type: 'JUMP_FLOAT', emoji: '↗️', label: 'Flutuante em Salto', description: 'Serviço em salto com contacto flutuante', datavolleyCode: 'M' },
+      { type: 'POWER', emoji: '⚡', label: 'Potência (Topspin)', description: 'Serviço em salto com rotação forte', datavolleyCode: 'Q' },
+      { type: 'OTHER', emoji: '❓', label: 'Outro', description: 'Serviços atípicos (side-arm, híbridos)', datavolleyCode: 'O' },
     ]
   },
   reception: {
@@ -687,6 +693,98 @@ export default function Guide() {
                   <span>Defesa</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        {/* Serve Types Section */}
+        <CollapsibleSection title="Tipos de Serviço" icon={CircleDot}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Baseado nos códigos DataVolley, o sistema regista o tipo de serviço para análise estatística.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ACTION_DEFINITIONS.serve.serveTypes?.map((st) => (
+                <div key={st.type} className="p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">{st.emoji}</span>
+                    <Badge variant="secondary" className="font-mono text-xs">{st.datavolleyCode}</Badge>
+                    <span className="font-medium">{st.label}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{st.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        {/* Block Rules Section */}
+        <CollapsibleSection title="Regras de Bloco" icon={Shield}>
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="font-medium mb-2">Quem pode bloquear?</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-success">
+                  <span>✅</span> Jogadores em Z2, Z3 ou Z4 (linha de ataque)
+                </div>
+                <div className="flex items-center gap-2 text-destructive">
+                  <span>❌</span> Líberos (posição L) — nunca podem bloquear
+                </div>
+                <div className="flex items-center gap-2 text-destructive">
+                  <span>❌</span> Jogadores em Z1, Z5 ou Z6 — falta de posição
+                </div>
+              </div>
+            </div>
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="font-medium mb-2">Bloco Ponto (Stuff Block)</h4>
+              <p className="text-sm text-muted-foreground">
+                Quando a_code=1 e b_code=3, o sistema mostra apenas jogadores elegíveis do adversário 
+                (Z2, Z3, Z4, sem líberos) para selecionar o bloqueador principal.
+              </p>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        {/* Libero Rules Section */}
+        <CollapsibleSection title="Líbero no Início do Set" icon={Users}>
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="font-medium mb-2">Rally 1 de cada set:</h4>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <span className="font-medium">Equipa que RECEBE:</span>
+                  <ul className="ml-4 mt-1 text-muted-foreground">
+                    <li>• Pode trocar jogador pelo líbero em Z1, Z5 ou Z6</li>
+                    <li>• Prompt automático aparece se houver líbero disponível</li>
+                  </ul>
+                </div>
+                <div>
+                  <span className="font-medium">Equipa que SERVE:</span>
+                  <ul className="ml-4 mt-1 text-muted-foreground">
+                    <li>• Pode trocar jogador pelo líbero em Z5 ou Z6 apenas</li>
+                    <li>• Z1 está a servir, normalmente não se substitui</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        {/* Auto-Chaining Section */}
+        <CollapsibleSection title="Encadeamento Automático" icon={Link}>
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="font-medium mb-2">Distribuição → Ataque</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Após registar uma distribuição com destino, o sistema abre automaticamente o ataque 
+                para a mesma equipa, com a qualidade do passe herdada.
+              </p>
+            </div>
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="font-medium mb-2">Ataque Defendido → Defesa</h4>
+              <p className="text-sm text-muted-foreground">
+                Quando a_code=2 (defendido), o sistema encadeia automaticamente para a ação de defesa do adversário.
+              </p>
             </div>
           </div>
         </CollapsibleSection>

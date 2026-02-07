@@ -1,6 +1,46 @@
 export type Side = 'CASA' | 'FORA';
 export type Reason = 'ACE' | 'SE' | 'KILL' | 'AE' | 'BLK' | 'DEF' | 'OP' | 'NET';
 export type KPhase = 'K1' | 'K2' | 'K3';
+
+// Serve types based on DataVolley codes
+export type ServeType = 'FLOAT' | 'JUMP_FLOAT' | 'POWER' | 'OTHER';
+
+export const SERVE_TYPE_LABELS: Record<ServeType, {
+  emoji: string;
+  label: string;
+  shortLabel: string;
+  description: string;
+  datavolleyCode: string;
+}> = {
+  FLOAT: { 
+    emoji: '〰️', 
+    label: 'Flutuante Parado', 
+    shortLabel: 'Float',
+    description: 'Serviço sem salto com trajetória flutuante',
+    datavolleyCode: 'H'
+  },
+  JUMP_FLOAT: { 
+    emoji: '↗️', 
+    label: 'Flutuante em Salto', 
+    shortLabel: 'J.Float',
+    description: 'Serviço em salto com contacto flutuante',
+    datavolleyCode: 'M'
+  },
+  POWER: { 
+    emoji: '⚡', 
+    label: 'Potência', 
+    shortLabel: 'Power',
+    description: 'Serviço em salto com rotação (topspin)',
+    datavolleyCode: 'Q'
+  },
+  OTHER: { 
+    emoji: '❓', 
+    label: 'Outro', 
+    shortLabel: 'Outro',
+    description: 'Serviço atípico (side-arm, híbrido, etc.)',
+    datavolleyCode: 'O'
+  },
+};
 export type KillType = 'FLOOR' | 'BLOCKOUT';
 
 // Action types for modular wizard
@@ -16,6 +56,7 @@ export interface RallyAction {
   code?: number | null;
   // Extra data for specific action types
   killType?: KillType | null;
+  serveType?: ServeType | null;
   setterId?: string | null;
   passDestination?: PassDestination | null;
   passCode?: number | null;

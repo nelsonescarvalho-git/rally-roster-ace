@@ -1,4 +1,4 @@
-import type { Side, PassDestination, KillType } from './volleyball';
+import type { Side, PassDestination, KillType, ServeType } from './volleyball';
 
 // Action types for the rally_actions table
 export type ActionType = 'serve' | 'reception' | 'setter' | 'attack' | 'block' | 'defense';
@@ -16,6 +16,7 @@ export interface RallyActionRecord {
   pass_destination: PassDestination | null;
   pass_code: number | null;
   kill_type: KillType | null;
+  serve_type: ServeType | null;
   b2_player_id: string | null;
   b3_player_id: string | null;
   b2_no: number | null;
