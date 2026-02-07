@@ -39,7 +39,7 @@ import { EditRallyModal } from '@/components/EditRallyModal';
 import { EditRallyActionsModal, ActionEditState } from '@/components/EditRallyActionsModal';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { RallySummary } from '@/components/rally/RallySummary';
+import { RallySummary, countLegacyActions } from '@/components/rally/RallySummary';
 import { TimelineItem } from '@/components/rally/TimelineItem';
 import { RallyActionsTimeline } from '@/components/rally/RallyActionsTimeline';
 import { cn } from '@/lib/utils';
@@ -97,6 +97,16 @@ function RallyGroup({
     // Bloco com código mas sem jogadores
     (p.b_code !== null && !p.b1_player_id)
   );
+  
+  // Count actions from rally_actions table
+  const actionsCount = sortedPhases.reduce((sum, phase) => {
+    return sum + (rallyActions?.get(phase.id)?.length || 0);
+  }, 0);
+  
+  // Count legacy actions from rallies table
+  const legacyActionsCount = sortedPhases.reduce((sum, phase) => {
+    return sum + countLegacyActions(phase);
+  }, 0);
   
   const getPlayer = (id: string | null) => players.find(p => p.id === id);
   
@@ -256,6 +266,8 @@ function RallyGroup({
                 hasBlockInconsistency={hasBlockInconsistency}
                 hasPartialData={hasPartialData}
                 isExpanded={isOpen}
+                actionsCount={actionsCount}
+                legacyActionsCount={legacyActionsCount}
               />
             </div>
           </div>
