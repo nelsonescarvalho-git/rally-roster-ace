@@ -4,6 +4,7 @@ import { useMatch } from '@/hooks/useMatch';
 import { useSetKPIs } from '@/hooks/useSetKPIs';
 import { useTeamColors } from '@/hooks/useTeamColors';
 import { useDestinationStats } from '@/hooks/useDestinationStats';
+import { useCreateRallyActions } from '@/hooks/useRallyActions';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -55,6 +56,7 @@ import {
   MatchPlayer,
   Timeout,
 } from '@/types/volleyball';
+import type { RallyActionInsert, ActionType } from '@/types/rallyActions';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -103,6 +105,9 @@ export default function Live() {
     setFifthSetServe, needsFifthSetServeChoice,
     substitutions
   } = useMatch(matchId || null);
+  
+  // Rally actions mutation for new multi-action table
+  const createRallyActions = useCreateRallyActions();
 
   const [currentSet, setCurrentSet] = useState(1);
   const [detailedMode, setDetailedMode] = useState(false);
@@ -1362,6 +1367,46 @@ export default function Live() {
     const faultPlayer = faultPlayerId ? effectivePlayers.find(p => p.id === faultPlayerId) : null;
     const success = await saveRally(rallyData);
     if (success) {
+      // Get the rally ID from the latest rally just created
+      const { data: createdRally } = await supabase
+        .from('rallies')
+        .select('id')
+        .eq('match_id', matchId)
+        .eq('set_no', currentSet)
+        .eq('rally_no', gameState.currentRally)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      // Save all actions to rally_actions table
+      if (createdRally?.id && registeredActions.length > 0) {
+        const actionsToInsert: RallyActionInsert[] = registeredActions.map((action, index) => ({
+          rally_id: createdRally.id,
+          sequence_no: index + 1,
+          action_type: action.type as ActionType,
+          side: action.side,
+          player_id: action.playerId || null,
+          player_no: action.playerNo || null,
+          code: action.code ?? null,
+          pass_destination: action.passDestination || null,
+          pass_code: action.passCode ?? null,
+          kill_type: action.killType || null,
+          b2_player_id: action.b2PlayerId || null,
+          b3_player_id: action.b3PlayerId || null,
+          b2_no: null, // Will be populated if needed
+          b3_no: null,
+        }));
+        
+        try {
+          await createRallyActions.mutateAsync(actionsToInsert);
+          console.log('[Rally Actions] Saved', actionsToInsert.length, 'actions to rally_actions table');
+        } catch (err) {
+          console.error('[Rally Actions] Failed to save actions:', err);
+          // Don't fail the whole operation - rally was saved successfully
+        }
+      }
+      
       const faultInfo = reason === 'NET' && faultPlayer ? ` (#${faultPlayer.jersey_number})` : '';
       toast({ title: `Ponto registado${faultInfo}` });
       resetWizard();
