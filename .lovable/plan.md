@@ -1,155 +1,185 @@
 
-# Plano: Auto-Fix para Ações na tabela rally_actions
+# Plano: Botão Auto-Fix Completo para Rally Actions
 
 ## Problema Identificado
 
-O auto-fix actual no `useMatch.ts` apenas corrige dados na tabela `rallies` (legacy), mas **não corrige** a tabela `rally_actions` (nova arquitectura sequencial).
-
-### Estado Actual dos Dados
+A tabela `rally_actions` contém dados incompletos que precisam ser corrigidos em massa:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         DADOS INCOMPLETOS EM RALLY_ACTIONS                      │
+│                         DADOS INCOMPLETOS IDENTIFICADOS                         │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  action_type   │ Total │ Sem player_id │ Sem code                               │
-│  ─────────────────────────────────────────────────────                          │
-│  setter        │  25   │     17        │   17                                   │
-│  attack        │  14   │      0        │    0                                   │
-│  reception     │  14   │      0        │    0                                   │
-│  defense       │  13   │      0        │    0                                   │
-│  serve         │  20   │      0        │    0                                   │
-│  block         │   4   │      1        │    0                                   │
+│  Tipo de Problema                    │ Quantidade │ Solução                     │
+│  ─────────────────────────────────────────────────────────────────────────────  │
+│  Setters sem code (resultado)        │    17      │ Inferir do attack seguinte  │
+│  Blocks sem player_id                │     1      │ Não auto-fixável            │
 │                                                                                 │
-│  PROBLEMA PRINCIPAL: 17 ações de setter sem player_id                           │
-│  (têm pass_destination mas falta identificar o distribuidor)                    │
+│  NOTA: Os 17 setters já têm player_id preenchido (fix anterior funcionou)       │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Causa Raiz
+### Análise Detalhada
 
-Na nova arquitectura (`rally_actions`), as ações de setter foram registadas com:
-- `pass_destination` preenchido (P2, P3, P4, etc.)
-- `player_id` em falta
-- `code` em falta (pode não ser necessário para todas as acções)
+1. **Setters com player_id mas sem code**: Já têm `player_id` e `pass_destination`, mas falta o `code` (resultado da distribuição)
+   - Quando existe um `attack` na sequência seguinte, o `code` do setter deve ser derivado do resultado do ataque
+   - Kill (attack.code=3) → setter.code=3
+   - Defendido (attack.code=2) → setter.code=2
+   - Bloqueado (attack.code=1) → setter.code=1
+   - Erro (attack.code=0) → setter.code=0
 
-O auto-fix existente só opera na tabela `rallies`.
+2. **Block sem player_id**: Não é possível inferir automaticamente - requer edição manual
 
 ---
 
 ## Solução
 
-Criar uma nova função `autoFixRallyActions` que:
+Criar um novo hook `useComprehensiveAutoFix` que:
 
-1. **Preenche player_id para setters** baseado no side da ação e posição 'S'
-2. **Opcionalmente preenche codes em falta** com valores padrão sensatos
+1. **Preenche codes em falta nos setters** baseado no resultado do attack subsequente
+2. **Sincroniza com a tabela rallies** (legacy) para manter consistência
+3. **Reporta estatísticas detalhadas** do que foi corrigido
 
-### Lógica de Auto-Fix para Setters
+### Lógica de Inferência de Código para Setters
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         LÓGICA DE IDENTIFICAÇÃO DE SETTERS                      │
+│                         LÓGICA DE INFERÊNCIA DE CÓDIGO                          │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Para cada ação de setter sem player_id:                                        │
+│  Para cada setter com code = NULL:                                              │
 │                                                                                 │
-│  1. Identificar o side da ação (CASA ou FORA)                                   │
+│  1. Procurar a próxima ação do mesmo rally com sequence_no > setter.seq        │
 │                                                                                 │
-│  2. Procurar jogador com position='S' nesse side                                │
-│     - CASA: #8 ou #16 (preferir o mais provável baseado em lineups)             │
-│     - FORA: #3 (Ethel Mach) ou #10 (João Cardoso)                               │
+│  2. Se for um attack do mesmo side:                                             │
+│     └── setter.code = attack.code                                               │
 │                                                                                 │
-│  3. Usar o primeiro setter encontrado como fallback                             │
-│     (se houver múltiplos, poderia usar rotação, mas simplificamos)              │
+│  3. Se não houver attack subsequente:                                           │
+│     └── Manter NULL (não inferível)                                             │
 │                                                                                 │
-│  4. Atribuir player_id e player_no correspondentes                              │
+│  Mapeamento:                                                                    │
+│  attack.code 3 (Kill)      → setter.code 3 (Excelente)                          │
+│  attack.code 2 (Defendido) → setter.code 2 (Boa)                                │
+│  attack.code 1 (Bloqueado) → setter.code 1 (Fraca)                              │
+│  attack.code 0 (Erro)      → setter.code 0 (Má)                                 │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Regras de Auto-Fix por Tipo de Ação
-
-| Tipo | Campo em Falta | Regra de Preenchimento |
-|------|----------------|------------------------|
-| setter | player_id | Primeiro jogador com position='S' no mesmo side |
-| setter | code | Manter NULL (não obrigatório para distribuições) |
-| block | player_id | Não auto-fix (requer conhecimento específico) |
-| outros | code | Não auto-fix (requer validação manual) |
 
 ---
 
 ## Alterações Técnicas
 
-### 1. Novo Hook/Função em useRallyActions.ts
+### 1. Novo Hook em `src/hooks/useRallyActions.ts`
 
-Adicionar função `useAutoFixRallyActions`:
+Adicionar função `useComprehensiveAutoFix`:
 
 ```typescript
-export function useAutoFixRallyActions() {
+export function useComprehensiveAutoFix() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ 
       matchId, 
       players 
     }: { 
       matchId: string; 
-      players: (Player | MatchPlayer)[];
-    }): Promise<{ fixed: number; errors: number }> => {
-      let fixed = 0;
-      let errors = 0;
+      players: MatchPlayer[];
+    }): Promise<{
+      settersFixed: number;
+      settersSkipped: number;
+      errors: number;
+      details: string[];
+    }> => {
+      const results = { settersFixed: 0, settersSkipped: 0, errors: 0, details: [] };
       
-      // Buscar todas as ações de setter sem player_id
-      const { data: settersToFix } = await supabase
+      // 1. Buscar todos os rally IDs deste match
+      const { data: rallies } = await supabase
+        .from('rallies').select('id')
+        .eq('match_id', matchId).is('deleted_at', null);
+      
+      const rallyIds = rallies.map(r => r.id);
+      
+      // 2. Buscar todas as ações
+      const { data: allActions } = await supabase
         .from('rally_actions')
-        .select('id, side, player_id')
-        .eq('action_type', 'setter')
-        .is('player_id', null)
+        .select('*')
+        .in('rally_id', rallyIds)
         .is('deleted_at', null)
-        .in('rally_id', /* rally ids do match */);
+        .order('rally_id').order('sequence_no');
       
-      for (const action of settersToFix) {
-        // Encontrar setter do lado correto
-        const setter = players.find(p => 
-          p.side === action.side && 
-          p.position === 'S'
-        );
-        
-        if (setter) {
-          const { error } = await supabase
-            .from('rally_actions')
-            .update({ 
-              player_id: setter.id,
-              player_no: setter.jersey_number 
-            })
-            .eq('id', action.id);
-          
-          if (error) errors++;
-          else fixed++;
+      // 3. Agrupar por rally_id
+      const actionsByRally = groupBy(allActions, 'rally_id');
+      
+      // 4. Para cada rally, inferir codes em falta
+      for (const [rallyId, actions] of Object.entries(actionsByRally)) {
+        for (const action of actions) {
+          if (action.action_type === 'setter' && action.code === null) {
+            // Procurar attack subsequente do mesmo side
+            const nextAttack = actions.find(a => 
+              a.sequence_no > action.sequence_no &&
+              a.action_type === 'attack' &&
+              a.side === action.side
+            );
+            
+            if (nextAttack && nextAttack.code !== null) {
+              // Inferir code do ataque
+              await supabase
+                .from('rally_actions')
+                .update({ code: nextAttack.code })
+                .eq('id', action.id);
+              
+              results.settersFixed++;
+            } else {
+              results.settersSkipped++;
+            }
+          }
         }
       }
       
-      return { fixed, errors };
+      // 5. Sincronizar com tabela rallies
+      // ... sync logic
+      
+      return results;
     }
   });
 }
 ```
 
-### 2. Adicionar Botão no RallyHistory.tsx
+### 2. Actualizar `src/pages/RallyHistory.tsx`
 
-Usar a nova função para corrigir ações na tabela `rally_actions`:
+Substituir o botão "Fix Dist" actual por um botão "Fix Tudo" mais abrangente:
 
 ```typescript
-// Novo botão para fix em rally_actions
-<Button onClick={() => autoFixRallyActions({ matchId, players })}>
-  Fix Distribuições
+<Button
+  variant="outline"
+  size="sm"
+  className="gap-1.5"
+  onClick={async () => {
+    setIsComprehensiveFix(true);
+    try {
+      const result = await comprehensiveAutoFix.mutateAsync({
+        matchId,
+        players: getEffectivePlayers()
+      });
+      
+      toast.success(`Corrigido: ${result.settersFixed} setters`);
+      
+      if (result.settersSkipped > 0) {
+        toast.warning(`${result.settersSkipped} não inferíveis`);
+      }
+      
+      loadMatch();
+    } finally {
+      setIsComprehensiveFix(false);
+    }
+  }}
+>
+  <Wand2 className="h-4 w-4" />
+  Fix Tudo
 </Button>
 ```
-
-### 3. Sincronização com Tabela Rallies
-
-Após corrigir `rally_actions`, sincronizar com `rallies` usando o `useBatchUpdateRallyActions` existente ou uma versão simplificada.
 
 ---
 
@@ -157,23 +187,33 @@ Após corrigir `rally_actions`, sincronizar com `rallies` usando o `useBatchUpda
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/hooks/useRallyActions.ts` | Adicionar `useAutoFixRallyActions` mutation |
-| `src/pages/RallyHistory.tsx` | Adicionar botão e integrar nova função |
+| `src/hooks/useRallyActions.ts` | Adicionar `useComprehensiveAutoFix` mutation |
+| `src/pages/RallyHistory.tsx` | Substituir/adicionar botão "Fix Tudo" |
 
 ---
 
 ## Resultados Esperados
 
-| Antes | Depois |
-|-------|--------|
-| 17 setters sem player_id | 0 setters sem player_id |
-| Stats mostram "-" na coluna Dist | Stats mostram "#8" ou "#3" na coluna Dist |
+| Campo | Antes | Depois |
+|-------|-------|--------|
+| Setters sem code | 17 | 0 (inferidos do attack) |
+| Sincronização rallies | Parcial | Completa |
 
 ---
 
-## Critérios de Sucesso
+## Resumo das Correções
 
-- Todas as ações de setter têm player_id preenchido
-- Sincronização mantém tabela rallies actualizada
-- Estatísticas de distribuição mostram jogador identificado
-- Não há regressões nas métricas existentes
+1. **Fix Setters Codes** - Inferir código do setter baseado no resultado do ataque subsequente
+2. **Sincronização Legacy** - Actualizar tabela `rallies` com os dados corrigidos
+3. **Feedback Detalhado** - Mostrar exactamente o que foi corrigido
+
+---
+
+## Notas Importantes
+
+- O block sem player_id (1 caso) **não será corrigido automaticamente** pois requer decisão manual sobre qual jogador atribuir
+- Esta função complementa os auto-fix existentes:
+  - `autoFixMissingPlayerIds` - corrige player IDs na tabela rallies
+  - `autoFixMissingKillTypes` - adiciona FLOOR a kills sem tipo
+  - `useAutoFixRallyActions` - preenche player_id em setters
+  - **NOVO**: `useComprehensiveAutoFix` - preenche codes inferidos do contexto
