@@ -12,10 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, AlertTriangle, Pencil, HelpCircle, ChevronDown, RefreshCw, Wand2, Loader2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Side, Rally } from '@/types/volleyball';
+import { Side, Rally, Reason } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
 import { EditRallyModal } from '@/components/EditRallyModal';
+import { EditRallyActionsModal, ActionEditState } from '@/components/EditRallyActionsModal';
+import { useBatchUpdateRallyActions } from '@/hooks/useRallyActions';
+import type { RallyActionWithPlayer, RallyActionUpdate } from '@/types/rallyActions';
 import { StatCell, STAT_THRESHOLDS } from '@/components/ui/StatCell';
 import { ServeTypeStatsCard } from '@/components/ServeTypeStatsCard';
 import { toast } from 'sonner';
@@ -30,10 +33,16 @@ export default function Stats() {
   const [selectedSet, setSelectedSet] = useState(0); // 0 = all
   const [selectedSide, setSelectedSide] = useState<Side>('CASA');
   const [editingRally, setEditingRally] = useState<Rally | null>(null);
+  const [editingRallyActions, setEditingRallyActions] = useState<{
+    rallyId: string;
+    meta: { set_no: number; rally_no: number; serve_side: Side; recv_side: Side; point_won_by: Side | null; reason: Reason | null };
+    actions: RallyActionWithPlayer[];
+  } | null>(null);
   const [isComprehensiveFix, setIsComprehensiveFix] = useState(false);
   
   const autoFixRallyActions = useAutoFixRallyActions();
   const comprehensiveAutoFix = useComprehensiveAutoFix();
+  const batchUpdateActions = useBatchUpdateRallyActions();
 
   const handleRecalculate = async () => {
     // Invalidate all queries related to this match
@@ -612,7 +621,25 @@ export default function Stats() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-7 w-7"
-                                    onClick={() => setEditingRally(r)}
+                                    onClick={() => {
+                                      const actions = rallyActionsMap?.get(r.id) || [];
+                                      if (actions.length > 0) {
+                                        setEditingRallyActions({
+                                          rallyId: r.id,
+                                          meta: { 
+                                            set_no: r.set_no, 
+                                            rally_no: r.rally_no, 
+                                            serve_side: r.serve_side, 
+                                            recv_side: r.recv_side, 
+                                            point_won_by: r.point_won_by, 
+                                            reason: r.reason 
+                                          },
+                                          actions,
+                                        });
+                                      } else {
+                                        setEditingRally(r);
+                                      }
+                                    }}
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
                                   </Button>
@@ -650,6 +677,56 @@ export default function Stats() {
           </TabsContent>
         </Tabs>
 
+        {/* Modal for detailed rally actions (new format) */}
+        <EditRallyActionsModal
+          open={!!editingRallyActions}
+          onOpenChange={(open) => !open && setEditingRallyActions(null)}
+          rallyId={editingRallyActions?.rallyId || ''}
+          rallyMeta={editingRallyActions?.meta || { set_no: 1, rally_no: 1, serve_side: 'CASA', recv_side: 'FORA', point_won_by: null, reason: null }}
+          actions={editingRallyActions?.actions || []}
+          players={effectivePlayers}
+          homeName={match.home_name}
+          awayName={match.away_name}
+          onSave={async (rallyId, actions, metaUpdates) => {
+            try {
+              const updates = actions.map(a => ({
+                id: a.id,
+                updates: {
+                  player_id: a.player_id,
+                  player_no: a.player_no,
+                  code: a.code,
+                  pass_destination: a.pass_destination,
+                  pass_code: a.pass_code,
+                  kill_type: a.kill_type,
+                  serve_type: a.serve_type,
+                  b2_player_id: a.b2_player_id,
+                  b2_no: a.b2_no,
+                  b3_player_id: a.b3_player_id,
+                  b3_no: a.b3_no,
+                } as RallyActionUpdate
+              }));
+              
+              await batchUpdateActions.mutateAsync({ 
+                rallyId, 
+                actions: updates, 
+                metaUpdates: {
+                  point_won_by: metaUpdates.point_won_by,
+                  reason: metaUpdates.reason,
+                }
+              });
+              
+              toast.success('Rally atualizado');
+              await handleRecalculate();
+              return true;
+            } catch (error) {
+              console.error('Error saving rally actions:', error);
+              toast.error('Erro ao guardar');
+              return false;
+            }
+          }}
+        />
+
+        {/* Legacy modal for rallies without detailed actions */}
         <EditRallyModal
           open={!!editingRally}
           onOpenChange={(open) => !open && setEditingRally(null)}
