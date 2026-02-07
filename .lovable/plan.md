@@ -1,215 +1,175 @@
 
 
-# Plano: Melhorar UI do Cartão de Líbero & Substituições
+# Plano: Permitir Entrada do Líbero no Início do Set para Ambas as Equipas
 
-## Problema Atual
+## Problema Identificado
 
-O cartão atual combina demasiada informação num espaço limitado:
-- Estado do líbero (disponível/em campo)
-- Botões de ação (Trocar/Sair) 
-- Contador de substituições
-- Botão para abrir modal de subs
-
-Quando o líbero está em campo com opção de troca, a UI fica densa e confusa.
-
----
-
-## Solução Proposta
-
-Separar em **dois cartões distintos** com layouts mais limpos:
+Atualmente, o sistema só sugere a entrada do líbero para a equipa que **recebe** (`isReceiving = true`). Isto ignora uma situação comum no voleibol:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ 🔄 Substituições                                            │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ┌─────────────────────┐   ┌─────────────────────┐         │
-│   │  Póvoa        0/6 ⇄ │   │  Liceu        0/6 ⇄ │         │
-│   └─────────────────────┘   └─────────────────────┘         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│ 👤 Líbero                                                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ┌─────────────────────┐   ┌─────────────────────┐         │
-│   │  ● Póvoa            │   │  ● Liceu            │         │
-│   │  ─ Disponível       │   │  #14 Em campo       │         │
-│   │                     │   │  [Trocar] [Sair]    │         │
-│   └─────────────────────┘   └─────────────────────┘         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    INÍCIO DO SET - Regras Oficiais                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. Árbitro verifica lineup inicial (6 jogadores por equipa)        │
+│  2. Apito para início do jogo                                       │
+│  3. AMBAS as equipas podem substituir jogador pelo líbero:          │
+│     • Equipa que SERVE: Z5 ou Z6 (MB na linha de trás)              │
+│     • Equipa que RECEBE: Z1, Z5 ou Z6 (MB na linha de trás)         │
+│                                                                     │
+│  O sistema atual só contempla a equipa que recebe!                  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## Benefícios
-
-1. **Clareza visual**: Cada cartão tem um propósito único
-2. **Espaço para ações**: Botões de líbero têm espaço dedicado
-3. **Consistência**: Layout similar ao cartão de Timeouts
-4. **Escalabilidade**: Fácil adicionar mais informação no futuro
+Na imagem do utilizador, a equipa **Liceu** (que recebe) tem o líbero #14 em campo, mas a equipa **Póvoa** (que serve) não teve a opção de colocar o seu líbero.
 
 ---
 
-## Ficheiros a Criar/Alterar
+## Solução
 
-| Ficheiro | Operação | Descrição |
-|----------|----------|-----------|
-| `src/components/live/SubstitutionsCard.tsx` | **Criar** | Cartão dedicado para substituições normais |
-| `src/components/live/LiberoCard.tsx` | **Criar** | Cartão dedicado para estado e ações do líbero |
-| `src/components/live/SubsLiberosCard.tsx` | Manter | Manter como backup ou remover após migração |
-| `src/pages/Live.tsx` | Alterar | Usar os dois novos cartões separados |
+Alterar a lógica de elegibilidade para permitir entrada do líbero:
+
+| Condição | Antes | Depois |
+|----------|-------|--------|
+| Equipa que recebe | ✅ Permitido | ✅ Permitido |
+| Equipa que serve (rally 1) | ❌ Bloqueado | ✅ Permitido |
+| Equipa que serve (rally > 1) | ❌ Bloqueado | ❌ Bloqueado |
+
+**Regra**: A equipa que serve só pode entrar o líbero no **rally 1** de cada set (início do set).
 
 ---
 
-## Detalhes Técnicos
+## Ficheiros a Alterar
 
-### 1. SubstitutionsCard - Layout Limpo
+| Ficheiro | Alteração |
+|----------|-----------|
+| `src/hooks/useLiberoTracking.ts` | Adicionar parâmetro `isSetStart` para permitir entrada mesmo quando não recebe |
+| `src/pages/Live.tsx` | Passar `isSetStart` (rally === 1) ao hook de libero tracking |
+| `src/components/live/LiberoCard.tsx` | Nenhuma alteração necessária (já suporta `canEnter`) |
+
+---
+
+## Implementação Técnica
+
+### 1. useLiberoTracking.ts - Nova Lógica
 
 ```typescript
-interface SubstitutionsCardProps {
-  homeName: string;
-  awayName: string;
-  homeColor?: string;
-  awayColor?: string;
-  homeSubsUsed: number;
-  awaySubsUsed: number;
-  maxSubstitutions: number;
-  onOpenSubModal: (side: Side) => void;
+interface UseLiberoTrackingProps {
+  // ... existentes
+  isReceiving: boolean;
+  isSetStart: boolean;  // NOVO: true quando currentRally === 1
 }
+
+// shouldPromptLiberoEntry - Lógica atualizada
+const shouldPromptLiberoEntry = useMemo(() => {
+  if (availableLiberos.length === 0) return false;
+  if (currentLiberoState.isOnCourt) return false;
+  if (eligibleForLiberoEntry.length === 0) return false;
+  
+  // ANTES: só quando recebe
+  // if (!isReceiving) return false;
+  
+  // DEPOIS: quando recebe OU no início do set (rally 1)
+  if (!isReceiving && !isSetStart) return false;
+  
+  return true;
+}, [availableLiberos, currentLiberoState.isOnCourt, isReceiving, isSetStart, eligibleForLiberoEntry]);
 ```
 
-Layout inspirado no TimeoutCard:
-- Grid 2 colunas
-- Cada célula: Nome da equipa + Badge contador + Ícone clicável
-- Fundo muda para vermelho quando atinge limite (6/6)
+### 2. Elegibilidade de Zonas para Equipa que Serve
 
-### 2. LiberoCard - Estado e Ações
+A equipa que serve no início do set:
+- **Z1**: Jogador a servir (normalmente não se substitui)
+- **Z5, Z6**: Jogadores na linha de trás - **elegíveis para líbero**
 
 ```typescript
-interface LiberoCardProps {
-  homeName: string;
-  awayName: string;
-  homeColor?: string;
-  awayColor?: string;
-  // Estado
-  homeLiberoOnCourt: boolean;
-  homeLiberoPlayer: (Player | MatchPlayer) | null;
-  awayLiberoOnCourt: boolean;
-  awayLiberoPlayer: (Player | MatchPlayer) | null;
-  // Ações
-  onLiberoEntry: (side: Side) => void;
-  onLiberoExit: (side: Side) => void;
-  onLiberoSwap?: (side: Side) => void;
-  // Elegibilidade
-  homeCanEnterLibero: boolean;
-  awayCanEnterLibero: boolean;
-  homeMustExitLibero: boolean;
-  awayMustExitLibero: boolean;
-  homeCanSwapLibero?: boolean;
-  awayCanSwapLibero?: boolean;
-  homeHasLibero?: boolean;
-  awayHasLibero?: boolean;
-}
+// eligibleForLiberoEntry - Lógica atualizada
+const eligibleForLiberoEntry = useMemo(() => {
+  // ...
+  
+  // Zonas elegíveis dependem de ser equipa que serve ou recebe
+  const eligibleZones = isReceiving 
+    ? [1, 5, 6]  // Equipa que recebe: Z1, Z5, Z6
+    : [5, 6];    // Equipa que serve: apenas Z5, Z6 (Z1 está a servir)
+  
+  return onCourt.filter(player => {
+    if (liberoIds.has(player.id)) return false;
+    const zone = getPlayerZone(currentSet, side, player.id, rotation, currentRally);
+    return zone !== null && eligibleZones.includes(zone);
+  });
+}, [/* ... */]);
 ```
 
-Layout por equipa (2 colunas):
+### 3. Live.tsx - Passar isSetStart
 
-| Estado | UI |
-|--------|-----|
-| Sem líbero | Texto cinza: "Sem líbero" |
-| Disponível | Texto: "Disponível" + Botão "Entrar" (se elegível) |
-| Em campo | Badge "#14" + Botões "Trocar" e "Sair" |
-| Deve sair | Badge vermelho pulsante "#14 Sair!" |
+```typescript
+const liberoTrackingHome = useLiberoTracking({
+  matchId: matchId || null,
+  currentSet,
+  side: 'CASA',
+  currentRally: gameState?.currentRally || 1,
+  rotation: gameState?.serveSide === 'CASA' ? (gameState?.serveRot || 1) : (gameState?.recvRot || 1),
+  isReceiving: gameState?.recvSide === 'CASA',
+  isSetStart: (gameState?.currentRally || 1) === 1,  // NOVO
+  substitutions: substitutions || [],
+  getPlayersForSide,
+  getPlayersOnCourt,
+  getPlayerZone,
+  makeSubstitution,
+});
 
-### 3. Atualização do Live.tsx
-
-Substituir o `SubsLiberosCard` único por:
-
-```tsx
-{/* Substitutions Card */}
-<SubstitutionsCard
-  homeName={match.home_name}
-  awayName={match.away_name}
-  homeColor={teamColors.home.primary}
-  awayColor={teamColors.away.primary}
-  homeSubsUsed={getSubstitutionsUsed(currentSet, 'CASA')}
-  awaySubsUsed={getSubstitutionsUsed(currentSet, 'FORA')}
-  maxSubstitutions={6}
-  onOpenSubModal={setSubModalSide}
-/>
-
-{/* Libero Card */}
-<LiberoCard
-  homeName={match.home_name}
-  awayName={match.away_name}
-  homeColor={teamColors.home.primary}
-  awayColor={teamColors.away.primary}
-  homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
-  homeLiberoPlayer={liberoTrackingHome.activeLiberoPlayer}
-  awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
-  awayLiberoPlayer={liberoTrackingAway.activeLiberoPlayer}
-  onLiberoEntry={(side) => setManualLiberoPromptSide(side)}
-  onLiberoExit={async (side) => { ... }}
-  onLiberoSwap={(side) => setLiberoSwapPromptSide(side)}
-  homeCanEnterLibero={liberoTrackingHome.shouldPromptLiberoEntry}
-  awayCanEnterLibero={liberoTrackingAway.shouldPromptLiberoEntry}
-  homeMustExitLibero={liberoTrackingHome.mustExitLibero}
-  awayMustExitLibero={liberoTrackingAway.mustExitLibero}
-  homeCanSwapLibero={liberoTrackingHome.canSwapLibero}
-  awayCanSwapLibero={liberoTrackingAway.canSwapLibero}
-  homeHasLibero={liberoTrackingHome.availableLiberos.length > 0}
-  awayHasLibero={liberoTrackingAway.availableLiberos.length > 0}
-/>
+// Mesmo para liberoTrackingAway
 ```
 
 ---
 
-## Design Visual
+## Fluxo de Utilização Após Alteração
 
-### SubstitutionsCard
+### Cenário: Início do Set 1
 
-```text
-┌──────────────────────────────────────────────────┐
-│ ⇄ Substituições                                  │
-├──────────────────────────────────────────────────┤
-│  ┌────────────────────┐  ┌────────────────────┐  │
-│  │ ● Póvoa      [0/6]⇄│  │ ● Liceu      [0/6]⇄│  │
-│  └────────────────────┘  └────────────────────┘  │
-└──────────────────────────────────────────────────┘
-```
+1. **Rally 1** - Póvoa serve, Liceu recebe
+2. Sistema mostra:
+   - **Liceu (recebe)**: Prompt automático para entrar líbero (Z1, Z5, Z6)
+   - **Póvoa (serve)**: Botão "Entrar" disponível no LiberoCard (Z5, Z6)
+3. Utilizador pode:
+   - Confirmar entrada do líbero Liceu
+   - Clicar no LiberoCard para entrar líbero Póvoa
+4. Após rally 1:
+   - Equipa que serve já não pode entrar líbero (a não ser que ganhe ponto e se torne receptora)
 
-- Clique na área abre modal de substituição
-- Ícone ⇄ pequeno ao lado do contador
-- Badge muda para vermelho em 6/6
+---
 
-### LiberoCard
+## Diagrama de Elegibilidade
 
 ```text
-┌──────────────────────────────────────────────────┐
-│ 👤 Líbero                                        │
-├──────────────────────────────────────────────────┤
-│  ● Póvoa              │  ● Liceu                 │
-│  ┌──────────────────┐ │  ┌──────────────────┐    │
-│  │ ─ Disponível     │ │  │ #14 Em campo     │    │
-│  │                  │ │  │ [Trocar] [Sair]  │    │
-│  └──────────────────┘ │  └──────────────────┘    │
-└──────────────────────────────────────────────────┘
+                     Rally 1              Rally > 1
+                 ┌─────────────┐     ┌─────────────┐
+   Equipa que    │ Z1, Z5, Z6  │     │ Z1, Z5, Z6  │
+   RECEBE        │  ✅ Elegível │     │  ✅ Elegível │
+                 └─────────────┘     └─────────────┘
+                 
+                 ┌─────────────┐     ┌─────────────┐
+   Equipa que    │   Z5, Z6    │     │     ---     │
+   SERVE         │  ✅ Elegível │     │ ❌ Não mostrar│
+                 └─────────────┘     └─────────────┘
 ```
 
-- Estados claros por equipa
-- Botões de ação com espaço adequado
-- Animação pulsante quando líbero DEVE sair
+---
+
+## Considerações Adicionais
+
+1. **Não mostrar prompt automático para equipa que serve** - apenas disponibilizar o botão "Entrar" no LiberoCard
+2. **Jogador a servir (Z1) não deve ser substituído** - a regra oficial permite, mas é extremamente raro
+3. **Recomendação mantém-se para MB** - quando o Central está em Z5 ou Z6
 
 ---
 
 ## Critérios de Sucesso
 
-- Substituições e Líbero em cartões separados
-- Layout consistente com TimeoutCard
-- Botões de ação do líbero visíveis e acessíveis
-- Transições suaves entre estados
-- Responsivo para mobile e desktop
+- No rally 1, ambas as equipas têm a opção de entrar o líbero
+- A equipa que serve só pode entrar líbero para Z5 ou Z6 (não Z1)
+- Após o rally 1, a equipa que serve perde a opção de entrar líbero
+- O prompt automático continua a aparecer apenas para a equipa que recebe
+- O LiberoCard mostra "Entrar" para ambas as equipas quando aplicável
 
