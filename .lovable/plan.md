@@ -1,267 +1,248 @@
 
 
-# Plano: Sistema Flexível de Registo e Visualização de Rally
+# Plano Expandido: Gestão Completa de Equipas
 
-## Problema Identificado
+## Melhorias Identificadas
 
-### Limitação da Estrutura Atual
-A tabela `rallies` tem uma estrutura **achatada** onde cada linha suporta no máximo:
-- 1 serviço (`s_*`)
-- 1 receção (`r_*`)
-- 1 distribuição (`setter_*`, `pass_*`)
-- 1 ataque (`a_*`)
-- 1 bloco até 3 jogadores (`b1_*`, `b2_*`, `b3_*`, `b_code`)
-- 1 defesa (`d_*`)
+Após analisar o sistema atual, identifico as seguintes oportunidades de melhoria no contexto de introdução e gestão de equipas:
 
-Mas um rally real pode ter **múltiplas sequências**:
+---
+
+## 1. Campo de Treinador (já planeado) ✓
+
+Adicionar `coach_name` à tabela `teams` para registar o treinador principal.
+
+---
+
+## 2. Criar Equipa Diretamente no Setup (já planeado) ✓
+
+Permitir criar nova equipa sem sair da página de configuração do jogo.
+
+---
+
+## 3. Altura e Data de Nascimento dos Jogadores (NOVO)
+
+Adicionar campos opcionais aos jogadores para análise mais detalhada:
+
 ```text
-Serviço → Receção → Distribuição → Ataque → Bloco → Defesa → 
-         Nova Distribuição → Novo Ataque → Bloco → Kill
+team_players
+├── height_cm (INTEGER) - Altura em centímetros
+└── birth_date (DATE) - Data de nascimento
 ```
 
-### Rally #32 como Exemplo
+**Benefícios:**
+- Calcular idade média da equipa
+- Analisar altura por posição
+- Útil para scout de equipas adversárias
+
+---
+
+## 4. Foto/Imagem da Equipa (NOVO)
+
+Adicionar campo para logótipo/emblema da equipa:
+
 ```text
-BD: a_code=3 (Kill), b_code=2 (Defensivo), d_player_id=8 mas d_code=NULL
+teams
+└── logo_url (TEXT) - URL da imagem do emblema
 ```
 
-O que aconteceu: houve bloco, depois defesa, mas o fluxo de "Kill" encerrou o registo antes de capturar o código da defesa. A estrutura não consegue representar que **após a defesa** houve mais jogadas.
-
-### Dados Parciais Detectados
-- Defesa com jogador mas **sem código**: `d_player_id ✓` + `d_code NULL`
-- Bloco com código mas **sem jogadores**: `b_code ✓` + `b1_player_id NULL`
-- Ataques **sem atacante** identificado: `a_code ✓` + `a_player_id NULL`
+**Benefícios:**
+- Identificação visual nas listas
+- Mostrar emblema no scoreboard
+- Profissionalizar a apresentação
 
 ---
 
-## Solução em Duas Partes
+## 5. Posição com Dropdown Padronizado (MELHORIA)
 
-### Parte 1: Melhorar Visualização e Detecção de Problemas (Imediato)
-
-Expandir o sistema de avisos para identificar **todos** os tipos de dados parciais e mostrar com clareza o que está em falta.
-
-### Parte 2: Criar Tabela de Ações Detalhadas (Evolução Futura)
-
-Criar uma nova tabela `rally_actions` que armazena cada toque individual, permitindo rallies com múltiplas sequências. A tabela `rallies` mantém-se como resumo/resultado final.
+Atualmente o campo "Posição" no Setup é texto livre, mas no TeamDetail já usa dropdown. Uniformizar para dropdown em ambos os locais:
+- OH (Ponta)
+- OP (Oposto)
+- MB (Central)
+- S (Levantador)
+- L (Líbero)
 
 ---
 
-## Parte 1: Implementação Imediata
+## 6. Número de Identificação do Jogador (NOVO)
 
-### 1.1. Expandir Detecção de Issues
+Campo opcional para número federativo ou de licença:
 
-**Ficheiro:** `src/pages/RallyHistory.tsx`
-
-```typescript
-// Deteção expandida de dados parciais
-const hasDataIssue = phases.some(p => 
-  // Ataque sem atacante identificado
-  (p.a_code !== null && !p.a_player_id) ||
-  // Passe sem distribuidor
-  (p.pass_destination && !p.setter_player_id) ||
-  // Receção sem recetor
-  (p.r_code !== null && !p.r_player_id)
-);
-
-const hasPartialData = phases.some(p =>
-  // Defesa com jogador mas sem código
-  (p.d_player_id && p.d_code === null) ||
-  // Bloco com código mas sem jogadores
-  (p.b_code !== null && !p.b1_player_id)
-);
+```text
+team_players
+└── federation_id (TEXT) - Número de licença federativa
 ```
 
-### 1.2. Novos Badges de Warning na Timeline
+**Benefícios:**
+- Identificação oficial em competições
+- Cruzamento com dados federativos
 
-**Ficheiro:** `src/components/rally/TimelineItem.tsx`
+---
 
-Adicionar prop `isPartial` e `partialMessage` para indicar dados incompletos:
+## 7. Staff Técnico Adicional (NOVO)
 
-```typescript
-interface TimelineItemProps {
-  // ... existentes ...
-  isPartial?: boolean;
-  partialMessage?: string;
-}
+Além do treinador principal, suportar equipa técnica:
 
-// Renderizar badge de aviso
-{isPartial && (
-  <Badge variant="outline" className="text-[10px] border-warning text-warning">
-    ⚠️ {partialMessage || 'Incompleto'}
-  </Badge>
-)}
+```text
+teams
+├── coach_name (TEXT) - Treinador principal
+├── assistant_coach (TEXT) - Treinador adjunto
+└── team_manager (TEXT) - Delegado/Manager
 ```
 
-### 1.3. Aplicar Badges nos Casos Detectados
+**Benefícios:**
+- Registo completo da equipa técnica
+- Útil para relatórios oficiais
 
-**Ficheiro:** `src/pages/RallyHistory.tsx`
+---
 
-```typescript
-// Defense com jogador mas sem código
-if (rally.d_player_id || rally.d_code !== null) {
-  const isPartial = rally.d_player_id && rally.d_code === null;
-  items.push(
-    <TimelineItem
-      key={`${rally.id}-def`}
-      icon={ShieldCheck}
-      action="Defesa"
-      // ... resto das props ...
-      isPartial={isPartial}
-      partialMessage="Código em falta"
-    />
-  );
-}
+## 8. Contagem de Jogadores na Lista de Equipas (MELHORIA)
 
-// Block com código mas sem jogadores
-if (rally.b1_player_id || rally.b_code !== null) {
-  const isPartial = rally.b_code !== null && !rally.b1_player_id;
-  items.push(
-    <TimelineItem
-      key={`${rally.id}-block`}
-      icon={Square}
-      action="Bloco"
-      // ... resto das props ...
-      isPartial={isPartial}
-      partialMessage="Jogador(es) em falta"
-    />
-  );
-}
-```
+Mostrar número de jogadores ativos no card de cada equipa na página `/equipas`:
 
-### 1.4. Contadores Específicos na Página Stats
-
-**Ficheiro:** `src/pages/Stats.tsx`
-
-Adicionar contagem e mensagens específicas para cada tipo de dado incompleto:
-
-```typescript
-// Novos contadores
-const defenseWithoutCode = filteredRallies.filter(r => 
-  r.d_player_id && r.d_code === null
-).length;
-
-const blockWithoutPlayer = filteredRallies.filter(r => 
-  r.b_code !== null && !r.b1_player_id
-).length;
-
-// Mensagens atualizadas
-if (defenseWithoutCode > 0) {
-  messages.push(`${defenseWithoutCode} defesa(s) sem código`);
-}
-if (blockWithoutPlayer > 0) {
-  messages.push(`${blockWithoutPlayer} bloco(s) sem jogador`);
-}
-```
-
-### 1.5. Indicadores no EditRallyModal
-
-**Ficheiro:** `src/components/EditRallyModal.tsx`
-
-Destacar campos parcialmente preenchidos:
-
-```typescript
-const hasDefenseIssue = editData.d_player_id && 
-  (editData.d_code === null || editData.d_code === undefined);
-
-const hasBlockIssue = editData.b_code !== null && 
-  !editData.b1_player_id;
-
-// Na label do campo
-<Label className="flex items-center gap-2">
-  Defesa
-  {hasDefenseIssue && (
-    <Badge variant="outline" className="border-warning text-warning text-[10px]">
-      Código em falta
-    </Badge>
-  )}
-</Label>
+```text
+┌─────────────────────────────────────────┐
+│ [🏐] Amares SC                    →     │
+│      14 jogadores · Treinador: J. Silva │
+└─────────────────────────────────────────┘
 ```
 
 ---
 
-## Parte 2: Evolução Futura (Nova Tabela)
+## 9. Capitão da Equipa (NOVO)
 
-### 2.1. Criar Tabela `rally_actions`
+Marcar um jogador como capitão:
 
-```sql
-CREATE TABLE public.rally_actions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  rally_id UUID NOT NULL REFERENCES rallies(id) ON DELETE CASCADE,
-  sequence_no INTEGER NOT NULL,  -- ordem dentro do rally (1, 2, 3...)
-  action_type TEXT NOT NULL,     -- 'serve', 'reception', 'setter', 'attack', 'block', 'defense'
-  side TEXT NOT NULL,            -- 'CASA' ou 'FORA'
-  player_id UUID REFERENCES match_players(id),
-  player_no INTEGER,
-  code INTEGER,                  -- 0-3 qualidade/resultado
-  -- Campos específicos por tipo
-  pass_destination TEXT,         -- para setter
-  kill_type TEXT,                -- para attack (FLOOR/BLOCKOUT)
-  b2_player_id UUID,             -- para block (2º bloqueador)
-  b3_player_id UUID,             -- para block (3º bloqueador)
-  created_at TIMESTAMPTZ DEFAULT now(),
-  
-  UNIQUE(rally_id, sequence_no)
-);
+```text
+team_players
+└── is_captain (BOOLEAN DEFAULT false)
 ```
 
-### 2.2. Benefícios da Nova Estrutura
-
-| Aspeto | Estrutura Atual | Nova Estrutura |
-|--------|-----------------|----------------|
-| Ações por rally | Máximo 6 tipos | Ilimitado |
-| Múltiplos ataques | Não | Sim |
-| Contra-ataques | Perdidos | Registados |
-| Defesas múltiplas | Não | Sim |
-| Compatibilidade | N/A | 100% (rallies mantém-se) |
-
-### 2.3. Migração de Dados
-
-A tabela `rallies` mantém-se para compatibilidade e como resumo. Os dados existentes podem ser migrados via script opcional.
+**Benefícios:**
+- Identificar capitão nas formações
+- Mostrar badge "C" no número
+- Importante para protocolos oficiais
 
 ---
 
-## Ficheiros a Alterar (Parte 1)
+## Resumo das Alterações de Base de Dados
+
+### Tabela `teams` (novos campos):
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `coach_name` | TEXT | Treinador principal |
+| `assistant_coach` | TEXT | Treinador adjunto |
+| `team_manager` | TEXT | Delegado |
+| `logo_url` | TEXT | URL do emblema |
+
+### Tabela `team_players` (novos campos):
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `height_cm` | INTEGER | Altura em cm |
+| `birth_date` | DATE | Data nascimento |
+| `federation_id` | TEXT | Nº licença |
+| `is_captain` | BOOLEAN | É capitão |
+
+---
+
+## Ficheiros a Alterar
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/pages/RallyHistory.tsx` | Expandir deteção de issues, aplicar badges de dados parciais |
-| `src/pages/Stats.tsx` | Adicionar contadores específicos para novos tipos de dados incompletos |
-| `src/components/rally/TimelineItem.tsx` | Adicionar props `isPartial` e `partialMessage` |
-| `src/components/EditRallyModal.tsx` | Destacar campos com dados parciais |
+| `supabase/migrations/` | Adicionar novos campos às tabelas |
+| `src/types/volleyball.ts` | Atualizar interfaces `Team` e `TeamPlayer` |
+| `src/hooks/useTeams.ts` | Atualizar `createTeam` e `addTeamPlayer` |
+| `src/pages/Setup.tsx` | Diálogo criar equipa + dropdown posição |
+| `src/pages/Teams.tsx` | Mostrar contagem jogadores e treinador |
+| `src/pages/TeamDetail.tsx` | Campos treinador, adjunto, delegado, capitão |
+
+---
+
+## Prioridades Sugeridas
+
+### Fase 1 (Essencial)
+1. ✅ Campo de treinador (`coach_name`)
+2. ✅ Criar equipa no Setup
+3. ✅ Dropdown padronizado de posições
+4. ✅ Contagem de jogadores na lista
+
+### Fase 2 (Melhorias)
+5. Capitão da equipa (`is_captain`)
+6. Staff técnico adicional
+7. Altura e data de nascimento
+
+### Fase 3 (Opcional)
+8. Logótipo da equipa
+9. Número federativo
+
+---
+
+## Interface Proposta - Criar Equipa no Setup
+
+```text
+┌────────────────────────────────────────────┐
+│ Criar Nova Equipa                      [X] │
+├────────────────────────────────────────────┤
+│                                            │
+│ Nome da Equipa *                           │
+│ [________________________________]         │
+│                                            │
+│ ──── Equipa Técnica (opcional) ────        │
+│                                            │
+│ Treinador Principal                        │
+│ [________________________________]         │
+│                                            │
+│ Treinador Adjunto                          │
+│ [________________________________]         │
+│                                            │
+│ Delegado                                   │
+│ [________________________________]         │
+│                                            │
+│ ──── Cores ────                            │
+│                                            │
+│ [🎨 Primária]     [🎨 Secundária]          │
+│                                            │
+│ [         Criar Equipa          ]          │
+└────────────────────────────────────────────┘
+```
+
+---
+
+## Interface Proposta - Adicionar Jogador Expandido
+
+```text
+┌────────────────────────────────────────────┐
+│ Adicionar Jogador                      [X] │
+├────────────────────────────────────────────┤
+│                                            │
+│ Nº *        Nome *                         │
+│ [___]       [_________________________]    │
+│                                            │
+│ Posição               ☐ Capitão            │
+│ [▼ Selecionar posição ____________]        │
+│                                            │
+│ ──── Dados Adicionais (opcional) ────      │
+│                                            │
+│ Altura (cm)           Data Nascimento      │
+│ [___________]         [📅 ___________]     │
+│                                            │
+│ Nº Licença Federativa                      │
+│ [________________________________]         │
+│                                            │
+│ [        Adicionar Jogador       ]         │
+└────────────────────────────────────────────┘
+```
 
 ---
 
 ## Critérios de Sucesso
 
-### Parte 1 (Imediato)
-- ✅ Rally #32 mostra claramente que defesa #8 existe mas **código em falta**
-- ✅ Rally #32 mostra claramente que há **b_code=2 mas bloqueadores em falta**
-- ✅ Stats.tsx mostra contagens específicas por tipo de problema
-- ✅ EditRallyModal destaca campos que precisam de correção
-- ✅ Utilizador consegue identificar e corrigir rallies incompletos rapidamente
-
-### Parte 2 (Futuro)
-- ✅ Rallies com múltiplas sequências são completamente registados
-- ✅ Contra-ataques e defesas sucessivas são capturados
-- ✅ Histórico mostra toda a sequência do rally de forma intuitiva
-
----
-
-## Diagrama: Rally #32 com Nova Visualização
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Rally #32 - Set 1                                        [Edit] │
-├─────────────────────────────────────────────────────────────────┤
-│ ⊙ Serviço    Lic  #10 João Cardoso    ●●○○                     │
-│ ◐ Receção    Ama  #15 H.Ferreira      ●●○○                     │
-│ ⊕ Passe      Ama  #1 B.Carvas         Q1 → P4                  │
-│ ⚔ Ataque     Ama  #11 W.Oliveira      ★★★ FLOOR               │
-│ □ Bloco      Lic  ⚠️ Jogador em falta  Defensivo (2)           │
-│ ◎ Defesa     Lic  #8 J.Soares         ⚠️ Código em falta       │
-├─────────────────────────────────────────────────────────────────┤
-│ ✓ Ponto: Amares | Razão: KILL                                  │
-│                                                                 │
-│ ⚠️ 2 campos incompletos - clique em Edit para corrigir        │
-└─────────────────────────────────────────────────────────────────┘
-```
+- ✅ Utilizador pode criar equipa completa (nome, treinador, cores) diretamente no Setup
+- ✅ Posições usam dropdown consistente em toda a aplicação
+- ✅ Lista de equipas mostra contagem de jogadores e nome do treinador
+- ✅ Jogadores podem ter dados adicionais (altura, nascimento, federação)
+- ✅ Capitão identificado visualmente com badge "C"
+- ✅ Staff técnico completo registado na equipa
 
