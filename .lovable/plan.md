@@ -1,166 +1,105 @@
 
-
-# Plano: Corrigir Cálculo de Estatísticas por Destino de Ataque
+# Plano: Corrigir Registo da Qualidade da Defesa
 
 ## Problema Identificado
 
-Os dados estão em **duas ações separadas** na tabela `rally_actions`:
+A aplicação não está a registar o código de qualidade (0-3) para ações de defesa porque existe uma **race condition** no fluxo de auto-confirmação.
 
-| Seq | action_type | pass_destination | code |
-|-----|-------------|------------------|------|
-| 3 | setter | **P4** | null |
-| 4 | attack | null | **2** (defendido) |
-| 6 | setter | **P4** | null |
-| 7 | attack | null | **1** (bloqueado) |
+### Análise do Código
 
-O hook actual (`useDestinationStats`) lê da tabela `rallies` onde assume que `pass_destination` e `a_code` estão na mesma linha. Mas a nova arquitectura `rally_actions` separa estas informações.
-
-**Resultado:** As estatísticas mostram apenas 0% ou dados incorrectos porque o ataque não tem `pass_destination`.
-
----
-
-## Solução: Novo Hook para rally_actions
-
-Criar um hook que correlacione **setter → attack** pela sequência para calcular estatísticas correctas.
-
-### Lógica de Correlação
-
-Para cada par setter→attack consecutivo no mesmo rally e equipa:
-1. O `pass_destination` vem do **setter**
-2. O `code` (resultado) vem do **attack** seguinte
-3. Agregar por destino
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│            CORRELAÇÃO SETTER → ATTACK                               │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Rally 7:                                                           │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │ seq 3: setter │ P3 │    │  → conta P3                       │   │
-│  │ seq 4: attack │    │ 1  │  → resultado = bloqueado          │   │
-│  │ seq 6: setter │ P4 │    │  → conta P4                       │   │
-│  │ seq 7: attack │    │ 2  │  → resultado = defendido          │   │
-│  │ seq 9: setter │ P4 │    │  → conta P4                       │   │
-│  │ seq 10: attack│    │ 2  │  → resultado = defendido          │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  Estatísticas Resultantes:                                          │
-│  P3: 1 ataque total, 0 kills → 0/1 · 0%                             │
-│  P4: 2 ataques totais, 0 kills → 0/2 · 0%                           │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Alterações Técnicas
-
-### 1. Novo Hook: `useDestinationStatsFromActions`
-
-Novo ficheiro: `src/hooks/useDestinationStatsFromActions.ts`
-
-Parâmetros:
-- `rallyActions: Map<string, RallyActionWithPlayer[]>` - ações por rally_id
-- `side?: Side` - filtrar por equipa
-
-Lógica:
-- Iterar por todas as ações ordenadas por `sequence_no`
-- Para cada `setter`, guardar o `pass_destination`
-- Quando encontrar o próximo `attack` da mesma equipa, associar o resultado ao destino
-- Agregar estatísticas
-
-### 2. Atualizar Live.tsx
-
-Substituir:
-```tsx
-const destinationStats = useDestinationStats(rallies, matchPlayers, pendingAction?.side);
-```
-
-Por:
-```tsx
-const destinationStats = useDestinationStatsFromActions(rallyActions, pendingAction?.side);
-```
-
-### 3. Buscar rally_actions no Live.tsx
-
-Adicionar query para obter ações do jogo actual:
-
-```tsx
-const { data: allRallyActions } = useQuery({
-  queryKey: ['rally-actions', matchId],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from('rally_actions')
-      .select('*')
-      .in('rally_id', rallies.map(r => r.id))
-      .is('deleted_at', null)
-      .order('sequence_no');
-    return data || [];
-  },
-  enabled: rallies.length > 0
-});
-```
-
----
-
-## Interface do Hook
+No ficheiro `ActionEditor.tsx`, linhas 243-258:
 
 ```typescript
-export interface DestinationStatsFromActions {
-  destination: PassDestination;
-  attempts: number;      // Total de passes para este destino
-  kills: number;         // Ataques com code = 3
-  errors: number;        // Ataques com code = 0
-  blocked: number;       // Ataques com code = 1
-  defended: number;      // Ataques com code = 2
-  killRate: number;      // kills / attempts
-  efficiency: number;    // (kills - errors) / attempts
+onCodeChange(code); // Chamado setPendingAction assíncrono
+
+if (actionType === 'block' || actionType === 'defense') {
+  // ...
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      showConfirmToast(player?.jersey_number, code);
+      onConfirm(); // ← PROBLEMA: não passa o código como override!
+    }, 0);
+  });
+```
+
+O `onCodeChange(code)` actualiza o state via `setPendingAction`, que é **assíncrono**. Quando `onConfirm()` é chamado logo de seguida (mesmo com `requestAnimationFrame` e `setTimeout`), o estado `pendingAction.code` pode ainda estar desactualizado.
+
+No `handleConfirmAction` (Live.tsx, linha 945):
+```typescript
+const effectiveCode = overrides?.code ?? pendingAction.code;
+```
+
+Como não é passado `overrides.code`, o sistema usa `pendingAction.code` que ainda pode ser `null`.
+
+### Evidência nos Screenshots
+
+Os screenshots mostram múltiplas defesas com "⚠ Código em falta":
+- Rally 8: Defesa #13 (Póv), Defesa #14 Duarte (Lic), Defesa #18 João Cardoso (Lic), Defesa #8 (Póv)
+- Rally 11: Defesa #8 (Póv), Defesa #18 João Cardoso (Lic)
+- Rally 14: Defesa #11 (Póv)
+
+O jogador é registado correctamente (player_id preenchido), mas o código fica `null`.
+
+---
+
+## Solução
+
+Passar o código explicitamente como override no `onConfirm()` para evitar a race condition:
+
+### Ficheiro: `src/components/live/ActionEditor.tsx`
+
+**Antes (linha 255):**
+```typescript
+onConfirm();
+```
+
+**Depois:**
+```typescript
+onConfirm({ code: code });
+```
+
+### Código Completo da Alteração
+
+Linha ~243-258 (função `handleCodeWithAutoConfirm`):
+
+```typescript
+onCodeChange(code);
+
+// Auto-confirm for Block and Defense (no additional input needed)
+if (actionType === 'block' || actionType === 'defense') {
+  if (!selectedPlayer) {
+    toast.warning('Selecione um jogador primeiro');
+    return;
+  }
+  const player = players.find(p => p.id === selectedPlayer);
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      showConfirmToast(player?.jersey_number, code);
+      onConfirm({ code: code }); // ← CORRECÇÃO: passar código como override
+    }, 0);
+  });
+  return;
 }
 ```
 
 ---
 
-## Ficheiros a Alterar
+## Impacto da Alteração
 
-| Ficheiro | Alteração |
-|----------|-----------|
-| `src/hooks/useDestinationStatsFromActions.ts` | **NOVO** - Hook baseado em rally_actions |
-| `src/pages/Live.tsx` | Usar novo hook em vez do antigo |
-
-### Ficheiro a Manter (Legacy)
-
-| Ficheiro | Estado |
-|----------|--------|
-| `src/hooks/useDestinationStats.ts` | Manter para pages que usam tabela `rallies` |
+| Aspecto | Detalhe |
+|---------|---------|
+| Ficheiros alterados | 1 (`ActionEditor.tsx`) |
+| Linhas alteradas | 1 |
+| Risco | Baixo - apenas adiciona parâmetro |
+| Testes | Registar defesas e verificar que o código aparece no histórico |
 
 ---
 
-## Exemplo de Cálculo Correcto
+## Verificação
 
-Dado os dados do jogo actual:
-
-| pass_destination | count (setters) |
-|------------------|-----------------|
-| P2 | 2 |
-| P3 | 4 |
-| P4 | 9 |
-
-E os resultados dos ataques (codes):
-- P3: 1 erro, 1 bloqueado, 1 kill = 3 ataques
-- P4: 3 kills = 3 ataques
-
-**Estatísticas correctas:**
-- P2: 2/? (precisa correlacionar com attacks)
-- P3: 1/3 · 33% (1 kill de 3 ataques)
-- P4: 3/? · ?% (precisa correlacionar)
-
----
-
-## Critérios de Sucesso
-
-- Estatísticas mostram **todos** os passes/ataques para cada zona (não apenas kills)
-- Formato: `kills/ataques · eficácia%`
-- Cores de borda baseadas na kill rate real
-- Dados em tempo real actualizados durante o jogo
-
+Após a correcção:
+1. No jogo em Live, registar um ataque "Defendido" (code 2)
+2. O sistema encadeia automaticamente para Defesa
+3. Seleccionar jogador da defesa
+4. Seleccionar qualidade (0-3)
+5. Verificar no Histórico que a defesa tem código preenchido (sem badge "Código em falta")
