@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { useServeTypeStats } from '@/hooks/useServeTypeStats';
-import { useRallyActionsForMatch, useAutoFixRallyActions, useComprehensiveAutoFix, useAutoFixServeByRotation } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useAutoFixRallyActions, useComprehensiveAutoFix, useAutoFixServeByRotation, useSyncMissingActions } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,6 +43,7 @@ export default function Stats() {
   const autoFixRallyActions = useAutoFixRallyActions();
   const comprehensiveAutoFix = useComprehensiveAutoFix();
   const autoFixServeByRotation = useAutoFixServeByRotation();
+  const syncMissingActions = useSyncMissingActions();
   const batchUpdateActions = useBatchUpdateRallyActions();
 
   const handleRecalculate = async () => {
@@ -103,6 +104,11 @@ export default function Stats() {
             onClick={async () => {
               setIsComprehensiveFix(true);
               try {
+                // Step 0: Sync missing actions from rallies table
+                const syncResult = await syncMissingActions.mutateAsync({
+                  matchId: matchId!
+                });
+                
                 // Step 1: Fix player IDs (existing logic)
                 const playerResult = await autoFixRallyActions.mutateAsync({
                   matchId: matchId!,
@@ -120,10 +126,15 @@ export default function Stats() {
                   matchId: matchId!
                 });
                 
-                const totalFixed = playerResult.fixed + codeResult.setterCodesFixed + serveResult.fixed;
+                const totalFixed = playerResult.fixed + codeResult.setterCodesFixed + serveResult.fixed + syncResult.synced;
                 
                 if (totalFixed > 0) {
-                  toast.success(`Corrigido: ${playerResult.fixed} jogadores, ${serveResult.fixed} serviços, ${codeResult.setterCodesFixed} códigos`);
+                  const parts = [];
+                  if (syncResult.synced > 0) parts.push(`${syncResult.synced} ações sincronizadas`);
+                  if (playerResult.fixed > 0) parts.push(`${playerResult.fixed} jogadores`);
+                  if (serveResult.fixed > 0) parts.push(`${serveResult.fixed} serviços`);
+                  if (codeResult.setterCodesFixed > 0) parts.push(`${codeResult.setterCodesFixed} códigos`);
+                  toast.success(`Corrigido: ${parts.join(', ')}`);
                   await handleRecalculate();
                 } else {
                   toast.info('Sem dados para corrigir automaticamente');
