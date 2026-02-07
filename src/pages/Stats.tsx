@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
+import { useServeTypeStats } from '@/hooks/useServeTypeStats';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +16,7 @@ import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
 import { EditRallyModal } from '@/components/EditRallyModal';
 import { StatCell, STAT_THRESHOLDS } from '@/components/ui/StatCell';
+import { ServeTypeStatsCard } from '@/components/ServeTypeStatsCard';
 import { toast } from 'sonner';
 
 export default function Stats() {
@@ -44,6 +46,7 @@ export default function Stats() {
 
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
   const { playerStats, rotationStats } = useStats(filteredRallies, effectivePlayers);
+  const serveTypeStats = useServeTypeStats(filteredRallies);
   const filteredPlayerStats = playerStats.filter(p => p.side === selectedSide);
   const filteredRotationStats = rotationStats.filter(r => r.side === selectedSide);
 
@@ -130,12 +133,13 @@ export default function Stats() {
         </div>
 
         <Tabs defaultValue="players">
-          <TabsList className="w-full">
-            <TabsTrigger value="players" className="flex-1">Jogadores</TabsTrigger>
-            <TabsTrigger value="rotations" className="flex-1">Rotações</TabsTrigger>
-            <TabsTrigger value="rallies" className="flex-1">Rallies</TabsTrigger>
-            <TabsTrigger value="attack" className="flex-1">Ataque</TabsTrigger>
-            <TabsTrigger value="distribution" className="flex-1">Dist.</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-6">
+            <TabsTrigger value="players">Jogadores</TabsTrigger>
+            <TabsTrigger value="rotations">Rotações</TabsTrigger>
+            <TabsTrigger value="serve">Serviço</TabsTrigger>
+            <TabsTrigger value="rallies">Rallies</TabsTrigger>
+            <TabsTrigger value="attack">Ataque</TabsTrigger>
+            <TabsTrigger value="distribution">Dist.</TabsTrigger>
           </TabsList>
 
           <TabsContent value="players">
@@ -273,6 +277,26 @@ export default function Stats() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="serve">
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground text-center">
+                Eficácia por tipo de serviço: ACE% = aces/total, Erro% = erros/total, Efic. = (aces-erros)/total
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ServeTypeStatsCard 
+                  stats={serveTypeStats.home} 
+                  teamName={match.home_name}
+                  teamSide="home"
+                />
+                <ServeTypeStatsCard 
+                  stats={serveTypeStats.away} 
+                  teamName={match.away_name}
+                  teamSide="away"
+                />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="rallies">
