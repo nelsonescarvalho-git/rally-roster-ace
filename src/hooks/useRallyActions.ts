@@ -216,6 +216,102 @@ export function useDeleteRallyActions() {
   });
 }
 
+// Batch update multiple actions and sync to rallies table
+export function useBatchUpdateRallyActions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      rallyId, 
+      actions, 
+      metaUpdates 
+    }: { 
+      rallyId: string; 
+      actions: Array<{ id: string; updates: RallyActionUpdate }>;
+      metaUpdates?: { 
+        point_won_by?: string | null; 
+        reason?: string | null;
+      };
+    }): Promise<void> => {
+      // 1. Update all actions in rally_actions table
+      for (const action of actions) {
+        const { error } = await supabase
+          .from('rally_actions')
+          .update(action.updates as any)
+          .eq('id', action.id);
+        
+        if (error) throw error;
+      }
+
+      // 2. Sync first action of each type to rallies table for legacy compatibility
+      const { data: updatedActions, error: fetchError } = await supabase
+        .from('rally_actions')
+        .select('*')
+        .eq('rally_id', rallyId)
+        .is('deleted_at', null)
+        .order('sequence_no', { ascending: true });
+
+      if (fetchError) throw fetchError;
+
+      const firstServe = updatedActions?.find(a => a.action_type === 'serve');
+      const firstReception = updatedActions?.find(a => a.action_type === 'reception');
+      const firstSetter = updatedActions?.find(a => a.action_type === 'setter');
+      const firstAttack = updatedActions?.find(a => a.action_type === 'attack');
+      const firstBlock = updatedActions?.find(a => a.action_type === 'block');
+      const firstDefense = updatedActions?.find(a => a.action_type === 'defense');
+
+      // Build rallies update
+      const ralliesUpdate: Record<string, any> = {
+        s_player_id: firstServe?.player_id ?? null,
+        s_no: firstServe?.player_no ?? null,
+        s_code: firstServe?.code ?? null,
+        s_type: firstServe?.serve_type ?? null,
+        r_player_id: firstReception?.player_id ?? null,
+        r_no: firstReception?.player_no ?? null,
+        r_code: firstReception?.code ?? null,
+        setter_player_id: firstSetter?.player_id ?? null,
+        pass_destination: firstSetter?.pass_destination ?? null,
+        pass_code: firstSetter?.pass_code ?? firstSetter?.code ?? null,
+        a_player_id: firstAttack?.player_id ?? null,
+        a_no: firstAttack?.player_no ?? null,
+        a_code: firstAttack?.code ?? null,
+        kill_type: firstAttack?.kill_type ?? null,
+        b1_player_id: firstBlock?.player_id ?? null,
+        b1_no: firstBlock?.player_no ?? null,
+        b_code: firstBlock?.code ?? null,
+        b2_player_id: firstBlock?.b2_player_id ?? null,
+        b2_no: firstBlock?.b2_no ?? null,
+        b3_player_id: firstBlock?.b3_player_id ?? null,
+        b3_no: firstBlock?.b3_no ?? null,
+        d_player_id: firstDefense?.player_id ?? null,
+        d_no: firstDefense?.player_no ?? null,
+        d_code: firstDefense?.code ?? null,
+      };
+
+      if (metaUpdates) {
+        if (metaUpdates.point_won_by !== undefined) {
+          ralliesUpdate.point_won_by = metaUpdates.point_won_by;
+        }
+        if (metaUpdates.reason !== undefined) {
+          ralliesUpdate.reason = metaUpdates.reason;
+        }
+      }
+
+      const { error: ralliesError } = await supabase
+        .from('rallies')
+        .update(ralliesUpdate)
+        .eq('id', rallyId);
+
+      if (ralliesError) throw ralliesError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rally-actions'] });
+      queryClient.invalidateQueries({ queryKey: ['rally-actions-match'] });
+      queryClient.invalidateQueries({ queryKey: ['rallies'] });
+    },
+  });
+}
+
 // Get next sequence number for a rally
 export async function getNextSequenceNo(rallyId: string): Promise<number> {
   const { data, error } = await supabase
