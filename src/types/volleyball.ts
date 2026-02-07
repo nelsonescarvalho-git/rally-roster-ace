@@ -39,6 +39,10 @@ export interface Team {
   name: string;
   primary_color?: string | null;
   secondary_color?: string | null;
+  coach_name?: string | null;
+  assistant_coach?: string | null;
+  team_manager?: string | null;
+  logo_url?: string | null;
   created_at: string;
 }
 
@@ -50,6 +54,10 @@ export interface TeamPlayer {
   name: string;
   position: string | null;
   active: boolean;
+  height_cm?: number | null;
+  birth_date?: string | null;
+  federation_id?: string | null;
+  is_captain?: boolean;
   created_at: string;
 }
 

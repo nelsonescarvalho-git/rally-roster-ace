@@ -10,7 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Plus, Pencil, UserMinus, Check, X, Palette } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import { ArrowLeft, Plus, Pencil, UserMinus, Check, X, Palette, Users2, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const POSITIONS = [
@@ -34,25 +36,36 @@ export default function TeamDetail() {
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  // Team color state
+  // Team state
+  const [coachName, setCoachName] = useState('');
+  const [assistantCoach, setAssistantCoach] = useState('');
+  const [teamManager, setTeamManager] = useState('');
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLORS.primary);
   const [secondaryColor, setSecondaryColor] = useState(DEFAULT_COLORS.secondary);
-  const [colorsSaving, setColorsSaving] = useState(false);
+  const [teamSaving, setTeamSaving] = useState(false);
   
   // Add form state
   const [newNumber, setNewNumber] = useState('');
   const [newName, setNewName] = useState('');
   const [newPosition, setNewPosition] = useState<string>('');
+  const [newIsCaptain, setNewIsCaptain] = useState(false);
+  const [newHeightCm, setNewHeightCm] = useState('');
+  const [newBirthDate, setNewBirthDate] = useState('');
+  const [newFederationId, setNewFederationId] = useState('');
   
   // Edit form state
   const [editName, setEditName] = useState('');
   const [editPosition, setEditPosition] = useState<string>('');
+  const [editIsCaptain, setEditIsCaptain] = useState(false);
 
   const team = teams.find(t => t.id === teamId);
 
-  // Load team colors when team changes
+  // Load team data when team changes
   useEffect(() => {
     if (team) {
+      setCoachName(team.coach_name || '');
+      setAssistantCoach(team.assistant_coach || '');
+      setTeamManager(team.team_manager || '');
       setPrimaryColor(team.primary_color || DEFAULT_COLORS.primary);
       setSecondaryColor(team.secondary_color || DEFAULT_COLORS.secondary);
     }
@@ -70,14 +83,27 @@ export default function TeamDetail() {
     loadPlayers();
   }, [teamId]);
 
-  const handleSaveColors = async () => {
+  const handleSaveTeam = async () => {
     if (!teamId) return;
-    setColorsSaving(true);
+    setTeamSaving(true);
     await updateTeam(teamId, {
+      coach_name: coachName.trim() || null,
+      assistant_coach: assistantCoach.trim() || null,
+      team_manager: teamManager.trim() || null,
       primary_color: primaryColor,
       secondary_color: secondaryColor,
     });
-    setColorsSaving(false);
+    setTeamSaving(false);
+  };
+
+  const resetAddForm = () => {
+    setNewNumber('');
+    setNewName('');
+    setNewPosition('');
+    setNewIsCaptain(false);
+    setNewHeightCm('');
+    setNewBirthDate('');
+    setNewFederationId('');
   };
 
   const handleAdd = async () => {
@@ -86,13 +112,17 @@ export default function TeamDetail() {
       teamId,
       parseInt(newNumber),
       newName.trim(),
-      newPosition || null
+      newPosition || null,
+      {
+        height_cm: newHeightCm ? parseInt(newHeightCm) : null,
+        birth_date: newBirthDate || null,
+        federation_id: newFederationId.trim() || null,
+        is_captain: newIsCaptain,
+      }
     );
     if (result) {
       setAddOpen(false);
-      setNewNumber('');
-      setNewName('');
-      setNewPosition('');
+      resetAddForm();
       loadPlayers();
     }
   };
@@ -101,18 +131,21 @@ export default function TeamDetail() {
     setEditingId(player.id);
     setEditName(player.name);
     setEditPosition(player.position || '');
+    setEditIsCaptain(player.is_captain || false);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditName('');
     setEditPosition('');
+    setEditIsCaptain(false);
   };
 
   const saveEdit = async (playerId: string) => {
     const success = await updateTeamPlayer(playerId, {
       name: editName.trim(),
       position: editPosition || null,
+      is_captain: editIsCaptain,
     });
     if (success) {
       cancelEdit();
@@ -157,58 +190,156 @@ export default function TeamDetail() {
                 Adicionar Jogador
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Adicionar Jogador</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="number">Número *</Label>
+                    <Input
+                      id="number"
+                      type="number"
+                      value={newNumber}
+                      onChange={(e) => setNewNumber(e.target.value)}
+                      placeholder="7"
+                      min="0"
+                      max="99"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="name">Nome *</Label>
+                    <Input
+                      id="name"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="Nome do jogador"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Posição</Label>
+                    <Select value={newPosition} onValueChange={setNewPosition}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POSITIONS.map((pos) => (
+                          <SelectItem key={pos.value} value={pos.value}>
+                            {pos.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>&nbsp;</Label>
+                    <div className="flex items-center gap-2 h-10">
+                      <Checkbox 
+                        id="is-captain"
+                        checked={newIsCaptain}
+                        onCheckedChange={(checked) => setNewIsCaptain(checked === true)}
+                      />
+                      <Label htmlFor="is-captain" className="flex items-center gap-1 cursor-pointer">
+                        <Crown className="h-4 w-4 text-yellow-500" />
+                        Capitão
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+                <p className="text-sm text-muted-foreground">Dados Adicionais (opcional)</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="height">Altura (cm)</Label>
+                    <Input
+                      id="height"
+                      type="number"
+                      value={newHeightCm}
+                      onChange={(e) => setNewHeightCm(e.target.value)}
+                      placeholder="180"
+                      min="100"
+                      max="250"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birth-date">Data Nascimento</Label>
+                    <Input
+                      id="birth-date"
+                      type="date"
+                      value={newBirthDate}
+                      onChange={(e) => setNewBirthDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="number">Número</Label>
+                  <Label htmlFor="federation-id">Nº Licença Federativa</Label>
                   <Input
-                    id="number"
-                    type="number"
-                    value={newNumber}
-                    onChange={(e) => setNewNumber(e.target.value)}
-                    placeholder="Ex: 7"
-                    min="0"
-                    max="99"
+                    id="federation-id"
+                    value={newFederationId}
+                    onChange={(e) => setNewFederationId(e.target.value)}
+                    placeholder="Ex: FPV-12345"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome</Label>
-                  <Input
-                    id="name"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Nome do jogador"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Posição (opcional)</Label>
-                  <Select value={newPosition} onValueChange={setNewPosition}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar posição" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POSITIONS.map((pos) => (
-                        <SelectItem key={pos.value} value={pos.value}>
-                          {pos.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                
                 <Button 
                   onClick={handleAdd} 
                   className="w-full" 
                   disabled={!newNumber || !newName.trim()}
                 >
-                  Adicionar
+                  Adicionar Jogador
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Staff Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users2 className="h-4 w-4" />
+              Equipa Técnica
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="coach-name" className="text-xs">Treinador Principal</Label>
+                <Input
+                  id="coach-name"
+                  value={coachName}
+                  onChange={(e) => setCoachName(e.target.value)}
+                  placeholder="Nome do treinador"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="assistant-coach" className="text-xs">Treinador Adjunto</Label>
+                <Input
+                  id="assistant-coach"
+                  value={assistantCoach}
+                  onChange={(e) => setAssistantCoach(e.target.value)}
+                  placeholder="Nome do adjunto"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="team-manager" className="text-xs">Delegado</Label>
+                <Input
+                  id="team-manager"
+                  value={teamManager}
+                  onChange={(e) => setTeamManager(e.target.value)}
+                  placeholder="Nome do delegado"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Team Colors Card */}
         <Card>
@@ -217,9 +348,6 @@ export default function TeamDetail() {
               <Palette className="h-4 w-4" />
               Cores da Equipa
             </CardTitle>
-            <CardDescription className="text-xs">
-              Personalize as cores para identificar esta equipa nos jogos
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -312,12 +440,12 @@ export default function TeamDetail() {
 
             {/* Save Button */}
             <Button 
-              onClick={handleSaveColors} 
-              disabled={colorsSaving}
+              onClick={handleSaveTeam} 
+              disabled={teamSaving}
               className="w-full"
               size="sm"
             >
-              {colorsSaving ? 'A guardar...' : 'Guardar Cores'}
+              {teamSaving ? 'A guardar...' : 'Guardar Alterações'}
             </Button>
           </CardContent>
         </Card>
@@ -359,16 +487,30 @@ export default function TeamDetail() {
                 <TableBody>
                   {players.map((player) => (
                     <TableRow key={player.id}>
-                      <TableCell className="text-center font-mono font-bold">
-                        {player.jersey_number}
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="font-mono font-bold">{player.jersey_number}</span>
+                          {player.is_captain && (
+                            <Crown className="h-3 w-3 text-yellow-500" />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {editingId === player.id ? (
-                          <Input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="h-8"
-                          />
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="h-8"
+                            />
+                            <div className="flex items-center gap-1">
+                              <Checkbox 
+                                checked={editIsCaptain}
+                                onCheckedChange={(checked) => setEditIsCaptain(checked === true)}
+                              />
+                              <Crown className="h-3 w-3 text-yellow-500" />
+                            </div>
+                          </div>
                         ) : (
                           player.name
                         )}

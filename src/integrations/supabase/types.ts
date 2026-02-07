@@ -717,8 +717,12 @@ export type Database = {
       team_players: {
         Row: {
           active: boolean
+          birth_date: string | null
           created_at: string
+          federation_id: string | null
+          height_cm: number | null
           id: string
+          is_captain: boolean | null
           jersey_number: number
           name: string
           position: string | null
@@ -726,8 +730,12 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          birth_date?: string | null
           created_at?: string
+          federation_id?: string | null
+          height_cm?: number | null
           id?: string
+          is_captain?: boolean | null
           jersey_number: number
           name: string
           position?: string | null
@@ -735,8 +743,12 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          birth_date?: string | null
           created_at?: string
+          federation_id?: string | null
+          height_cm?: number | null
           id?: string
+          is_captain?: boolean | null
           jersey_number?: number
           name?: string
           position?: string | null
@@ -754,25 +766,37 @@ export type Database = {
       }
       teams: {
         Row: {
+          assistant_coach: string | null
+          coach_name: string | null
           created_at: string
           id: string
+          logo_url: string | null
           name: string
           primary_color: string | null
           secondary_color: string | null
+          team_manager: string | null
         }
         Insert: {
+          assistant_coach?: string | null
+          coach_name?: string | null
           created_at?: string
           id?: string
+          logo_url?: string | null
           name: string
           primary_color?: string | null
           secondary_color?: string | null
+          team_manager?: string | null
         }
         Update: {
+          assistant_coach?: string | null
+          coach_name?: string | null
           created_at?: string
           id?: string
+          logo_url?: string | null
           name?: string
           primary_color?: string | null
           secondary_color?: string | null
+          team_manager?: string | null
         }
         Relationships: []
       }
