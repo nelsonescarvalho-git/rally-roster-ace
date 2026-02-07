@@ -326,3 +326,98 @@ export async function getNextSequenceNo(rallyId: string): Promise<number> {
   
   return (data?.[0]?.sequence_no ?? 0) + 1;
 }
+
+// Types for auto-fix function
+interface MatchPlayer {
+  id: string;
+  side: string;
+  position: string | null;
+  jersey_number: number;
+}
+
+// Auto-fix rally actions - fills in missing player_id for setters based on position
+export function useAutoFixRallyActions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      matchId, 
+      players 
+    }: { 
+      matchId: string; 
+      players: MatchPlayer[];
+    }): Promise<{ fixed: number; errors: number; skipped: number }> => {
+      let fixed = 0;
+      let errors = 0;
+      let skipped = 0;
+      
+      // Get all rally IDs for this match
+      const { data: rallies, error: ralliesError } = await supabase
+        .from('rallies')
+        .select('id')
+        .eq('match_id', matchId)
+        .is('deleted_at', null);
+
+      if (ralliesError) throw ralliesError;
+      if (!rallies?.length) return { fixed: 0, errors: 0, skipped: 0 };
+
+      const rallyIds = rallies.map(r => r.id);
+
+      // Get all setter actions without player_id
+      const { data: settersToFix, error: settersError } = await supabase
+        .from('rally_actions')
+        .select('id, side, player_id, rally_id')
+        .eq('action_type', 'setter')
+        .is('player_id', null)
+        .is('deleted_at', null)
+        .in('rally_id', rallyIds);
+
+      if (settersError) throw settersError;
+      if (!settersToFix?.length) return { fixed: 0, errors: 0, skipped: 0 };
+
+      // Group setters by side for efficient lookup
+      const settersBySide: Record<string, MatchPlayer | undefined> = {};
+      players.forEach(p => {
+        if (p.position === 'S') {
+          settersBySide[p.side] = p;
+        }
+      });
+
+      // Fix each setter action
+      for (const action of settersToFix) {
+        const setter = settersBySide[action.side];
+        
+        if (setter) {
+          const { error } = await supabase
+            .from('rally_actions')
+            .update({ 
+              player_id: setter.id,
+              player_no: setter.jersey_number 
+            })
+            .eq('id', action.id);
+          
+          if (error) {
+            errors++;
+          } else {
+            fixed++;
+            
+            // Also sync to rallies table (setter_player_id)
+            await supabase
+              .from('rallies')
+              .update({ setter_player_id: setter.id })
+              .eq('id', action.rally_id);
+          }
+        } else {
+          skipped++;
+        }
+      }
+      
+      return { fixed, errors, skipped };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rally-actions'] });
+      queryClient.invalidateQueries({ queryKey: ['rally-actions-match'] });
+      queryClient.invalidateQueries({ queryKey: ['rallies'] });
+    },
+  });
+}

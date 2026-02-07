@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@/hooks/useMatch';
-import { useRallyActionsForMatch, useBatchUpdateRallyActions } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useBatchUpdateRallyActions, useAutoFixRallyActions } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -482,6 +482,7 @@ export default function RallyHistory() {
   const { match, rallies, loading, loadMatch, getEffectivePlayers, updateRally, getRalliesForSet, autoFixMissingPlayerIds, autoFixMissingKillTypes } = useMatch(matchId || null);
   const { data: rallyActionsMap, isLoading: actionsLoading } = useRallyActionsForMatch(matchId || null);
   const batchUpdateActions = useBatchUpdateRallyActions();
+  const autoFixRallyActionsMutation = useAutoFixRallyActions();
   const players = getEffectivePlayers();
   const [selectedSet, setSelectedSet] = useState(0);
   const [showOnlyIssues, setShowOnlyIssues] = useState(false);
@@ -494,6 +495,7 @@ export default function RallyHistory() {
   const [viewMode, setViewMode] = useState<ViewMode>('actions');
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [isAutoFixingKillTypes, setIsAutoFixingKillTypes] = useState(false);
+  const [isAutoFixingActions, setIsAutoFixingActions] = useState(false);
 
   useEffect(() => {
     if (matchId) loadMatch();
@@ -677,6 +679,53 @@ export default function RallyHistory() {
           </div>
           
           {/* Auto-fix Buttons */}
+          
+          {/* Fix Distributions (rally_actions table) */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={async () => {
+              if (!matchId) return;
+              setIsAutoFixingActions(true);
+              try {
+                const result = await autoFixRallyActionsMutation.mutateAsync({
+                  matchId,
+                  players: players.map(p => ({
+                    id: p.id,
+                    side: p.side,
+                    position: p.position,
+                    jersey_number: p.jersey_number
+                  }))
+                });
+                if (result.fixed > 0) {
+                  toast.success(`${result.fixed} distribuições corrigidas`);
+                } else {
+                  toast.info('Nenhuma distribuição precisou de correção');
+                }
+                if (result.skipped > 0) {
+                  toast.warning(`${result.skipped} ações ignoradas (sem setter no side)`);
+                }
+                if (result.errors > 0) {
+                  toast.error(`${result.errors} erros durante a correção`);
+                }
+                // Reload match data
+                loadMatch();
+              } finally {
+                setIsAutoFixingActions(false);
+              }
+            }}
+            disabled={isAutoFixingActions}
+            title="Corrigir distribuições sem jogador identificado"
+          >
+            {isAutoFixingActions ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Target className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">Fix Dist</span>
+          </Button>
+          
           {killTypeIssueCount > 0 && (
             <Button
               variant="outline"
