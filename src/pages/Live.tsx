@@ -52,6 +52,7 @@ import {
   PassDestination, 
   KillType,
   ServeType,
+  SERVE_TYPE_LABELS,
   RallyAction,
   RallyActionType,
   Sanction,
@@ -166,7 +167,8 @@ export default function Live() {
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
   const [receptionCompleted, setReceptionCompleted] = useState(false);
-  const [serveData, setServeData] = useState<{ playerId: string | null; code: number | null }>({ playerId: null, code: null });
+  const [serveData, setServeData] = useState<{ playerId: string | null; serveType: ServeType | null; code: number | null }>({ playerId: null, serveType: null, code: null });
+  const [serveStep, setServeStep] = useState(1); // 1=type, 2=quality
   const [receptionData, setReceptionData] = useState<{ playerId: string | null; code: number | null; overTheNet: boolean }>({ playerId: null, code: null, overTheNet: false });
   const [receptionStep, setReceptionStep] = useState(1);
   
@@ -354,7 +356,7 @@ export default function Live() {
         code: null, // Code not yet defined
       };
       setRegisteredActions([serveAction]);
-      setServeData({ playerId: serverPlayer.id, code: null });
+      setServeData({ playerId: serverPlayer.id, serveType: null, code: null });
     }
   }, [serverPlayer?.id, gameState?.serveSide, gameState?.currentRally]);
 
@@ -365,7 +367,8 @@ export default function Live() {
     setComboMode({ active: false, side: null });
     setServeCompleted(false);
     setReceptionCompleted(false);
-    setServeData({ playerId: serverPlayer?.id || null, code: null });
+    setServeData({ playerId: serverPlayer?.id || null, serveType: null, code: null });
+    setServeStep(1);
     setReceptionData({ playerId: null, code: null, overTheNet: false });
     setReceptionStep(1);
     // Don't reset lastAttacker - keep it for quick attacks across rallies
@@ -668,6 +671,13 @@ export default function Live() {
     await liberoExitTracking.exitLibero();
     setLiberoLoading(false);
   };
+  // Handle serve type selection - step 1
+  const handleServeTypeSelect = (type: ServeType) => {
+    setServeData(prev => ({ ...prev, serveType: type }));
+    setServeStep(2);
+  };
+
+  // Handle serve code selection - step 2
   const handleServeCodeSelect = (code: number) => {
     // Toggle off if same code clicked
     const newCode = serveData.code === code ? null : code;
@@ -683,6 +693,7 @@ export default function Live() {
         playerId: serveData.playerId,
         playerNo: serverPlayer?.jersey_number || null,
         code: newCode,
+        serveType: serveData.serveType,
       };
       
       // Upsert: if serve exists, update; otherwise, add at beginning
@@ -1241,7 +1252,8 @@ export default function Live() {
     if (action.type === 'serve') {
       setServeCompleted(false);
       setReceptionCompleted(false);
-      setServeData({ playerId: serverPlayer?.id || null, code: null });
+      setServeData({ playerId: serverPlayer?.id || null, serveType: null, code: null });
+      setServeStep(1);
       setReceptionData({ playerId: null, code: null, overTheNet: false });
     }
     setRegisteredActions(prev => prev.filter((_, i) => i !== index));
@@ -1260,7 +1272,8 @@ export default function Live() {
     } else if (lastAction.type === 'serve') {
       setServeCompleted(false);
       setReceptionCompleted(false);
-      setServeData({ playerId: serverPlayer?.id || null, code: null });
+      setServeData({ playerId: serverPlayer?.id || null, serveType: null, code: null });
+      setServeStep(1);
       setReceptionData({ playerId: null, code: null, overTheNet: false });
     }
     
@@ -1334,6 +1347,7 @@ export default function Live() {
       s_player_id: serveAction?.playerId || serveData.playerId || serverPlayer?.id || null,
       s_no: getPlayerNo(serveAction?.playerId || serveData.playerId || serverPlayer?.id),
       s_code: serveAction?.code ?? serveData.code,
+      s_type: serveAction?.serveType || serveData.serveType || null,
       // Reception
       r_player_id: recAction?.playerId || receptionData.playerId,
       r_no: getPlayerNo(recAction?.playerId || receptionData.playerId),
@@ -2462,7 +2476,9 @@ export default function Live() {
                 gameState.serveSide === 'CASA' ? 'bg-home' : 'bg-away'
               )}>
                 <span className="font-semibold">Serviço</span>
-                <div className="flex-1" />
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 ml-auto bg-white/20 text-white border-0">
+                  {serveStep}/2
+                </Badge>
                 <span className="text-xs opacity-80">
                   {gameState.serveSide === 'CASA' ? match.home_name : match.away_name}
                 </span>
@@ -2476,20 +2492,79 @@ export default function Live() {
                   </span>
                 </div>
                 
-                {/* Code selection - clicking auto-confirms */}
-                <div className="grid grid-cols-4 gap-2">
-                  {[0, 1, 2, 3].map((code) => (
-                    <ColoredRatingButton
-                      key={code}
-                      code={code}
-                      selected={serveData.code === code}
-                      onClick={() => handleServeCodeSelect(code)}
-                    />
-                  ))}
-                </div>
+                {serveStep === 1 ? (
+                  /* ===== STEP 1: TIPO DE SERVIÇO ===== */
+                  <div className="space-y-3">
+                    <div className="text-xs font-medium text-muted-foreground text-center">
+                      Tipo de Serviço
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {(['FLOAT', 'JUMP_FLOAT', 'POWER'] as ServeType[]).map((type) => {
+                        const typeInfo = SERVE_TYPE_LABELS[type];
+                        return (
+                          <Button
+                            key={type}
+                            variant={serveData.serveType === type ? 'default' : 'outline'}
+                            className={cn(
+                              'h-14 flex flex-col gap-0.5 text-base font-semibold transition-all',
+                              serveData.serveType === type && 'ring-2 ring-offset-2'
+                            )}
+                            onClick={() => handleServeTypeSelect(type)}
+                          >
+                            <span className="text-lg">{typeInfo.emoji}</span>
+                            <span className="text-xs">{typeInfo.shortLabel}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs text-muted-foreground"
+                      onClick={() => handleServeTypeSelect('OTHER')}
+                    >
+                      ❓ Outro tipo
+                    </Button>
+                  </div>
+                ) : (
+                  /* ===== STEP 2: QUALIDADE ===== */
+                  <div className="space-y-3">
+                    {/* Indicador do tipo selecionado */}
+                    <div className="text-center p-2 rounded bg-muted/30 text-sm">
+                      Tipo: <span className="font-semibold">
+                        {serveData.serveType ? SERVE_TYPE_LABELS[serveData.serveType].label : '?'}
+                      </span>
+                    </div>
+                    
+                    {/* Code selection - clicking auto-confirms */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {[0, 1, 2, 3].map((code) => (
+                        <ColoredRatingButton
+                          key={code}
+                          code={code}
+                          selected={serveData.code === code}
+                          onClick={() => handleServeCodeSelect(code)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
-                {/* Navigation footer - no back button for serve (first step) */}
-                <div className="flex justify-end pt-3 border-t mt-3">
+                {/* Navigation footer */}
+                <div className="flex justify-between pt-3 border-t mt-3">
+                  {serveStep === 2 ? (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="gap-1 text-muted-foreground hover:text-foreground" 
+                      onClick={() => setServeStep(1)}
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                      Tipo
+                    </Button>
+                  ) : (
+                    <div /> /* Placeholder for alignment */
+                  )}
                   <Button 
                     variant="ghost" 
                     size="sm"
