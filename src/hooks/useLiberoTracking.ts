@@ -8,6 +8,7 @@ interface UseLiberoTrackingProps {
   currentRally: number;
   rotation: number;
   isReceiving: boolean;
+  isSetStart: boolean; // true when currentRally === 1 (allows serving team to enter libero)
   substitutions: Substitution[];
   getPlayersForSide: (side: Side) => (Player | MatchPlayer)[];
   getPlayersOnCourt: (setNo: number, side: Side, currentRally: number) => (Player | MatchPlayer)[];
@@ -22,6 +23,7 @@ export function useLiberoTracking({
   currentRally,
   rotation,
   isReceiving,
+  isSetStart,
   substitutions,
   getPlayersForSide,
   getPlayersOnCourt,
@@ -99,7 +101,7 @@ export function useLiberoTracking({
     };
   }, [liberoSubstitutions, currentRally, availableLiberos]);
   
-  // Get players eligible for libero substitution (back row: Z1, Z5, Z6)
+  // Get players eligible for libero substitution (back row: Z1, Z5, Z6 for receiving, Z5, Z6 for serving at set start)
   const eligibleForLiberoEntry = useMemo(() => {
     if (availableLiberos.length === 0) return [];
     if (currentLiberoState.isOnCourt) return []; // Already on court
@@ -107,22 +109,32 @@ export function useLiberoTracking({
     const onCourt = getPlayersOnCourt(currentSet, side, currentRally);
     const liberoIds = new Set(availableLiberos.map(l => l.id));
     
-    // Filter for back row players (Z1, Z5, Z6) - all eligible for libero replacement
+    // Eligible zones depend on whether team is receiving or serving
+    // Receiving team: Z1, Z5, Z6 (full back row)
+    // Serving team (only at set start): Z5, Z6 (Z1 is serving, shouldn't be replaced)
+    const eligibleZones = isReceiving ? [1, 5, 6] : [5, 6];
+    
+    // Filter for back row players based on eligibility
     return onCourt.filter(player => {
       if (liberoIds.has(player.id)) return false; // Exclude liberos themselves
       const zone = getPlayerZone(currentSet, side, player.id, rotation, currentRally);
-      return zone !== null && [1, 5, 6].includes(zone);
+      return zone !== null && eligibleZones.includes(zone);
     });
-  }, [availableLiberos, currentLiberoState.isOnCourt, getPlayersOnCourt, currentSet, side, currentRally, getPlayerZone, rotation]);
+  }, [availableLiberos, currentLiberoState.isOnCourt, getPlayersOnCourt, currentSet, side, currentRally, getPlayerZone, rotation, isReceiving]);
   
-  // Check if libero should be prompted to enter (team is receiving and libero not on court)
+  // Check if libero should be prompted to enter
+  // - Receiving team: always eligible when libero not on court
+  // - Serving team: only at set start (rally 1) to allow initial libero entry
   const shouldPromptLiberoEntry = useMemo(() => {
     if (availableLiberos.length === 0) return false;
     if (currentLiberoState.isOnCourt) return false;
-    if (!isReceiving) return false;
     if (eligibleForLiberoEntry.length === 0) return false;
+    
+    // Allow entry if receiving OR if it's set start (rally 1)
+    if (!isReceiving && !isSetStart) return false;
+    
     return true;
-  }, [availableLiberos, currentLiberoState.isOnCourt, isReceiving, eligibleForLiberoEntry]);
+  }, [availableLiberos, currentLiberoState.isOnCourt, isReceiving, isSetStart, eligibleForLiberoEntry]);
   
   // Calculate if the replaced player has rotated to Z4 (libero must exit)
   const mustExitLibero = useMemo(() => {
