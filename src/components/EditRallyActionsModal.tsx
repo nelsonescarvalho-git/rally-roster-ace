@@ -188,8 +188,8 @@ export function EditRallyActionsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             Editar Rally #{rallyMeta.rally_no}
             <Badge variant="outline" className="text-[10px]">Set {rallyMeta.set_no}</Badge>
@@ -207,7 +207,7 @@ export function EditRallyActionsModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
+        <ScrollArea className="flex-1 min-h-0 px-6">
           <div className="space-y-3 pb-4">
             {editActions.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground text-sm">
@@ -394,10 +394,10 @@ export function EditRallyActionsModal({
           </div>
         </ScrollArea>
 
-        <Separator />
+        <Separator className="shrink-0" />
 
         {/* Outcome Section */}
-        <div className="px-6 py-3 space-y-3">
+        <div className="shrink-0 px-6 py-3 space-y-3">
           <Label className="text-sm font-medium">Resultado do Rally</Label>
           <div className="flex gap-2">
             <Select
@@ -430,7 +430,7 @@ export function EditRallyActionsModal({
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t">
+        <DialogFooter className="shrink-0 px-6 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>

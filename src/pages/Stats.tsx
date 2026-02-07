@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { useServeTypeStats } from '@/hooks/useServeTypeStats';
-import { useRallyActionsForMatch, useAutoFixRallyActions, useComprehensiveAutoFix } from '@/hooks/useRallyActions';
+import { useRallyActionsForMatch, useAutoFixRallyActions, useComprehensiveAutoFix, useAutoFixServeByRotation } from '@/hooks/useRallyActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,6 +42,7 @@ export default function Stats() {
   
   const autoFixRallyActions = useAutoFixRallyActions();
   const comprehensiveAutoFix = useComprehensiveAutoFix();
+  const autoFixServeByRotation = useAutoFixServeByRotation();
   const batchUpdateActions = useBatchUpdateRallyActions();
 
   const handleRecalculate = async () => {
@@ -108,15 +109,21 @@ export default function Stats() {
                   players: effectivePlayers
                 });
                 
-                // Step 2: Infer codes from attacks (new logic)
+                // Step 2: Fix serve by rotation
+                const serveResult = await autoFixServeByRotation.mutateAsync({
+                  matchId: matchId!,
+                  players: effectivePlayers
+                });
+                
+                // Step 3: Infer codes from attacks (new logic)
                 const codeResult = await comprehensiveAutoFix.mutateAsync({
                   matchId: matchId!
                 });
                 
-                const totalFixed = playerResult.fixed + codeResult.setterCodesFixed;
+                const totalFixed = playerResult.fixed + codeResult.setterCodesFixed + serveResult.fixed;
                 
                 if (totalFixed > 0) {
-                  toast.success(`Corrigido: ${playerResult.fixed} jogadores, ${codeResult.setterCodesFixed} códigos`);
+                  toast.success(`Corrigido: ${playerResult.fixed} jogadores, ${serveResult.fixed} serviços, ${codeResult.setterCodesFixed} códigos`);
                   await handleRecalculate();
                 } else {
                   toast.info('Sem dados para corrigir automaticamente');
