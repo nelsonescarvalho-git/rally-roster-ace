@@ -59,9 +59,11 @@ export function RallySummary({
   const isHomeWin = winnerSide === 'CASA';
   
   // Check for discrepancy between legacy and rally_actions data
+  // Only flag when rally_actions has FEWER than legacy
+  // (rally_actions having MORE is normal for long rallies)
   const hasDiscrepancy = actionsCount !== undefined && 
     legacyActionsCount !== undefined && 
-    actionsCount !== legacyActionsCount;
+    actionsCount < legacyActionsCount;
   
   return (
     <div className={cn(
