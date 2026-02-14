@@ -24,7 +24,8 @@ import {
   ChevronDown as DropdownChevron,
   Wand2,
   Loader2,
-  Layers
+  Layers,
+  GitCompare
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -683,6 +684,13 @@ export default function RallyHistory() {
 
   const killTypeIssueCount = rallies.filter(r => r.a_code === 3 && !r.kill_type).length;
 
+  const discrepancyCount = Array.from(rallyGroups.entries()).filter(([key, phases]) => {
+    const sortedPhases = [...phases].sort((a, b) => a.phase - b.phase);
+    const legacy = sortedPhases.reduce((sum, p) => sum + countLegacyActions(p), 0);
+    const actions = sortedPhases.reduce((sum, p) => sum + (rallyActionsMap?.get(p.id)?.length || 0), 0);
+    return actions < legacy;
+  }).length;
+
   return (
     <div className="min-h-screen bg-background safe-bottom">
       <header className="sticky top-0 z-10 border-b bg-card px-4 py-3">
@@ -693,6 +701,12 @@ export default function RallyHistory() {
           <div className="flex-1">
             <h1 className="font-semibold">Histórico de Rallies</h1>
             <p className="text-xs text-muted-foreground">{match.title}</p>
+            {discrepancyCount > 0 && (
+              <Badge variant="outline" className="mt-1 border-orange-500 text-orange-500 gap-1">
+                <GitCompare className="h-3 w-3" />
+                {discrepancyCount} discrepâncias
+              </Badge>
+            )}
           </div>
           
           {/* Auto-fix Buttons */}
