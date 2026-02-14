@@ -2113,9 +2113,10 @@ export default function Live() {
                       <Home className="h-4 w-4 mr-2" />
                       Início
                     </Button>
-                    <Button size="lg" onClick={() => { setDismissedSets(prev => new Set([...prev, currentSet])); setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
-                      Iniciar Set {currentSet + 1}
-                    </Button>
+                    {(() => { const nextSet = matchStatus.setResults.find(s => !s.complete)?.setNo ?? (currentSet + 1); return (
+                    <Button size="lg" onClick={() => { setDismissedSets(prev => new Set([...prev, currentSet])); setCurrentSet(nextSet); resetWizard(); toast({ title: `Set ${nextSet} iniciado` }); }}>
+                      Iniciar Set {nextSet}
+                    </Button>); })()}
                   </div>
                 )}
                 
