@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useMatch } from '@/hooks/useMatch';
 import { useStats } from '@/hooks/useStats';
 import { useServeTypeStats } from '@/hooks/useServeTypeStats';
@@ -78,6 +79,23 @@ export default function Stats() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Fetch sanctions for ErrorsTab
+  const { data: sanctions = [] } = useQuery({
+    queryKey: ['sanctions', matchId],
+    queryFn: async () => {
+      if (!matchId) return [];
+      const { data, error } = await supabase
+        .from('sanctions')
+        .select('*')
+        .eq('match_id', matchId)
+        .is('deleted_at', null)
+        .order('created_at');
+      if (error) throw error;
+      return (data || []) as unknown as Sanction[];
+    },
+    enabled: !!matchId,
+  });
 
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
   const { playerStats, rotationStats } = useStats(filteredRallies, effectivePlayers);
@@ -719,6 +737,34 @@ export default function Stats() {
               match={match}
               selectedSet={selectedSet}
               getRalliesForSet={getRalliesForSet}
+            />
+          </TabsContent>
+
+          <TabsContent value="reception">
+            <ReceptionTab
+              rallyActionsMap={rallyActionsMap}
+              players={effectivePlayers}
+              match={match}
+              selectedSet={selectedSet}
+            />
+          </TabsContent>
+
+          <TabsContent value="defense">
+            <DefenseTab
+              rallyActionsMap={rallyActionsMap}
+              players={effectivePlayers}
+              match={match}
+              selectedSet={selectedSet}
+            />
+          </TabsContent>
+
+          <TabsContent value="errors">
+            <ErrorsTab
+              rallies={rallies}
+              players={effectivePlayers}
+              match={match}
+              sanctions={sanctions}
+              selectedSet={selectedSet}
             />
           </TabsContent>
         </Tabs>
