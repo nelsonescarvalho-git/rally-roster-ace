@@ -61,7 +61,7 @@ export function useDistributionStatsFromActions(
     
     rallyActionsMap.forEach((actions, rallyId) => {
       // For each rally, find setter actions and correlate with reception quality
-      const setterActions = actions.filter(a => a.action_type === 'setter' && a.pass_destination);
+      const setterActions = actions.filter(a => a.action_type === 'setter' && a.pass_destination && a.player_id);
       
       setterActions.forEach(setterAction => {
         // Find the reception that precedes this setter in the same side's sequence
