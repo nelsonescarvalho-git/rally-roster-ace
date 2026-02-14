@@ -15,6 +15,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Side, Rally, Reason } from '@/types/volleyball';
 import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
+import { ReceptionTab } from '@/components/ReceptionTab';
+import { DefenseTab } from '@/components/DefenseTab';
+import { ErrorsTab } from '@/components/ErrorsTab';
+import { Sanction } from '@/types/volleyball';
 import { EditRallyModal } from '@/components/EditRallyModal';
 import { EditRallyActionsModal, ActionEditState } from '@/components/EditRallyActionsModal';
 import { useBatchUpdateRallyActions } from '@/hooks/useRallyActions';
@@ -231,14 +235,19 @@ export default function Stats() {
         <p className="text-[10px] text-muted-foreground text-center">Atalhos: 0-5 sets · H casa · A fora</p>
 
         <Tabs defaultValue="players">
-          <TabsList className="w-full grid grid-cols-6">
-            <TabsTrigger value="players">Jogadores</TabsTrigger>
-            <TabsTrigger value="rotations">Rotações</TabsTrigger>
-            <TabsTrigger value="serve">Serviço</TabsTrigger>
-            <TabsTrigger value="rallies">Rallies</TabsTrigger>
-            <TabsTrigger value="attack">Ataque</TabsTrigger>
-            <TabsTrigger value="distribution">Dist.</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="w-max min-w-full flex">
+              <TabsTrigger value="players" className="text-xs flex-1">Jogadores</TabsTrigger>
+              <TabsTrigger value="rotations" className="text-xs flex-1">Rotações</TabsTrigger>
+              <TabsTrigger value="serve" className="text-xs flex-1">Serviço</TabsTrigger>
+              <TabsTrigger value="reception" className="text-xs flex-1">Receção</TabsTrigger>
+              <TabsTrigger value="defense" className="text-xs flex-1">Defesa</TabsTrigger>
+              <TabsTrigger value="attack" className="text-xs flex-1">Ataque</TabsTrigger>
+              <TabsTrigger value="distribution" className="text-xs flex-1">Dist.</TabsTrigger>
+              <TabsTrigger value="errors" className="text-xs flex-1">Erros</TabsTrigger>
+              <TabsTrigger value="rallies" className="text-xs flex-1">Rallies</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="players">
             <Card>
