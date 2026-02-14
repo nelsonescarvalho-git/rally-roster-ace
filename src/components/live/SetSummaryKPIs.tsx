@@ -215,16 +215,58 @@ export function SetSummaryKPIs({
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-8">
+        <TabsList className="grid w-full grid-cols-6 h-8">
           <TabsTrigger value="geral" className="text-xs px-1">Geral</TabsTrigger>
           <TabsTrigger value="servico" className="text-xs px-1">Serviço</TabsTrigger>
           <TabsTrigger value="rececao" className="text-xs px-1">Receção</TabsTrigger>
           <TabsTrigger value="ataque" className="text-xs px-1">Ataque</TabsTrigger>
+          <TabsTrigger value="blocodef" className="text-xs px-1">Bloco/Def</TabsTrigger>
           <TabsTrigger value="insights" className="text-xs px-1">Insights</TabsTrigger>
         </TabsList>
         
         {/* GERAL */}
         <TabsContent value="geral" className="mt-3 space-y-3">
+          {/* Total Rallies */}
+          <div className="text-center text-xs text-muted-foreground">
+            Total de rallies: <span className="font-medium text-foreground">{kpis.totalRallies}</span>
+          </div>
+
+          {/* Point Origin */}
+          {(kpis.home.pointsFromKills > 0 || kpis.away.pointsFromKills > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Trophy className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs font-medium">Origem dos Pontos</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  {[
+                    { label: 'Kills', home: kpis.home.pointsFromKills, away: kpis.away.pointsFromKills },
+                    { label: 'Aces', home: kpis.home.pointsFromAces, away: kpis.away.pointsFromAces },
+                    { label: 'Blocos', home: kpis.home.pointsFromBlocks, away: kpis.away.pointsFromBlocks },
+                    { label: 'Erros Adv.', home: kpis.home.pointsFromOpponentErrors, away: kpis.away.pointsFromOpponentErrors },
+                  ].map(item => {
+                    const homeTotal = kpis.home.pointsFromKills + kpis.home.pointsFromAces + kpis.home.pointsFromBlocks + kpis.home.pointsFromOpponentErrors;
+                    const awayTotal = kpis.away.pointsFromKills + kpis.away.pointsFromAces + kpis.away.pointsFromBlocks + kpis.away.pointsFromOpponentErrors;
+                    const homePct = homeTotal > 0 ? Math.round((item.home / homeTotal) * 100) : 0;
+                    const awayPct = awayTotal > 0 ? Math.round((item.away / awayTotal) * 100) : 0;
+                    return (
+                      <div key={item.label}>
+                        <div className="text-muted-foreground">{item.label}</div>
+                        <div className="font-bold">
+                          <span className="text-home">{item.home}</span>
+                          {' / '}
+                          <span className="text-away">{item.away}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">{homePct}% / {awayPct}%</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <KPICard 
               icon={Target} 
@@ -334,6 +376,27 @@ export function SetSummaryKPIs({
                 <span>Total: {kpis.home.serveTotal}</span>
                 <span>Total: {kpis.away.serveTotal}</span>
               </div>
+              {/* Serve by Type */}
+              {Object.keys(kpis.home.serveByType).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <div className="text-xs font-medium mb-2">Por Tipo</div>
+                  <div className="space-y-1">
+                    {['FLOAT', 'JUMP_FLOAT', 'POWER', 'OTHER'].map(type => {
+                      const h = kpis.home.serveByType[type];
+                      const a = kpis.away.serveByType[type];
+                      if (!h && !a) return null;
+                      const labels: Record<string, string> = { FLOAT: '〰️ Float', JUMP_FLOAT: '↗️ J.Float', POWER: '⚡ Power', OTHER: '❓ Outro' };
+                      return (
+                        <div key={type} className="flex items-center justify-between text-xs py-0.5">
+                          <span className="text-muted-foreground w-20">{labels[type]}</span>
+                          <span className="text-home">{h?.total || 0} <span className="text-muted-foreground">({h && h.total > 0 ? Math.round((h.aces/h.total)*100) : 0}%A / {h && h.total > 0 ? Math.round((h.errors/h.total)*100) : 0}%E)</span></span>
+                          <span className="text-away">{a?.total || 0} <span className="text-muted-foreground">({a && a.total > 0 ? Math.round((a.aces/a.total)*100) : 0}%A / {a && a.total > 0 ? Math.round((a.errors/a.total)*100) : 0}%E)</span></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -383,6 +446,30 @@ export function SetSummaryKPIs({
           <Card className="bg-muted/30">
             <CardContent className="p-3">
               <StatRow 
+                label="K1 Kill% (Sideout)" 
+                homeValue={kpis.home.k1Efficiency} 
+                awayValue={kpis.away.k1Efficiency}
+                thresholds={THRESHOLDS.attack}
+                homeSuccess={kpis.home.k1Kills}
+                homeTotal={kpis.home.k1Attacks}
+                awaySuccess={kpis.away.k1Kills}
+                awayTotal={kpis.away.k1Attacks}
+                homeTooltip="Ataque após receção própria"
+                awayTooltip="Ataque após receção própria"
+              />
+              <StatRow 
+                label="K2 Kill% (Transição)" 
+                homeValue={kpis.home.k2Efficiency} 
+                awayValue={kpis.away.k2Efficiency}
+                thresholds={{ excellent: 35, acceptable: 15 }}
+                homeSuccess={kpis.home.k2Kills}
+                homeTotal={kpis.home.k2Attacks}
+                awaySuccess={kpis.away.k2Kills}
+                awayTotal={kpis.away.k2Attacks}
+                homeTooltip="Contra-ataque (transição)"
+                awayTooltip="Contra-ataque (transição)"
+              />
+              <StatRow
                 label="Kill%" 
                 homeValue={kpis.home.attKillPercent} 
                 awayValue={kpis.away.attKillPercent}
@@ -440,6 +527,23 @@ export function SetSummaryKPIs({
           </Card>
         </TabsContent>
         
+        {/* BLOCO/DEF */}
+        <TabsContent value="blocodef" className="mt-3">
+          <Card className="bg-muted/30">
+            <CardContent className="p-3">
+              <StatRow label="Bloco Ponto%" homeValue={kpis.home.blkPointPercent} awayValue={kpis.away.blkPointPercent} thresholds={THRESHOLDS.block} homeSuccess={kpis.home.blkPoints} homeTotal={kpis.home.blkParticipations} awaySuccess={kpis.away.blkPoints} awayTotal={kpis.away.blkParticipations} />
+              <StatRow label="Bloco Toque%" homeValue={kpis.home.blkTouchPercent} awayValue={kpis.away.blkTouchPercent} highlightBetter={false} />
+              <StatRow label="Bloco Falta%" homeValue={kpis.home.blkFaultPercent} awayValue={kpis.away.blkFaultPercent} lowerIsBetter thresholds={{ excellent: 5, acceptable: 10 }} />
+              <StatRow label="Defesa Positiva%" homeValue={kpis.home.defPositivePercent} awayValue={kpis.away.defPositivePercent} thresholds={THRESHOLDS.defense} homeSuccess={kpis.home.defPositive} homeTotal={kpis.home.defTotal} awaySuccess={kpis.away.defPositive} awayTotal={kpis.away.defTotal} />
+              <StatRow label="Defesa Excelente%" homeValue={kpis.home.defExcellentPercent} awayValue={kpis.away.defExcellentPercent} thresholds={{ excellent: 30, acceptable: 15 }} homeSuccess={kpis.home.defExcellent} homeTotal={kpis.home.defTotal} awaySuccess={kpis.away.defExcellent} awayTotal={kpis.away.defTotal} />
+              <div className="flex justify-between text-xs text-muted-foreground mt-2 pt-2 border-t">
+                <span>Bloco: {kpis.home.blkParticipations} part. | Def: {kpis.home.defTotal}</span>
+                <span>Bloco: {kpis.away.blkParticipations} part. | Def: {kpis.away.defTotal}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* INSIGHTS */}
         <TabsContent value="insights" className="mt-3 space-y-2">
           {/* Delta from previous */}
@@ -787,32 +891,33 @@ export function SetSummaryKPIs({
             </Card>
           )}
           
-          {(kpis.worstRotationHome || kpis.worstRotationAway) && (
+          {/* Full Rotation Table */}
+          {(kpis.allRotationsHome.length > 0 || kpis.allRotationsAway.length > 0) && (
             <Card className="bg-muted/30">
               <CardContent className="p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  <span className="text-xs font-medium">Pior Rotação (Sideout)</span>
+                  <span className="text-xs font-medium">Sideout por Rotação</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  {kpis.worstRotationHome && (
-                    <div>
-                      <span className="text-home font-medium">{homeName}</span>
-                      <span className="text-muted-foreground">: P{kpis.worstRotationHome.rotation}</span>
-                      <Badge variant="outline" className="ml-1 text-xs">
-                        {kpis.worstRotationHome.percent}%
-                      </Badge>
-                    </div>
-                  )}
-                  {kpis.worstRotationAway && (
-                    <div>
-                      <span className="text-away font-medium">{awayName}</span>
-                      <span className="text-muted-foreground">: P{kpis.worstRotationAway.rotation}</span>
-                      <Badge variant="outline" className="ml-1 text-xs">
-                        {kpis.worstRotationAway.percent}%
-                      </Badge>
-                    </div>
-                  )}
+                <div className="grid grid-cols-[auto_1fr_1fr] gap-x-3 gap-y-0.5 text-xs">
+                  <span className="text-muted-foreground font-medium">Rot</span>
+                  <span className="text-home font-medium text-center">{homeName}</span>
+                  <span className="text-away font-medium text-center">{awayName}</span>
+                  {[1,2,3,4,5,6].map(rot => {
+                    const h = kpis.allRotationsHome[rot-1];
+                    const a = kpis.allRotationsAway[rot-1];
+                    const isWorstHome = kpis.worstRotationHome?.rotation === rot;
+                    const isWorstAway = kpis.worstRotationAway?.rotation === rot;
+                    return [
+                      <span key={`r${rot}`} className="text-muted-foreground">R{rot}</span>,
+                      <span key={`h${rot}`} className={cn("text-center", isWorstHome && "text-destructive font-bold")}>
+                        {h.attempts > 0 ? `${h.points}/${h.attempts} (${h.percent}%)` : '-'}
+                      </span>,
+                      <span key={`a${rot}`} className={cn("text-center", isWorstAway && "text-destructive font-bold")}>
+                        {a.attempts > 0 ? `${a.points}/${a.attempts} (${a.percent}%)` : '-'}
+                      </span>,
+                    ];
+                  })}
                 </div>
               </CardContent>
             </Card>

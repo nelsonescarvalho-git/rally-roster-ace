@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Rally, Side, MatchPlayer } from '@/types/volleyball';
 
-interface TeamKPIs {
+export interface TeamKPIs {
   // Sideout & Break
   sideoutAttempts: number;
   sideoutPoints: number;
@@ -16,19 +16,19 @@ interface TeamKPIs {
   serveErrorPercent: number;
   serveAces: number;
   serveAcePercent: number;
-  servePressure: number; // code 1+2
+  servePressure: number;
   servePressurePercent: number;
-  serveEfficiency: number; // (aces - errors) / total
+  serveEfficiency: number;
   
   // Reception
   recTotal: number;
-  recPerfect: number; // code 3
+  recPerfect: number;
   recPerfectPercent: number;
-  recPositive: number; // code 2+3
+  recPositive: number;
   recPositivePercent: number;
-  recErrors: number; // code 0 (ACE suffered)
+  recErrors: number;
   recErrorPercent: number;
-  recUnderPressure: number; // code 1
+  recUnderPressure: number;
   recUnderPressurePercent: number;
   
   // Attack
@@ -39,20 +39,52 @@ interface TeamKPIs {
   attErrorPercent: number;
   attBlocked: number;
   attBlockedPercent: number;
-  attBlockedPoint: number; // Block resulted in point for opponent (b_code=3)
+  attBlockedPoint: number;
   attBlockedPointPercent: number;
-  attBlockedTouch: number; // Block touch but rally continued (b_code=1 or 2)
+  attBlockedTouch: number;
   attBlockedTouchPercent: number;
-  attBlockFault: number; // Block fault = point for attacker (b_code=0)
+  attBlockFault: number;
   attBlockFaultPercent: number;
-  attBlockIncomplete: number; // a_code=1 but b_code=NULL (missing data)
-  attEfficiency: number; // (kills - errors - blockedPoint) / total
+  attBlockIncomplete: number;
+  attEfficiency: number;
   
   // Unforced errors
   unforcedServe: number;
   unforcedAttack: number;
   unforcedOther: number;
   pointsOffered: number;
+
+  // Block & Defense (NEW DataVolley)
+  blkParticipations: number;
+  blkPoints: number;
+  blkPointPercent: number;
+  blkTouches: number;
+  blkTouchPercent: number;
+  blkFaults: number;
+  blkFaultPercent: number;
+  defTotal: number;
+  defPositive: number;
+  defPositivePercent: number;
+  defExcellent: number;
+  defExcellentPercent: number;
+  defErrors: number;
+
+  // Serve by type (NEW DataVolley)
+  serveByType: Record<string, { total: number; aces: number; errors: number }>;
+
+  // K1 vs K2 (NEW DataVolley)
+  k1Attacks: number;
+  k1Kills: number;
+  k1Efficiency: number;
+  k2Attacks: number;
+  k2Kills: number;
+  k2Efficiency: number;
+
+  // Point origin (NEW DataVolley)
+  pointsFromKills: number;
+  pointsFromAces: number;
+  pointsFromBlocks: number;
+  pointsFromOpponentErrors: number;
 }
 
 interface RotationBreakdown {
@@ -144,52 +176,41 @@ export interface SetKPIs {
     homeSideoutDelta: number;
     awaySideoutDelta: number;
   };
+
+  // NEW DataVolley metrics
+  totalRallies: number;
+  allRotationsHome: RotationBreakdown[];
+  allRotationsAway: RotationBreakdown[];
 }
 
 function createEmptyTeamKPIs(): TeamKPIs {
   return {
-    sideoutAttempts: 0,
-    sideoutPoints: 0,
-    sideoutPercent: 0,
-    breakAttempts: 0,
-    breakPoints: 0,
-    breakPercent: 0,
-    serveTotal: 0,
-    serveErrors: 0,
-    serveErrorPercent: 0,
-    serveAces: 0,
-    serveAcePercent: 0,
-    servePressure: 0,
-    servePressurePercent: 0,
-    serveEfficiency: 0,
-    recTotal: 0,
-    recPerfect: 0,
-    recPerfectPercent: 0,
-    recPositive: 0,
-    recPositivePercent: 0,
-    recErrors: 0,
-    recErrorPercent: 0,
-    recUnderPressure: 0,
-    recUnderPressurePercent: 0,
-    attTotal: 0,
-    attKills: 0,
-    attKillPercent: 0,
-    attErrors: 0,
-    attErrorPercent: 0,
-    attBlocked: 0,
-    attBlockedPercent: 0,
-    attBlockedPoint: 0,
-    attBlockedPointPercent: 0,
-    attBlockedTouch: 0,
-    attBlockedTouchPercent: 0,
-    attBlockFault: 0,
-    attBlockFaultPercent: 0,
-    attBlockIncomplete: 0,
-    attEfficiency: 0,
-    unforcedServe: 0,
-    unforcedAttack: 0,
-    unforcedOther: 0,
-    pointsOffered: 0,
+    sideoutAttempts: 0, sideoutPoints: 0, sideoutPercent: 0,
+    breakAttempts: 0, breakPoints: 0, breakPercent: 0,
+    serveTotal: 0, serveErrors: 0, serveErrorPercent: 0,
+    serveAces: 0, serveAcePercent: 0,
+    servePressure: 0, servePressurePercent: 0, serveEfficiency: 0,
+    recTotal: 0, recPerfect: 0, recPerfectPercent: 0,
+    recPositive: 0, recPositivePercent: 0,
+    recErrors: 0, recErrorPercent: 0,
+    recUnderPressure: 0, recUnderPressurePercent: 0,
+    attTotal: 0, attKills: 0, attKillPercent: 0,
+    attErrors: 0, attErrorPercent: 0,
+    attBlocked: 0, attBlockedPercent: 0,
+    attBlockedPoint: 0, attBlockedPointPercent: 0,
+    attBlockedTouch: 0, attBlockedTouchPercent: 0,
+    attBlockFault: 0, attBlockFaultPercent: 0,
+    attBlockIncomplete: 0, attEfficiency: 0,
+    unforcedServe: 0, unforcedAttack: 0, unforcedOther: 0, pointsOffered: 0,
+    // New DataVolley metrics
+    blkParticipations: 0, blkPoints: 0, blkPointPercent: 0,
+    blkTouches: 0, blkTouchPercent: 0, blkFaults: 0, blkFaultPercent: 0,
+    defTotal: 0, defPositive: 0, defPositivePercent: 0,
+    defExcellent: 0, defExcellentPercent: 0, defErrors: 0,
+    serveByType: {},
+    k1Attacks: 0, k1Kills: 0, k1Efficiency: 0,
+    k2Attacks: 0, k2Kills: 0, k2Efficiency: 0,
+    pointsFromKills: 0, pointsFromAces: 0, pointsFromBlocks: 0, pointsFromOpponentErrors: 0,
   };
 }
 
@@ -499,6 +520,81 @@ export function useSetKPIs(
             }
           }
         }
+      }
+    }
+
+    // === NEW DATAVOLLEY METRICS ===
+    // Block stats (from rawSetRallies)
+    for (const rally of rawSetRallies) {
+      // Block participation: b1_player_id not null
+      if (rally.b1_player_id) {
+        const blockerSide = playerSideMap[rally.b1_player_id];
+        const team = blockerSide === 'CASA' ? home : blockerSide === 'FORA' ? away : null;
+        if (team) {
+          team.blkParticipations++;
+          if (rally.b_code === 3) team.blkPoints++;
+          else if (rally.b_code === 0) team.blkFaults++;
+          else if (rally.b_code === 1 || rally.b_code === 2) team.blkTouches++;
+        }
+      }
+      // Defense stats
+      if (rally.d_player_id && rally.d_code !== null) {
+        const defSide = playerSideMap[rally.d_player_id];
+        const team = defSide === 'CASA' ? home : defSide === 'FORA' ? away : null;
+        if (team) {
+          team.defTotal++;
+          if (rally.d_code >= 2) team.defPositive++;
+          if (rally.d_code === 3) team.defExcellent++;
+          if (rally.d_code === 0) team.defErrors++;
+        }
+      }
+    }
+
+    // Serve by type
+    for (const rally of rawSetRallies) {
+      if (rally.s_type) {
+        const serveSide = rally.serve_side as Side;
+        const team = serveSide === 'CASA' ? home : serveSide === 'FORA' ? away : null;
+        if (team) {
+          if (!team.serveByType[rally.s_type]) {
+            team.serveByType[rally.s_type] = { total: 0, aces: 0, errors: 0 };
+          }
+          team.serveByType[rally.s_type].total++;
+          if (rally.s_code === 3 || rally.reason === 'ACE') team.serveByType[rally.s_type].aces++;
+          if (rally.s_code === 0 || rally.reason === 'SE') team.serveByType[rally.s_type].errors++;
+        }
+      }
+    }
+
+    // K1 vs K2 and Point Origin
+    for (const rally of rawSetRallies) {
+      if (rally.a_player_id && rally.a_code !== null) {
+        const attackerSide = playerSideMap[rally.a_player_id];
+        if (attackerSide) {
+          const team = attackerSide === 'CASA' ? home : away;
+          // K1 = sideout attack (attacker's team was receiving)
+          const isK1 = rally.recv_side === attackerSide;
+          if (isK1) {
+            team.k1Attacks++;
+            if (rally.a_code === 3) team.k1Kills++;
+          } else {
+            team.k2Attacks++;
+            if (rally.a_code === 3) team.k2Kills++;
+          }
+        }
+      }
+    }
+
+    // Point origin (from consolidated setRallies - one per rally)
+    for (const rally of setRallies) {
+      if (!rally.point_won_by) continue;
+      const team = rally.point_won_by === 'CASA' ? home : away;
+      if (rally.reason === 'KILL') team.pointsFromKills++;
+      else if (rally.reason === 'ACE') team.pointsFromAces++;
+      else if (rally.reason === 'BLK') team.pointsFromBlocks++;
+      else {
+        // SE, AE, OP, NET, DEF = opponent error → point for winner
+        team.pointsFromOpponentErrors++;
       }
     }
     
@@ -991,6 +1087,31 @@ export function useSetKPIs(
       .sort((a, b) => b.total - a.total) // Sort by total receptions
       .slice(0, 3);
     
+    // Calculate new DataVolley percentages
+    const calcPercent2 = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0;
+    home.blkPointPercent = calcPercent2(home.blkPoints, home.blkParticipations);
+    away.blkPointPercent = calcPercent2(away.blkPoints, away.blkParticipations);
+    home.blkTouchPercent = calcPercent2(home.blkTouches, home.blkParticipations);
+    away.blkTouchPercent = calcPercent2(away.blkTouches, away.blkParticipations);
+    home.blkFaultPercent = calcPercent2(home.blkFaults, home.blkParticipations);
+    away.blkFaultPercent = calcPercent2(away.blkFaults, away.blkParticipations);
+    home.defPositivePercent = calcPercent2(home.defPositive, home.defTotal);
+    away.defPositivePercent = calcPercent2(away.defPositive, away.defTotal);
+    home.defExcellentPercent = calcPercent2(home.defExcellent, home.defTotal);
+    away.defExcellentPercent = calcPercent2(away.defExcellent, away.defTotal);
+    home.k1Efficiency = home.k1Attacks > 0 ? Math.round((home.k1Kills / home.k1Attacks) * 100) : 0;
+    away.k1Efficiency = away.k1Attacks > 0 ? Math.round((away.k1Kills / away.k1Attacks) * 100) : 0;
+    home.k2Efficiency = home.k2Attacks > 0 ? Math.round((home.k2Kills / home.k2Attacks) * 100) : 0;
+    away.k2Efficiency = away.k2Attacks > 0 ? Math.round((away.k2Kills / away.k2Attacks) * 100) : 0;
+
+    // Build all rotations arrays
+    const allRotationsHome: RotationBreakdown[] = [];
+    const allRotationsAway: RotationBreakdown[] = [];
+    for (let rot = 1; rot <= 6; rot++) {
+      allRotationsHome.push(rotationStats[`CASA-${rot}`]);
+      allRotationsAway.push(rotationStats[`FORA-${rot}`]);
+    }
+
     return {
       home,
       away,
@@ -1013,6 +1134,9 @@ export function useSetKPIs(
       topReceiversHome,
       topReceiversAway,
       deltaFromPrevious,
+      totalRallies: setRallies.length,
+      allRotationsHome,
+      allRotationsAway,
     };
   }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap, playerByTeamAndNumber]);
 }
