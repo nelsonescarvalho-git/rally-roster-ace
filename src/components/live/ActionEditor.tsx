@@ -193,7 +193,7 @@ export function ActionEditor({
       case 'setter': return 3;     // Player → Quality → Destination
       case 'attack': 
         // Step 4 for blocker selection when b_code=3 (stuff block)
-        if (selectedCode === 1 && selectedBlockCode === 3) return 4;
+        if (selectedCode === 1 && (selectedBlockCode === 1 || selectedBlockCode === 2 || selectedBlockCode === 3)) return 4;
         // Step 3 for a_code=1 (block result) or a_code=3 (kill type)
         return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
       case 'block': return 2; // Blockers → Quality
@@ -363,40 +363,28 @@ export function ActionEditor({
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
     onBlockCodeChange?.(bCode);
     
-    // For stuff block (bCode=3), go to Step 4 to select blocker
-    if (bCode === 3) {
+    // For block types 1, 2, 3 → go to Step 4 to select blocker
+    if (bCode === 1 || bCode === 2 || bCode === 3) {
       setCurrentStep(4);
       return;
     }
     
+    // Only bCode=0 (Falta) auto-confirms immediately
     const player = players.find(p => p.id === selectedPlayer);
-    const bCodeLabels = ['Falta', 'Ofensivo', 'Defensivo', 'Ponto'];
     
     requestAnimationFrame(() => {
       setTimeout(() => {
         toast.success(
-          `#${player?.jersey_number || '?'} · Ataque → Bloco ${bCodeLabels[bCode]}`,
+          `#${player?.jersey_number || '?'} · Ataque → Bloco Falta`,
           { duration: 2500 }
         );
-        // Pass playerId, code, and blockCode directly to avoid race conditions
         onConfirm({ playerId: selectedPlayer, code: 1, blockCode: bCode });
-        
-        // Auto-finish point based on block result
-        if (bCode === 0) {
-          // Block fault: attacker wins (side is the attacker)
-          onAutoFinishPoint?.(side, 'BLK', {
-            attackPlayerId: selectedPlayer,
-            attackCode: 1,
-            blockCode: 0,
-          });
-        } else if (bCode === 1) {
-          // Bloco Ofensivo: bola jogável no campo do bloqueador → defesa para bloqueador
-          const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
-          onChainAction?.('defense', blockerSide);
-        } else if (bCode === 2) {
-          // Bloco Defensivo: bola volta ao campo do atacante → defesa para atacante
-          onChainAction?.('defense', side);
-        }
+        // Block fault: attacker wins
+        onAutoFinishPoint?.(side, 'BLK', {
+          attackPlayerId: selectedPlayer,
+          attackCode: 1,
+          blockCode: 0,
+        });
       }, 0);
     });
   }, [onBlockCodeChange, onConfirm, onAutoFinishPoint, onChainAction, side, selectedPlayer, players]);
@@ -414,7 +402,7 @@ export function ActionEditor({
     });
   }, [opponentBlockers, players]);
 
-  // Handler for stuff block confirmation after blocker selection
+  // Handler for stuff block confirmation after blocker selection (b_code=3)
   const handleStuffBlockConfirm = useCallback((blockerId: string) => {
     onBlocker1Change?.(blockerId);
     const blocker = blockersPool.find(p => p.id === blockerId);
@@ -427,9 +415,7 @@ export function ActionEditor({
           `#${attacker?.jersey_number || '?'} Bloqueado por #${blocker?.jersey_number || '?'} · Ponto de Bloco`,
           { duration: 2500 }
         );
-        // Pass all relevant data directly to avoid race conditions
         onConfirm({ playerId: selectedPlayer, code: 1, blockCode: 3, blocker1Id: blockerId });
-        // Pass attack overrides to handleFinishPoint to avoid race condition
         onAutoFinishPoint?.(blockerSide, 'BLK', {
           attackPlayerId: selectedPlayer,
           attackCode: 1,
@@ -439,6 +425,33 @@ export function ActionEditor({
       }, 0);
     });
   }, [onBlocker1Change, blockersPool, players, selectedPlayer, side, onConfirm, onAutoFinishPoint]);
+
+  // Handler for offensive/defensive block confirmation after blocker selection (b_code=1 or 2)
+  const handleBlockChainConfirm = useCallback((blockerId: string) => {
+    onBlocker1Change?.(blockerId);
+    const blocker = blockersPool.find(p => p.id === blockerId);
+    const attacker = players.find(p => p.id === selectedPlayer);
+    const bCodeLabels: Record<number, string> = { 1: 'Ofensivo', 2: 'Defensivo' };
+    
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        toast.success(
+          `#${attacker?.jersey_number || '?'} → Bloco ${bCodeLabels[selectedBlockCode!]} por #${blocker?.jersey_number || '?'}`,
+          { duration: 2500 }
+        );
+        onConfirm({ playerId: selectedPlayer, code: 1, blockCode: selectedBlockCode!, blocker1Id: blockerId });
+        
+        if (selectedBlockCode === 1) {
+          // Bloco Ofensivo: bola jogável no campo do bloqueador → defesa para bloqueador
+          const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+          onChainAction?.('defense', blockerSide);
+        } else if (selectedBlockCode === 2) {
+          // Bloco Defensivo: bola volta ao campo do atacante → defesa para atacante
+          onChainAction?.('defense', side);
+        }
+      }, 0);
+    });
+  }, [onBlocker1Change, blockersPool, players, selectedPlayer, selectedBlockCode, side, onConfirm, onChainAction]);
 
   const handleKillTypeWithAutoConfirm = useCallback((type: KillType) => {
     onKillTypeChange?.(type);
@@ -963,11 +976,25 @@ export function ActionEditor({
                 )}
               </div>
             ) : (
-              // Step 4: Blocker selection for stuff block (b_code=3)
+              // Step 4: Blocker selection for all block types (b_code 1, 2, 3)
               <div className="space-y-4">
-                <div className="text-center p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-                  <span className="text-lg">🧱</span>
-                  <p className="text-sm font-medium text-destructive mt-1">Bloco Ponto</p>
+                <div className={cn(
+                  "text-center p-3 rounded-lg border",
+                  selectedBlockCode === 3 && "bg-destructive/10 border-destructive/30",
+                  selectedBlockCode === 1 && "bg-primary/10 border-primary/30",
+                  selectedBlockCode === 2 && "bg-warning/10 border-warning/30",
+                )}>
+                  <span className="text-lg">
+                    {selectedBlockCode === 3 ? '🧱' : selectedBlockCode === 1 ? '⚔️' : '🛡️'}
+                  </span>
+                  <p className={cn(
+                    "text-sm font-medium mt-1",
+                    selectedBlockCode === 3 && "text-destructive",
+                    selectedBlockCode === 1 && "text-primary",
+                    selectedBlockCode === 2 && "text-warning",
+                  )}>
+                    {selectedBlockCode === 3 ? 'Bloco Ponto' : selectedBlockCode === 1 ? 'Bloco Ofensivo' : 'Bloco Defensivo'}
+                  </p>
                   <p className="text-xs text-muted-foreground">Quem fez o bloco? (Adversário)</p>
                 </div>
                 
@@ -984,9 +1011,18 @@ export function ActionEditor({
                         variant={selectedBlocker1 === player.id ? 'default' : 'outline'}
                         className={cn(
                           'h-14 flex flex-col gap-0.5',
-                          selectedBlocker1 === player.id && 'ring-2 ring-offset-2 bg-destructive hover:bg-destructive/90'
+                          selectedBlocker1 === player.id && 'ring-2 ring-offset-2',
+                          selectedBlockCode === 3 && selectedBlocker1 === player.id && 'bg-destructive hover:bg-destructive/90',
+                          selectedBlockCode === 1 && selectedBlocker1 === player.id && 'bg-primary hover:bg-primary/90',
+                          selectedBlockCode === 2 && selectedBlocker1 === player.id && 'bg-warning hover:bg-warning/90',
                         )}
-                        onClick={() => handleStuffBlockConfirm(player.id)}
+                        onClick={() => {
+                          if (selectedBlockCode === 3) {
+                            handleStuffBlockConfirm(player.id);
+                          } else {
+                            handleBlockChainConfirm(player.id);
+                          }
+                        }}
                       >
                         <span className="text-lg font-bold">#{player.jersey_number}</span>
                         {player.position && (
@@ -1013,10 +1049,26 @@ export function ActionEditor({
                   variant="outline"
                   className="w-full h-10 text-xs text-muted-foreground hover:text-foreground border-dashed"
                   onClick={() => {
-                    const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
-                    toast.success('Bloco Ponto (sem identificar bloqueador)', { duration: 2500 });
-                    onConfirm();
-                    onAutoFinishPoint?.(blockerSide, 'BLK');
+                    if (selectedBlockCode === 3) {
+                      const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                      toast.success('Bloco Ponto (sem identificar bloqueador)', { duration: 2500 });
+                      onConfirm({ playerId: selectedPlayer, code: 1, blockCode: 3 });
+                      onAutoFinishPoint?.(blockerSide, 'BLK', {
+                        attackPlayerId: selectedPlayer,
+                        attackCode: 1,
+                        blockCode: 3,
+                      });
+                    } else {
+                      const bCodeLabel = selectedBlockCode === 1 ? 'Ofensivo' : 'Defensivo';
+                      toast.success(`Bloco ${bCodeLabel} (sem identificar bloqueador)`, { duration: 2500 });
+                      onConfirm({ playerId: selectedPlayer, code: 1, blockCode: selectedBlockCode! });
+                      if (selectedBlockCode === 1) {
+                        const blockerSide: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                        onChainAction?.('defense', blockerSide);
+                      } else {
+                        onChainAction?.('defense', side);
+                      }
+                    }
                   }}
                 >
                   Sem identificar bloqueador →
