@@ -61,6 +61,20 @@ export default function Stats() {
     if (matchId) loadMatch();
   }, [matchId, loadMatch]);
 
+  // Keyboard shortcuts for set/side selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const key = e.key.toLowerCase();
+      if (['1','2','3','4','5'].includes(key)) { e.preventDefault(); setSelectedSet(parseInt(key)); return; }
+      if (key === '0' || key === 't') { e.preventDefault(); setSelectedSet(0); return; }
+      if (key === 'h') { e.preventDefault(); setSelectedSide('CASA'); return; }
+      if (key === 'a') { e.preventDefault(); setSelectedSide('FORA'); return; }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
   const { playerStats, rotationStats } = useStats(filteredRallies, effectivePlayers);
   const serveTypeStats = useServeTypeStats(filteredRallies);
@@ -179,6 +193,7 @@ export default function Stats() {
             variant={selectedSet === 0 ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSelectedSet(0)}
+            title="Tecla: 0 ou T"
           >
             Total
           </Button>
@@ -188,6 +203,7 @@ export default function Stats() {
               variant={selectedSet === set ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedSet(set)}
+              title={`Tecla: ${set}`}
             >
               S{set}
             </Button>
@@ -199,6 +215,7 @@ export default function Stats() {
             variant={selectedSide === 'CASA' ? 'default' : 'outline'}
             onClick={() => setSelectedSide('CASA')}
             className="flex-1"
+            title="Tecla: H"
           >
             {match.home_name}
           </Button>
@@ -206,10 +223,12 @@ export default function Stats() {
             variant={selectedSide === 'FORA' ? 'default' : 'outline'}
             onClick={() => setSelectedSide('FORA')}
             className="flex-1"
+            title="Tecla: A"
           >
             {match.away_name}
           </Button>
         </div>
+        <p className="text-[10px] text-muted-foreground text-center">Atalhos: 0-5 sets · H casa · A fora</p>
 
         <Tabs defaultValue="players">
           <TabsList className="w-full grid grid-cols-6">
