@@ -130,6 +130,7 @@ export default function Live() {
   const [useCompactUI, setUseCompactUI] = useState(true);
   
   // Delete confirmation modal state
+  const [dismissedSets, setDismissedSets] = useState<Set<number>>(new Set());
   const [openDelSet, setOpenDelSet] = useState(false);
   const [openDelMatch, setOpenDelMatch] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -2034,7 +2035,7 @@ export default function Live() {
           ? rallies.filter(r => r.set_no === currentSet - 1)
           : undefined;
         
-        if (setStatus.complete) {
+        if (setStatus.complete && !dismissedSets.has(currentSet)) {
           return (
             <div className="fixed inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center z-50 p-4 overflow-y-auto">
               <div className="text-center space-y-4 max-w-lg w-full py-6">
@@ -2097,22 +2098,22 @@ export default function Live() {
                       </span>
                     </div>
                     <div className="flex gap-3 justify-center">
-                      <Button variant="outline" size="lg" onClick={() => navigate('/')}>
+                      <Button variant="outline" size="lg" onClick={() => { setDismissedSets(prev => new Set([...prev, currentSet])); navigate('/'); }}>
                         <Home className="h-4 w-4 mr-2" />
                         Início
                       </Button>
-                      <Button size="lg" onClick={() => navigate(`/stats/${matchId}`)}>
+                      <Button size="lg" onClick={() => { setDismissedSets(prev => new Set([...prev, currentSet])); navigate(`/stats/${matchId}`); }}>
                         Ver Estatísticas
                       </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="pt-4 flex gap-3 justify-center">
-                    <Button variant="outline" size="lg" onClick={() => navigate('/')}>
+                    <Button variant="outline" size="lg" onClick={() => { setDismissedSets(prev => new Set([...prev, currentSet])); navigate('/'); }}>
                       <Home className="h-4 w-4 mr-2" />
                       Início
                     </Button>
-                    <Button size="lg" onClick={() => { setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
+                    <Button size="lg" onClick={() => { setDismissedSets(prev => new Set([...prev, currentSet])); setCurrentSet(currentSet + 1); resetWizard(); toast({ title: `Set ${currentSet + 1} iniciado` }); }}>
                       Iniciar Set {currentSet + 1}
                     </Button>
                   </div>
