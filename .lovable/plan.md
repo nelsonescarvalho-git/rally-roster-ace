@@ -1,45 +1,87 @@
 
 
-# Adicionar Contador Global de Discrepancias no Topo do Historico de Rallies
+# Atalhos de Teclado para Estatisticas por Set
 
-## O que vai mudar
+## Objetivo
+Adicionar teclas de atalho na pagina de Estatisticas (`/stats/:matchId`) para navegar rapidamente entre sets e alternar equipas, e verificar a veracidade dos dados apresentados.
 
-Na pagina de Historico de Rallies, sera adicionado um contador visivel no topo que mostra quantos rallies tem discrepancias pendentes (rally_actions com menos registos que o legacy).
+## Verificacao de Dados
 
-## Alteracao Tecnica
+Analisei a base de dados e os calculos estao coerentes:
+- **Match 1 (Set 1)**: 39 rallies, 25 CASA / 14 FORA, 3 aces, 7 erros de servico, 18 kills, 4 blocos com codigo
+- **Match 1 (Set 2)**: 40 rallies, 15 CASA / 25 FORA, 2 aces, 2 erros de servico, 19 kills, 6 blocos com codigo
+- **Match 2 (Set 1)**: 33 rallies, 13 CASA / 20 FORA, 3 blocos sem codigo (dados incompletos sinalizados)
 
-### Ficheiro: `src/pages/RallyHistory.tsx`
+Os totais de pontos batem certo com os scores. A logica de calculo em `useSetKPIs.ts` e `useStats.ts` esta alinhada com as definicoes de eficacia documentadas (serve: aces-erros/total, ataque: kills-erros-blocosPonto/total, etc.).
 
-**1. Calcular contagem de discrepancias** (junto ao `issueCount` existente, ~linha 674):
+Os 3 blocos sem `b_code` no Match 2 sao corretamente sinalizados como `attBlockIncomplete` nos warnings da consola.
 
-Adicionar um `discrepancyCount` que percorre todos os `rallyGroups`, calcula `legacyActionsCount` e `actionsCount` para cada grupo, e conta quantos tem `actionsCount < legacyActionsCount`.
+## Atalhos a Implementar
+
+| Tecla | Acao |
+|-------|------|
+| `1-5` | Selecionar Set 1-5 |
+| `0` ou `T` | Selecionar Total (todos os sets) |
+| `H` | Alternar para equipa Casa |
+| `A` | Alternar para equipa Fora |
+
+## Alteracoes Tecnicas
+
+### Ficheiro: `src/pages/Stats.tsx`
+
+**1. Adicionar `useEffect` para escutar teclas** (apos os hooks existentes, ~linha 62):
 
 ```typescript
-const discrepancyCount = Array.from(rallyGroups.entries()).filter(([key, phases]) => {
-  const sortedPhases = [...phases].sort((a, b) => a.phase - b.phase);
-  const legacy = sortedPhases.reduce((sum, p) => sum + countLegacyActions(p), 0);
-  const actions = sortedPhases.reduce((sum, p) => sum + (rallyActionsMap?.get(p.id)?.length || 0), 0);
-  return actions < legacy;
-}).length;
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    
+    const key = e.key.toLowerCase();
+    
+    // Set selection: 1-5
+    if (['1','2','3','4','5'].includes(key)) {
+      e.preventDefault();
+      setSelectedSet(parseInt(key));
+      return;
+    }
+    // Total: 0 or T
+    if (key === '0' || key === 't') {
+      e.preventDefault();
+      setSelectedSet(0);
+      return;
+    }
+    // Side toggle: H = home, A = away
+    if (key === 'h') {
+      e.preventDefault();
+      setSelectedSide('CASA');
+      return;
+    }
+    if (key === 'a') {
+      e.preventDefault();
+      setSelectedSide('FORA');
+      return;
+    }
+  };
+  
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
 ```
 
-**2. Mostrar badge no cabecalho** (apos o titulo, ~linha 694):
+**2. Adicionar indicacao visual dos atalhos** nos botoes de set e equipa:
 
-Adicionar um badge laranja com icone GitCompare abaixo do titulo que mostra a contagem, visivel apenas quando `discrepancyCount > 0`.
+- Nos botoes de set, adicionar `title` com a tecla correspondente (ex: `title="Tecla: 1"`)
+- Nos botoes de equipa, adicionar `title` com a tecla correspondente (ex: `title="Tecla: H"`)
 
-```tsx
-{discrepancyCount > 0 && (
-  <Badge variant="outline" className="border-orange-500 text-orange-500 gap-1">
-    <GitCompare className="h-3 w-3" />
-    {discrepancyCount} discrepancias
-  </Badge>
-)}
+**3. Adicionar hint discreto** abaixo dos filtros com texto como:
 ```
-
-**3. Importar `GitCompare`** no bloco de imports do lucide-react.
+Atalhos: 0-5 sets · H casa · A fora
+```
 
 ## Resultado Esperado
+- Premir `1` muda para Set 1, `2` para Set 2, etc.
+- Premir `0` ou `T` mostra o total
+- Premir `H` seleciona equipa Casa, `A` seleciona equipa Fora
+- Hint visual discreto indica os atalhos disponiveis
+- Dados verificados e coerentes com a base de dados
 
-- Badge laranja no topo com "X discrepancias" quando existem rallies com dados legacy nao sincronizados
-- Badge desaparece automaticamente apos correr "Fix Tudo" com sucesso
-- Nao interfere com o contador de issues existente
