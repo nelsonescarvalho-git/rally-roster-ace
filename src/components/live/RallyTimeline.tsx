@@ -79,6 +79,10 @@ function ActionBadge({ action, players, isDragOverlay, onRemove }: ActionBadgePr
   const isHome = action.side === 'CASA';
 
   const getPlayerDisplay = () => {
+    if (action.type === 'setter' && action.setterId) {
+      const player = players.find(p => p.id === action.setterId);
+      return player ? `#${player.jersey_number}` : '';
+    }
     if (action.playerNo) {
       return `#${action.playerNo}`;
     }
@@ -88,6 +92,8 @@ function ActionBadge({ action, players, isDragOverlay, onRemove }: ActionBadgePr
     }
     return '';
   };
+
+  const effectiveCode = action.type === 'setter' ? action.passCode : action.code;
 
   const getCodeDisplay = (code: number | null | undefined) => {
     if (code === null || code === undefined) return '';
@@ -111,10 +117,13 @@ function ActionBadge({ action, players, isDragOverlay, onRemove }: ActionBadgePr
         {config.shortLabel}
       </span>
       <span className="font-medium">{getPlayerDisplay()}</span>
-      {action.code !== null && action.code !== undefined && (
+      {effectiveCode !== null && effectiveCode !== undefined && (
         <span className="ml-0.5 opacity-75">
-          ({getCodeDisplay(action.code)})
+          ({getCodeDisplay(effectiveCode)})
         </span>
+      )}
+      {action.type === 'setter' && action.passDestination && (
+        <span className="ml-0.5 text-[10px] opacity-60">{action.passDestination}</span>
       )}
       {onRemove && (
         <button
@@ -167,6 +176,10 @@ function SortableAction({ action, index, id, players, onRemove, onEdit, isDraggi
   const isHome = action.side === 'CASA';
 
   const getPlayerDisplay = () => {
+    if (action.type === 'setter' && action.setterId) {
+      const player = players.find(p => p.id === action.setterId);
+      return player ? `#${player.jersey_number}` : '';
+    }
     if (action.playerNo) {
       return `#${action.playerNo}`;
     }
@@ -177,13 +190,14 @@ function SortableAction({ action, index, id, players, onRemove, onEdit, isDraggi
     return '';
   };
 
+  const effectiveCode = action.type === 'setter' ? action.passCode : action.code;
+
   const getCodeDisplay = (code: number | null | undefined) => {
     if (code === null || code === undefined) return '';
     return CODE_EMOJI[code] || code.toString();
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only trigger edit if not dragging and there's an edit handler
     if (!isDragging && onEdit) {
       e.stopPropagation();
       onEdit(index);
@@ -220,10 +234,13 @@ function SortableAction({ action, index, id, players, onRemove, onEdit, isDraggi
           {config.shortLabel}
         </span>
         <span className="font-medium">{getPlayerDisplay()}</span>
-        {action.code !== null && action.code !== undefined && (
+        {effectiveCode !== null && effectiveCode !== undefined && (
           <span className="ml-0.5 opacity-75">
-            ({getCodeDisplay(action.code)})
+            ({getCodeDisplay(effectiveCode)})
           </span>
+        )}
+        {action.type === 'setter' && action.passDestination && (
+          <span className="ml-0.5 text-[10px] opacity-60">{action.passDestination}</span>
         )}
         <button
           onClick={(e) => {
