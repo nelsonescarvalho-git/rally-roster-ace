@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMatches } from '@/hooks/useMatches';
+import { useTeams } from '@/hooks/useTeams';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,25 +27,31 @@ import { Link } from 'react-router-dom';
 
 export default function Games() {
   const { matches, loading, createMatch, deleteMatch } = useMatches();
+  const { teams } = useTeams();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [homeName, setHomeName] = useState('CASA');
-  const [awayName, setAwayName] = useState('FORA');
+  const [homeTeamId, setHomeTeamId] = useState<string>('');
+  const [awayTeamId, setAwayTeamId] = useState<string>('');
   const [firstServe, setFirstServe] = useState<Side>('CASA');
+
+  const homeTeam = teams.find(t => t.id === homeTeamId);
+  const awayTeam = teams.find(t => t.id === awayTeamId);
 
   const handleCreate = async () => {
     if (!title.trim()) return;
     const result = await createMatch({
       title: title.trim(),
-      home_name: homeName.trim() || 'CASA',
-      away_name: awayName.trim() || 'FORA',
+      home_name: homeTeam?.name || 'CASA',
+      away_name: awayTeam?.name || 'FORA',
+      home_team_id: homeTeamId || null,
+      away_team_id: awayTeamId || null,
       first_serve_side: firstServe,
     });
     if (result) {
       setOpen(false);
       setTitle('');
-      setHomeName('CASA');
-      setAwayName('FORA');
+      setHomeTeamId('');
+      setAwayTeamId('');
       window.location.href = `/setup/${result.id}`;
     }
   };
@@ -78,22 +85,30 @@ export default function Games() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="home">Equipa Casa</Label>
-                  <Input
-                    id="home"
-                    value={homeName}
-                    onChange={(e) => setHomeName(e.target.value)}
-                    placeholder="CASA"
-                  />
+                  <Label>Equipa Casa</Label>
+                  <Select value={homeTeamId} onValueChange={setHomeTeamId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar equipa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.filter(t => t.id !== awayTeamId).map(team => (
+                        <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="away">Equipa Fora</Label>
-                  <Input
-                    id="away"
-                    value={awayName}
-                    onChange={(e) => setAwayName(e.target.value)}
-                    placeholder="FORA"
-                  />
+                  <Label>Equipa Fora</Label>
+                  <Select value={awayTeamId} onValueChange={setAwayTeamId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar equipa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.filter(t => t.id !== homeTeamId).map(team => (
+                        <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">
@@ -103,8 +118,8 @@ export default function Games() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CASA">{homeName || 'CASA'}</SelectItem>
-                    <SelectItem value="FORA">{awayName || 'FORA'}</SelectItem>
+                    <SelectItem value="CASA">{homeTeam?.name || 'CASA'}</SelectItem>
+                    <SelectItem value="FORA">{awayTeam?.name || 'FORA'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
