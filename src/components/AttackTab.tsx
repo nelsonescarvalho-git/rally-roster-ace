@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAttackStats, AttackerStats, DistributionBreakdown } from '@/hooks/useAttackStats';
-import { Rally, Player, MatchPlayer, Side, Match, DISTRIBUTION_LABELS } from '@/types/volleyball';
+import { Rally, Player, MatchPlayer, Side, Match, DISTRIBUTION_LABELS, AttackDirection, ATTACK_DIRECTION_LABELS } from '@/types/volleyball';
 import { Progress } from '@/components/ui/progress';
 import { Zap, TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -47,13 +47,14 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
   const [sideFilter, setSideFilter] = useState<Side | 'TODAS'>('TODAS');
   const [attackerFilter, setAttackerFilter] = useState<string | null>(null);
   const [distributionFilter, setDistributionFilter] = useState<number | null>(null);
+  const [directionFilter, setDirectionFilter] = useState<AttackDirection | null>(null);
 
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
 
   const { attackerStats, attackers, globalDistributionBreakdown } = useAttackStats(
     filteredRallies,
     players,
-    { side: sideFilter, attackerId: attackerFilter, distributionCode: distributionFilter }
+    { side: sideFilter, attackerId: attackerFilter, distributionCode: distributionFilter, attackDirection: directionFilter }
   );
 
   // Group stats by side when showing all
@@ -423,6 +424,23 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
                 <SelectItem value="2">+ 2 - Boa</SelectItem>
                 <SelectItem value="1">- 1 - Fraca</SelectItem>
                 <SelectItem value="0">✗ 0 - Má</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={directionFilter || 'all'}
+              onValueChange={(v) => setDirectionFilter(v === 'all' ? null : v as AttackDirection)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Direção" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Dir.</SelectItem>
+                {(Object.keys(ATTACK_DIRECTION_LABELS) as AttackDirection[]).map(dir => (
+                  <SelectItem key={dir} value={dir}>
+                    {ATTACK_DIRECTION_LABELS[dir].emoji} {ATTACK_DIRECTION_LABELS[dir].label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
