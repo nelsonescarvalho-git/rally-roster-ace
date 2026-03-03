@@ -50,8 +50,9 @@ export function WizardSectionCard({
     )}>
       {/* Colored Header - color based on team */}
       <div className={cn(
-        'flex items-center gap-2 px-4 py-2 text-white',
-        colors.headerBg
+        'flex items-center gap-2 px-4 py-2',
+        colors.headerBg,
+        teamSide === 'home' ? 'text-home-foreground' : 'text-away-foreground'
       )}>
         <Icon className="h-5 w-5" />
         <span className="font-semibold">{config.label}</span>
@@ -60,7 +61,7 @@ export function WizardSectionCard({
         )}
         <div className="flex-1" />
         {teamName && (
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/20">
+          <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium bg-white/20", teamSide === 'home' ? 'text-home-foreground' : 'text-away-foreground')}>
             {teamName}
           </span>
         )}

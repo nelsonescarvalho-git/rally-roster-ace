@@ -2476,11 +2476,11 @@ export default function Live() {
                 }}
               />
               <div className={cn(
-                "flex items-center gap-2 px-4 py-2 text-white",
-                gameState.serveSide === 'CASA' ? 'bg-home' : 'bg-away'
+                "flex items-center gap-2 px-4 py-2",
+                gameState.serveSide === 'CASA' ? 'bg-home text-home-foreground' : 'bg-away text-away-foreground'
               )}>
                 <span className="font-semibold">Serviço</span>
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 ml-auto bg-white/20 text-white border-0">
+                <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0 h-5 ml-auto bg-white/20 border-0", gameState.serveSide === 'CASA' ? 'text-home-foreground' : 'text-away-foreground')}>
                   {serveStep}/2
                 </Badge>
                 <span className="text-xs opacity-80">
@@ -2596,12 +2596,12 @@ export default function Live() {
                 }}
               />
               <div className={cn(
-                "flex items-center gap-2 px-4 py-2 text-white",
-                gameState.recvSide === 'CASA' ? 'bg-home' : 'bg-away'
+                "flex items-center gap-2 px-4 py-2",
+                gameState.recvSide === 'CASA' ? 'bg-home text-home-foreground' : 'bg-away text-away-foreground'
               )}>
                 <span className="font-semibold">Receção</span>
                 <span className="text-xs opacity-80">(opcional)</span>
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 ml-auto bg-white/20 text-white border-0">
+                <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0 h-5 ml-auto bg-white/20 border-0", gameState.recvSide === 'CASA' ? 'text-home-foreground' : 'text-away-foreground')}>
                   {receptionStep}/2
                 </Badge>
                 <span className="text-xs opacity-80">
