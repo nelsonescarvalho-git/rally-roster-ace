@@ -19,7 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Rally, Player, MatchPlayer, Side, Reason, KillType, PassDestination, ServeType } from '@/types/volleyball';
+import { Rally, Player, MatchPlayer, Side, Reason, KillType, PassDestination, ServeType, AttackDirection, ATTACK_DIRECTION_LABELS } from '@/types/volleyball';
 import type { RallyActionWithPlayer, RallyActionUpdate, ActionType } from '@/types/rallyActions';
 import { ACTION_CODE_LABELS, ACTION_TYPE_INFO } from '@/types/rallyActions';
 
@@ -55,6 +55,7 @@ export interface ActionEditState {
   pass_code: number | null;
   kill_type: KillType | null;
   serve_type: ServeType | null;
+  attack_direction: AttackDirection | null;
   b2_player_id: string | null;
   b2_no: number | null;
   b3_player_id: string | null;
@@ -66,6 +67,7 @@ const CODES = [0, 1, 2, 3];
 const REASONS: Reason[] = ['ACE', 'SE', 'KILL', 'AE', 'BLK', 'OP', 'DEF'];
 const KILL_TYPES: KillType[] = ['FLOOR', 'BLOCKOUT'];
 const DESTINATIONS: PassDestination[] = ['P2', 'P3', 'P4', 'OP', 'PIPE', 'BACK', 'OUTROS'];
+const DIRECTIONS: AttackDirection[] = ['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'];
 const SERVE_TYPES: ServeType[] = ['FLOAT', 'JUMP_FLOAT', 'POWER', 'OTHER'];
 
 const ACTION_ICONS: Record<ActionType, typeof CircleDot> = {
@@ -107,6 +109,7 @@ export function EditRallyActionsModal({
         pass_code: a.pass_code,
         kill_type: a.kill_type as KillType | null,
         serve_type: a.serve_type as ServeType | null,
+        attack_direction: a.attack_direction as AttackDirection | null,
         b2_player_id: a.b2_player_id,
         b2_no: a.b2_no,
         b3_player_id: a.b3_player_id,
@@ -182,13 +185,48 @@ export function EditRallyActionsModal({
     return issues;
   };
 
+  // Sequence validation warnings
+  const getSequenceWarnings = (): Map<number, string[]> => {
+    const warnings = new Map<number, string[]>();
+    
+    editActions.forEach((action, idx) => {
+      const actionWarnings: string[] = [];
+      
+      // First action should be serve
+      if (idx === 0 && action.action_type !== 'serve') {
+        actionWarnings.push('Esperado serviço como 1ª ação');
+      }
+      
+      // Serve should be followed by reception from opposite side
+      if (idx > 0) {
+        const prev = editActions[idx - 1];
+        if (prev.action_type === 'serve' && action.action_type === 'reception' && action.side === prev.side) {
+          actionWarnings.push('Receção deve ser do lado oposto ao serviço');
+        }
+        
+        // Consecutive duplicate action type + side
+        if (prev.action_type === action.action_type && prev.side === action.side && action.action_type !== 'defense' && action.action_type !== 'attack') {
+          actionWarnings.push('Ação duplicada consecutiva');
+        }
+      }
+      
+      if (actionWarnings.length > 0) {
+        warnings.set(idx, actionWarnings);
+      }
+    });
+    
+    return warnings;
+  };
+  
+  const sequenceWarnings = getSequenceWarnings();
+
   const hasAnyIssues = editActions.some(a => getActionIssues(a).length > 0);
 
   const getSideName = (side: Side) => side === 'CASA' ? homeName : awayName;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             Editar Rally #{rallyMeta.rally_no}
@@ -218,6 +256,7 @@ export function EditRallyActionsModal({
                 const Icon = ACTION_ICONS[action.action_type];
                 const actionInfo = ACTION_TYPE_INFO[action.action_type];
                 const issues = getActionIssues(action);
+                const seqWarnings = sequenceWarnings.get(idx) || [];
                 const sidePlayers = getPlayersForSide(action.side);
                 const isKill = action.action_type === 'attack' && action.code === 3;
                 
@@ -227,6 +266,7 @@ export function EditRallyActionsModal({
                     className={cn(
                       'border rounded-lg p-3 space-y-2',
                       issues.length > 0 && 'border-warning/50 bg-warning/5',
+                      seqWarnings.length > 0 && 'border-orange-400/50 bg-orange-400/5',
                       isKill && 'border-success/50 bg-success/5'
                     )}
                   >
@@ -249,8 +289,13 @@ export function EditRallyActionsModal({
                         {getSideName(action.side).slice(0, 3)}
                       </Badge>
                       {issues.map((issue, i) => (
-                        <Badge key={i} variant="outline" className="text-[10px] border-warning text-warning">
+                        <Badge key={`issue-${i}`} variant="outline" className="text-[10px] border-warning text-warning">
                           ⚠️ {issue}
+                        </Badge>
+                      ))}
+                      {seqWarnings.map((w, i) => (
+                        <Badge key={`seq-${i}`} variant="outline" className="text-[10px] border-orange-400 text-orange-500">
+                          🔀 {w}
                         </Badge>
                       ))}
                     </div>
@@ -275,10 +320,14 @@ export function EditRallyActionsModal({
                         </SelectContent>
                       </Select>
 
-                      {/* Code Select */}
+                      {/* Code Select (setter uses pass_code) */}
                       <Select
-                        value={action.code?.toString() ?? 'none'}
-                        onValueChange={(v) => updateAction(idx, { code: v === 'none' ? null : parseInt(v) })}
+                        value={(action.action_type === 'setter' ? action.pass_code : action.code)?.toString() ?? 'none'}
+                        onValueChange={(v) => updateAction(idx, 
+                          action.action_type === 'setter'
+                            ? { pass_code: v === 'none' ? null : parseInt(v) }
+                            : { code: v === 'none' ? null : parseInt(v) }
+                        )}
                       >
                         <SelectTrigger className="w-16 h-8 text-xs">
                           <SelectValue placeholder="-" />
@@ -345,6 +394,26 @@ export function EditRallyActionsModal({
                             <SelectItem value="none">-</SelectItem>
                             <SelectItem value="FLOOR">Chão</SelectItem>
                             <SelectItem value="BLOCKOUT">Block-out</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      {/* Attack Direction (for attack actions) */}
+                      {action.action_type === 'attack' && (
+                        <Select
+                          value={action.attack_direction || 'none'}
+                          onValueChange={(v) => updateAction(idx, { attack_direction: v === 'none' ? null : v as AttackDirection })}
+                        >
+                          <SelectTrigger className="w-28 h-8 text-xs">
+                            <SelectValue placeholder="Direção" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">-</SelectItem>
+                            {DIRECTIONS.map(d => (
+                              <SelectItem key={d} value={d}>
+                                {ATTACK_DIRECTION_LABELS[d].emoji} {ATTACK_DIRECTION_LABELS[d].label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       )}
