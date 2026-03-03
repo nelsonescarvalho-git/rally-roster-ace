@@ -1,60 +1,31 @@
 
 
-# Fix: Texto invisivel quando cor da equipa e branca/clara
+# Fix: Texto branco hardcoded em headers de equipa
 
 ## Problema
-O hook `useTeamColors` define dinamicamente as variaveis CSS `--home` e `--away` com base nas cores das equipas registadas na BD. No entanto, **nunca calcula nem define `--home-foreground` e `--away-foreground`**. Estas ficam com os valores estaticos do CSS (`0 0% 100%` = branco).
+Varios componentes usam `text-white` hardcoded sobre fundos `bg-home` / `bg-away`. Quando a equipa tem cor clara (branco, amarelo, etc), o texto fica invisivel.
 
-Quando uma equipa tem cor primaria branca ou muito clara:
-- **Botoes selecionados** (fundo = cor da equipa, texto = `text-white` hardcoded) ficam invisiveis
-- **Texto colorido** (`text-home`, `text-away`) sobre fundos claros do card tambem fica invisivel
-- O screenshot mostra exactamente isto na pagina Setup (botao FORA invisivel)
+## Ficheiros a alterar
 
-Este problema afeta ~19 componentes em toda a app (Setup, Live, Stats, etc).
+### 1. `src/pages/Live.tsx`
+- **Linha 2479**: `text-white` → condicional `gameState.serveSide === 'CASA' ? 'text-home-foreground' : 'text-away-foreground'`
+- **Linha 2483**: Badge `text-white` → mesma logica
+- **Linha 2599**: `text-white` → condicional `gameState.recvSide === 'CASA' ? 'text-home-foreground' : 'text-away-foreground'`
+- **Linha 2604**: Badge `text-white` → mesma logica
 
-## Solucao
+### 2. `src/components/live/WizardSectionCard.tsx`
+- **Linha 53**: `text-white` → `teamSide === 'home' ? 'text-home-foreground' : 'text-away-foreground'`
+- **Linha 63**: `bg-white/20` → adicionar foreground dinamico com `text-[hsl(var(--home-foreground))]` etc
 
-### 1. Calcular foreground automaticamente em `useTeamColors`
+### 3. `src/components/live/ComboSetterAttack.tsx`
+- **Linha 144**: `text-white` → condicional baseado no `side` prop (`side === 'CASA' ? 'text-home-foreground' : 'text-away-foreground'`)
 
-Adicionar logica de contraste ao hook `useTeamColors.ts`:
-- Calcular a luminancia relativa de cada cor primaria
-- Se a cor for clara (luminancia > 0.5), usar texto escuro (`220 30% 10%` = foreground do tema dark)
-- Se a cor for escura, usar texto branco (`0 0% 100%`)
-- Definir `--home-foreground` e `--away-foreground` dinamicamente
+### 4. `src/components/live/StepProgressBar.tsx`
+- **Linha 78**: `text-white` — usa cores fixas de acao (orange-500, green-500, etc), nao cores de equipa. Estas cores sao escuras o suficiente, manter como esta.
 
-```typescript
-// Em useTeamColors.ts
-function getContrastForeground(hex: string): string {
-  const r = parseInt(hex.slice(1,3), 16) / 255;
-  const g = parseInt(hex.slice(3,5), 16) / 255;
-  const b = parseInt(hex.slice(5,7), 16) / 255;
-  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luminance > 0.55 ? '220 30% 10%' : '0 0% 100%';
-}
+### 5. `src/components/live/RallyTimeline.tsx`
+- **Linhas 108, 217**: `text-white` sobre circulos de cor fixa (bg-orange-500, bg-green-500). Cores fixas escuras, manter.
 
-// Dentro do useEffect:
-root.style.setProperty('--home-foreground', getContrastForeground(homePrimary));
-root.style.setProperty('--away-foreground', getContrastForeground(awayPrimary));
-```
-
-### 2. Substituir `text-white` hardcoded por `text-home-foreground` / `text-away-foreground`
-
-Ficheiros a alterar:
-
-| Ficheiro | Alteracao |
-|----------|-----------|
-| `src/pages/Setup.tsx` | `color: 'white'` → `color: 'hsl(var(--home-foreground))'` / `'hsl(var(--away-foreground))'` nos botoes de equipa e badges de jogador |
-| `src/components/live/ActionSelector.tsx` | `text-white` → `text-home-foreground` / `text-away-foreground` nos botoes selecionados |
-| `src/components/live/CompactActionSelector.tsx` | Idem |
-| `src/components/live/PlayerGrid.tsx` | `text-white` → `text-home-foreground` / `text-away-foreground` nos jogadores selecionados |
-| `src/components/live/ActionPad.tsx` | `text-white` no Badge → usar foreground dinamico |
-
-### 3. Cleanup no `useTeamColors`
-
-Adicionar `--home-foreground` e `--away-foreground` ao bloco de cleanup (removeProperty).
-
-### Impacto
-- Corrige a visibilidade em **todas** as paginas que usam cores de equipa
-- Sem alteracoes a BD
-- Retrocompativel: equipas com cores escuras continuam com texto branco como antes
+## Resumo
+Alterar 4 ficheiros (Live.tsx, WizardSectionCard.tsx, ComboSetterAttack.tsx) para usar `text-home-foreground` / `text-away-foreground` em vez de `text-white` hardcoded. StepProgressBar e RallyTimeline usam cores fixas (nao de equipa) e nao precisam de alteracao.
 
