@@ -15,7 +15,9 @@ import {
   PassDestination, 
   KillType,
   ServeType,
+  AttackDirection,
   SERVE_TYPE_LABELS,
+  ATTACK_DIRECTION_LABELS,
   POSITIONS_BY_RECEPTION,
   MatchPlayer,
   Player
@@ -41,6 +43,7 @@ interface ActionEditorProps {
   selectedCode?: number | null;
   selectedKillType?: KillType | null;
   selectedServeType?: ServeType | null;
+  selectedAttackDirection?: AttackDirection | null;
   selectedSetter?: string | null;
   selectedDestination?: PassDestination | null;
   selectedPassCode?: number | null;
@@ -66,6 +69,7 @@ interface ActionEditorProps {
   onPlayerChange: (id: string | null) => void;
   onCodeChange: (code: number | null) => void;
   onKillTypeChange?: (type: KillType | null) => void;
+  onAttackDirectionChange?: (dir: AttackDirection | null) => void;
   onServeTypeChange?: (type: ServeType | null) => void;
   onSetterChange?: (id: string | null) => void;
   onDestinationChange?: (dest: PassDestination | null) => void;
@@ -85,6 +89,7 @@ interface ActionEditorProps {
     killType?: KillType | null;
     blockCode?: number | null;
     blocker1Id?: string | null;
+    attackDirection?: AttackDirection | null;
   }) => void;
   onCancel: () => void;
   onUndo?: () => void;
@@ -133,6 +138,7 @@ export function ActionEditor({
   selectedCode,
   selectedKillType,
   selectedServeType,
+  selectedAttackDirection,
   selectedSetter,
   selectedDestination,
   selectedPassCode,
@@ -149,6 +155,7 @@ export function ActionEditor({
   onPlayerChange,
   onCodeChange,
   onKillTypeChange,
+  onAttackDirectionChange,
   onServeTypeChange,
   onSetterChange,
   onDestinationChange,
@@ -192,10 +199,10 @@ export function ActionEditor({
       case 'defense': return 2;    // Player → Quality
       case 'setter': return 3;     // Player → Quality → Destination
       case 'attack': 
-        // Step 4 for blocker selection when b_code=3 (stuff block)
-        if (selectedCode === 1 && (selectedBlockCode === 1 || selectedBlockCode === 2 || selectedBlockCode === 3)) return 4;
-        // Step 3 for a_code=1 (block result) or a_code=3 (kill type)
-        return (selectedCode === 1 || selectedCode === 3) ? 3 : 2;
+        // +1 step for direction: Player → Direction → Quality → (KillType/BlockResult) → (Blocker)
+        if (selectedCode === 1 && (selectedBlockCode === 1 || selectedBlockCode === 2 || selectedBlockCode === 3)) return 5;
+        if (selectedCode === 1 || selectedCode === 3) return 4;
+        return 3; // Player → Direction → Quality
       case 'block': return 2; // Blockers → Quality
       default: return 1;
     }
@@ -317,11 +324,11 @@ export function ActionEditor({
       return;
     }
     
-    // Attack: code 1 or 3 needs Step 3, code 0 auto-finishes, code 2 continues
+    // Attack: code 1 or 3 needs Step 4, code 0 auto-finishes, code 2 continues
     if (actionType === 'attack') {
       if (code === 1 || code === 3) {
-        // Go to Step 3 for block result (code 1) or kill type (code 3)
-        setCurrentStep(3);
+        // Go to Step 4 for block result (code 1) or kill type (code 3)
+        setCurrentStep(4);
         return;
       }
       
@@ -363,9 +370,9 @@ export function ActionEditor({
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
     onBlockCodeChange?.(bCode);
     
-    // For block types 1, 2, 3 → go to Step 4 to select blocker
+    // For block types 1, 2, 3 → go to Step 5 to select blocker
     if (bCode === 1 || bCode === 2 || bCode === 3) {
-      setCurrentStep(4);
+      setCurrentStep(5);
       return;
     }
     
@@ -512,7 +519,7 @@ export function ActionEditor({
       if (actionType === 'setter' && currentStep === 2) {
         onPassCodeChange?.(code);
         setCurrentStep(3);
-      } else if (actionType === 'attack' && currentStep === 2) {
+      } else if (actionType === 'attack' && currentStep === 3) {
         handleCodeWithAutoConfirm(code);
       } else if (currentStep === 2) {
         // For serve/reception/defense in Step 2
@@ -757,7 +764,7 @@ export function ActionEditor({
                   selectedPlayerId={selectedPlayer || null}
                   onSelect={(playerId) => {
                     onPlayerChange(playerId);
-                    setCurrentStep(2); // Avançar sempre para Step 2 (avaliação)
+                    setCurrentStep(2); // Avançar para Step 2 (direção)
                   }}
                   teamSide={teamSide}
                   lastUsedPlayerId={lastUsedPlayerId}
@@ -781,6 +788,56 @@ export function ActionEditor({
                 )}
               </>
             ) : currentStep === 2 ? (
+              // Step 2: Direction selection
+              <div className="space-y-3">
+                {selectedPlayer && (
+                  <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/40 border border-border/50">
+                    <span className="text-lg font-bold">
+                      #{players.find(p => p.id === selectedPlayer)?.jersey_number}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {players.find(p => p.id === selectedPlayer)?.name?.split(' ')[0]}
+                    </span>
+                  </div>
+                )}
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Direção do Ataque
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'] as AttackDirection[]).map((dir) => {
+                    const info = ATTACK_DIRECTION_LABELS[dir];
+                    return (
+                      <Button
+                        key={dir}
+                        variant={selectedAttackDirection === dir ? 'default' : 'outline'}
+                        className={cn(
+                          'h-16 flex flex-col gap-1 text-base font-semibold transition-all',
+                          selectedAttackDirection === dir && 'ring-2 ring-offset-2'
+                        )}
+                        onClick={() => {
+                          onAttackDirectionChange?.(dir);
+                          setCurrentStep(3);
+                        }}
+                      >
+                        <span className="text-lg">{info.emoji}</span>
+                        <span className="text-xs">{info.label}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={() => {
+                    onAttackDirectionChange?.(null);
+                    setCurrentStep(3);
+                  }}
+                >
+                  Sem direção →
+                </Button>
+              </div>
+            ) : currentStep === 3 ? (
               <div className="space-y-3">
                 {/* Contexto do Atacante */}
                 {selectedPlayer && (
@@ -791,6 +848,11 @@ export function ActionEditor({
                     <span className="text-sm text-muted-foreground">
                       {players.find(p => p.id === selectedPlayer)?.name?.split(' ')[0]}
                     </span>
+                    {selectedAttackDirection && (
+                      <Badge variant="secondary" className="text-xs">
+                        {ATTACK_DIRECTION_LABELS[selectedAttackDirection].emoji} {ATTACK_DIRECTION_LABELS[selectedAttackDirection].label}
+                      </Badge>
+                    )}
                     {getZoneLabel && (
                       <Badge variant="outline" className="text-[10px] h-5">
                         {getZoneLabelWrapper(selectedPlayer)}
@@ -834,8 +896,8 @@ export function ActionEditor({
                   }}
                 />
               </div>
-            ) : currentStep === 3 ? (
-              // Step 3: Kill Type (code=3) or Block Result (code=1)
+            ) : currentStep === 4 ? (
+              // Step 4: Kill Type (code=3) or Block Result (code=1)
               <div className="space-y-4">
                 {selectedCode === 3 && (
                   <div className="space-y-3">
@@ -946,7 +1008,7 @@ export function ActionEditor({
                 )}
               </div>
             ) : (
-              // Step 4: Blocker selection for all block types (b_code 1, 2, 3)
+              // Step 5: Blocker selection for all block types (b_code 1, 2, 3)
               <div className="space-y-4">
                 <div className={cn(
                   "text-center p-3 rounded-lg border",

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Rally, Player, MatchPlayer, Side, ATTACK_DIFFICULTY_BY_DISTRIBUTION, DISTRIBUTION_LABELS } from '@/types/volleyball';
+import { Rally, Player, MatchPlayer, Side, ATTACK_DIFFICULTY_BY_DISTRIBUTION, DISTRIBUTION_LABELS, AttackDirection, ATTACK_DIRECTION_LABELS } from '@/types/volleyball';
 
 export interface AttackerStats {
   attackerId: string;
@@ -32,6 +32,17 @@ export interface AttackerStats {
     blocked: number;
     efficiency: number;
   }[];
+  
+  // Direction breakdown
+  statsByDirection: {
+    direction: AttackDirection;
+    attempts: number;
+    kills: number;
+    errors: number;
+    efficiency: number;
+  }[];
+  preferredDirection: AttackDirection | null;
+  bestDirection: AttackDirection | null;
 }
 
 export interface DistributionBreakdown {
@@ -99,6 +110,7 @@ export function useAttackStats(
       stats: AttackerStats;
       passCodeSum: number;
       byDistribution: Record<number, { attempts: number; kills: number; errors: number; blocked: number }>;
+      byDirection: Record<string, { attempts: number; kills: number; errors: number }>;
     }> = {};
 
     // Initialize for all attackers
@@ -123,9 +135,13 @@ export function useAttackStats(
             efficiencyWithGoodDist: 0,
             efficiencyWithBadDist: 0,
             statsByDistribution: [],
+            statsByDirection: [],
+            preferredDirection: null,
+            bestDirection: null,
           },
           passCodeSum: 0,
           byDistribution: { 0: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 1: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 2: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 3: { attempts: 0, kills: 0, errors: 0, blocked: 0 } },
+          byDirection: {},
         };
       }
     });
@@ -174,7 +190,17 @@ export function useAttackStats(
         if (aCode === 3) entry.stats.killsWithBadDist++;
       }
 
-      // Global breakdown
+      // By direction
+      const dir = rally.attack_direction;
+      if (dir) {
+        if (!entry.byDirection[dir]) {
+          entry.byDirection[dir] = { attempts: 0, kills: 0, errors: 0 };
+        }
+        entry.byDirection[dir].attempts++;
+        if (aCode === 3) entry.byDirection[dir].kills++;
+        if (aCode === 0) entry.byDirection[dir].errors++;
+      }
+
       if (!globalByDist[passCode]) {
         globalByDist[passCode] = { attempts: 0, kills: 0, errors: 0, attackers: {} };
       }
@@ -221,6 +247,30 @@ export function useAttackStats(
           efficiency: d.attempts > 0 ? (d.kills - d.errors - d.blocked) / d.attempts : 0,
         };
       });
+      
+      // Direction stats
+      const directions: AttackDirection[] = ['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'];
+      s.statsByDirection = directions
+        .map(dir => {
+          const d = entry.byDirection[dir] || { attempts: 0, kills: 0, errors: 0 };
+          return {
+            direction: dir,
+            attempts: d.attempts,
+            kills: d.kills,
+            errors: d.errors,
+            efficiency: d.attempts > 0 ? (d.kills - d.errors) / d.attempts : 0,
+          };
+        })
+        .filter(d => d.attempts > 0);
+      
+      // Preferred = most attempts, Best = highest efficiency (min 2 attempts)
+      if (s.statsByDirection.length > 0) {
+        s.preferredDirection = s.statsByDirection.reduce((a, b) => a.attempts >= b.attempts ? a : b).direction;
+        const eligible = s.statsByDirection.filter(d => d.attempts >= 2);
+        s.bestDirection = eligible.length > 0 
+          ? eligible.reduce((a, b) => a.efficiency >= b.efficiency ? a : b).direction 
+          : s.preferredDirection;
+      }
     });
 
     // Build global breakdown

@@ -280,6 +280,7 @@ export type Database = {
           a_no: number | null
           a_pass_quality: number | null
           a_player_id: string | null
+          attack_direction: string | null
           b_code: number | null
           b1_no: number | null
           b1_player_id: string | null
@@ -324,6 +325,7 @@ export type Database = {
           a_no?: number | null
           a_pass_quality?: number | null
           a_player_id?: string | null
+          attack_direction?: string | null
           b_code?: number | null
           b1_no?: number | null
           b1_player_id?: string | null
@@ -368,6 +370,7 @@ export type Database = {
           a_no?: number | null
           a_pass_quality?: number | null
           a_player_id?: string | null
+          attack_direction?: string | null
           b_code?: number | null
           b1_no?: number | null
           b1_player_id?: string | null
@@ -483,6 +486,7 @@ export type Database = {
       rally_actions: {
         Row: {
           action_type: string
+          attack_direction: string | null
           b2_no: number | null
           b2_player_id: string | null
           b3_no: number | null
@@ -504,6 +508,7 @@ export type Database = {
         }
         Insert: {
           action_type: string
+          attack_direction?: string | null
           b2_no?: number | null
           b2_player_id?: string | null
           b3_no?: number | null
@@ -525,6 +530,7 @@ export type Database = {
         }
         Update: {
           action_type?: string
+          attack_direction?: string | null
           b2_no?: number | null
           b2_player_id?: string | null
           b3_no?: number | null
