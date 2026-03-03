@@ -84,7 +84,7 @@ export function RallyActionsTimeline({ actions, homeName, awayName }: RallyActio
             teamColor={teamSide}
             playerNumber={action.player_jersey || action.player_no}
             playerName={action.action_type === 'block' ? blockPlayers : action.player_name}
-            code={action.code}
+            code={action.action_type === 'setter' ? action.pass_code : action.code}
             extra={extra}
             isLast={isLast}
             highlight={highlight}
