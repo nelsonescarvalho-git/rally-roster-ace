@@ -1446,32 +1446,81 @@ export default function Live() {
         .maybeSingle();
       
       // Save all actions to rally_actions table
-      if (createdRally?.id && registeredActions.length > 0) {
-        const actionsToInsert: RallyActionInsert[] = registeredActions.map((action, index) => ({
-          rally_id: createdRally.id,
-          sequence_no: index + 1,
-          action_type: action.type as ActionType,
-          side: action.side,
-          player_id: action.playerId || null,
-          player_no: action.playerNo || null,
-          code: action.code ?? null,
-          pass_destination: action.passDestination || null,
-          pass_code: action.passCode ?? null,
-          kill_type: action.killType || null,
-          serve_type: action.serveType || null,
-          attack_direction: action.attackDirection || null,
-          b2_player_id: action.b2PlayerId || null,
-          b3_player_id: action.b3PlayerId || null,
-          b2_no: null, // Will be populated if needed
-          b3_no: null,
-        }));
-        
-        try {
-          await createRallyActions.mutateAsync(actionsToInsert);
-          console.log('[Rally Actions] Saved', actionsToInsert.length, 'actions to rally_actions table');
-        } catch (err) {
-          console.error('[Rally Actions] Failed to save actions:', err);
-          // Don't fail the whole operation - rally was saved successfully
+      // Build complete actions list: registeredActions + terminal actions from rallyData/overrides
+      if (createdRally?.id) {
+        let allActions = [...registeredActions];
+
+        // Add serve action from rallyData if missing (race condition with setTimeout)
+        if (!allActions.some(a => a.type === 'serve') && rallyData.s_player_id) {
+          allActions.push({
+            type: 'serve',
+            side: rallyData.serve_side as Side,
+            phase: 1,
+            playerId: rallyData.s_player_id,
+            playerNo: rallyData.s_no ?? null,
+            code: rallyData.s_code ?? null,
+            serveType: (rallyData.s_type as ServeType) || null,
+          });
+        }
+
+        // Add attack action from overrides/rallyData if missing
+        if (!allActions.some(a => a.type === 'attack') && rallyData.a_player_id) {
+          allActions.push({
+            type: 'attack',
+            side: attackAction?.side || rallyData.recv_side as Side,
+            phase: 1,
+            playerId: rallyData.a_player_id,
+            playerNo: rallyData.a_no ?? null,
+            code: rallyData.a_code ?? null,
+            killType: (rallyData.kill_type as KillType) || null,
+            attackDirection: (rallyData.attack_direction as AttackDirection) || null,
+            attackPassQuality: rallyData.a_pass_quality ?? null,
+          });
+        }
+
+        // Add block action from overrides/rallyData if missing
+        if (!allActions.some(a => a.type === 'block') && (rallyData.b_code !== null && rallyData.b_code !== undefined)) {
+          const blockSide: Side = rallyData.a_player_id
+            ? (attackAction?.side === 'CASA' ? 'FORA' : 'CASA')
+            : (rallyData.serve_side as Side);
+          allActions.push({
+            type: 'block',
+            side: blockSide,
+            phase: 1,
+            playerId: rallyData.b1_player_id || null,
+            playerNo: rallyData.b1_no ?? null,
+            code: rallyData.b_code,
+            b2PlayerId: rallyData.b2_player_id || null,
+            b3PlayerId: rallyData.b3_player_id || null,
+          });
+        }
+
+        if (allActions.length > 0) {
+          const actionsToInsert: RallyActionInsert[] = allActions.map((action, index) => ({
+            rally_id: createdRally.id,
+            sequence_no: index + 1,
+            action_type: action.type as ActionType,
+            side: action.side,
+            player_id: action.playerId || null,
+            player_no: action.playerNo || null,
+            code: action.code ?? null,
+            pass_destination: action.passDestination || null,
+            pass_code: action.passCode ?? null,
+            kill_type: action.killType || null,
+            serve_type: action.serveType || null,
+            attack_direction: action.attackDirection || null,
+            b2_player_id: action.b2PlayerId || null,
+            b3_player_id: action.b3PlayerId || null,
+            b2_no: null,
+            b3_no: null,
+          }));
+          
+          try {
+            await createRallyActions.mutateAsync(actionsToInsert);
+            console.log('[Rally Actions] Saved', actionsToInsert.length, 'actions (including terminal) to rally_actions table');
+          } catch (err) {
+            console.error('[Rally Actions] Failed to save actions:', err);
+          }
         }
       }
       
