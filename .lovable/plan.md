@@ -1,62 +1,22 @@
 
 
-# Fix: Estatísticas incompletas — hooks que lêem da tabela `rallies` em vez de `rally_actions`
+# Opinião: Ordenação de jogadores por número vs. zona
 
-## Problema
+## Análise
 
-Vários hooks de estatísticas lêem da tabela `rallies` (estrutura achatada), que só guarda **uma ocorrência** de cada tipo de ação por rally. Em rallies longos com múltiplos ataques, defesas ou blocos, os dados subsequentes existem apenas em `rally_actions` e não aparecem nas estatísticas.
+Concordo com a tua observação. Durante o registo ao vivo, o operador precisa de encontrar o jogador **rapidamente pelo número da camisola** — é o que se vê no campo. A ordenação por zona (Z1→Z6) obriga a mapear mentalmente "quem está na zona 3?" antes de clicar, o que atrasa o registo.
 
-**Hooks afectados** (lêem de `rallies`):
-- `useStats` — tab "Jogadores": faltam ataques, defesas, blocos
-- `useAttackStats` — tab "Ataque": faltam ataques de contra-ataque
-- `useErrorStats` — tab "Erros": faltam erros de ações repetidas
-- `useSetKPIs` — KPIs de set: mesmos problemas
+A zona já está visível como label no canto do botão (Z1, Z2, etc.), portanto a informação não se perde — apenas deixa de ditar a ordem.
 
-**Hooks já correctos** (lêem de `rally_actions`):
-- `useReceptionStats`, `useDefenseStats`, `useDestinationStatsFromActions`, `useDistributionStatsFromActions`
+## Fix
 
-## Plano
+Alterar a ordenação no `PlayerGrid.tsx` para **sempre usar `jersey_number`**, mantendo a zona como label informativa:
 
-### 1. Actualizar `useStats` para aceitar `rallyActionsMap` opcional
+```typescript
+// Antes: sort by zone when getZoneLabel exists
+// Depois: always sort by jersey number
+const sortedPlayers = [...players].sort((a, b) => a.jersey_number - b.jersey_number);
+```
 
-Assinatura: `useStats(rallies, players, rallyActionsMap?)`
-
-Quando o mapa existe, para cada rally com acções em `rallyActionsMap`:
-- Iterar **todas** as acções de ataque, defesa, bloco, serviço, receção
-- Contar por jogador usando `action.player_id` e `action.code`
-- Para blocos: contar participações de `b2_player_id` e `b3_player_id` também
-- Fallback para campos planos do `rallies` quando o mapa não tem dados para um rally
-
-### 2. Actualizar `useAttackStats` para aceitar `rallyActionsMap` opcional
-
-Assinatura: `useAttackStats(rallies, players, filters, rallyActionsMap?)`
-
-Quando o mapa existe:
-- Iterar acções de tipo `attack` em `rally_actions`
-- Usar `action.code`, `action.attack_direction`, `action.kill_type`
-- Para qualidade de distribuição: procurar a acção `setter` precedente no mesmo rally/lado e usar o `pass_code`
-- Fallback para `rallies` quando o mapa não tem dados
-
-### 3. Actualizar `useErrorStats` para aceitar `rallyActionsMap` opcional
-
-Assinatura: `useErrorStats(rallies, players, sanctions, filters, rallyActionsMap?)`
-
-Quando o mapa existe:
-- Contar erros (code=0) de todas as acções por tipo e jogador
-- Captura erros de ataques, defesas e blocos múltiplos por rally
-
-### 4. Actualizar `Stats.tsx` para passar `rallyActionsMap` aos hooks
-
-O `rallyActionsMap` já é obtido via `useRallyActionsForMatch(matchId)` na linha 36. Basta passá-lo como parâmetro adicional a:
-- `useStats(filteredRallies, effectivePlayers, rallyActionsMap)`
-- `useAttackStats` (via AttackTab)
-- `useErrorStats`
-
-### 5. Actualizar `useSetKPIs` — ataques, blocos e defesas
-
-O `useSetKPIs` é mais complexo porque calcula KPIs de equipa. Adicionar parâmetro opcional `rallyActionsMap` e, para as secções de ataque, bloco e defesa, contar a partir de `rally_actions` quando disponível.
-
-### Compatibilidade
-
-Todos os parâmetros são opcionais — sem `rallyActionsMap`, os hooks mantêm o comportamento actual (leitura de `rallies`), garantindo retrocompatibilidade com dados legados.
+Uma única linha alterada. Afecta ambas as equipas em todas as acções do ActionPad (serviço, receção, distribuição, ataque, bloco, defesa).
 
