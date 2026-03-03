@@ -141,7 +141,7 @@ export function ComboSetterAttack({
       />
       {/* Header with gradient indicating combo */}
       <div 
-        className="flex items-center gap-2 px-4 py-2 text-white"
+        className={cn("flex items-center gap-2 px-4 py-2", side === 'CASA' ? 'text-home-foreground' : 'text-away-foreground')}
         style={{
           background: `linear-gradient(to right, ${teamColorHsl}, rgb(147 51 234), ${teamColorHsl})`
         }}
