@@ -1,48 +1,62 @@
 
 
-# Bug: Ações do ponto anulado permanecem nas estatísticas em tempo real
+# Fix: Estatísticas incompletas — hooks que lêem da tabela `rallies` em vez de `rally_actions`
 
-## Causa raiz
+## Problema
 
-Quando o utilizador anula o último ponto (`deleteLastRally`), a função faz **hard delete** dos registos na tabela `rallies` mas:
+Vários hooks de estatísticas lêem da tabela `rallies` (estrutura achatada), que só guarda **uma ocorrência** de cada tipo de ação por rally. Em rallies longos com múltiplos ataques, defesas ou blocos, os dados subsequentes existem apenas em `rally_actions` e não aparecem nas estatísticas.
 
-1. **Não apaga os `rally_actions`** associados — ficam órfãos na BD
-2. **Não invalida a query `rally-actions-match`** — o cache do React Query mantém os dados stale
+**Hooks afectados** (lêem de `rallies`):
+- `useStats` — tab "Jogadores": faltam ataques, defesas, blocos
+- `useAttackStats` — tab "Ataque": faltam ataques de contra-ataque
+- `useErrorStats` — tab "Erros": faltam erros de ações repetidas
+- `useSetKPIs` — KPIs de set: mesmos problemas
 
-Embora `useRallyActionsForMatch` filtre por rally IDs existentes, como a query não é re-executada após o delete, o cache continua a servir as ações do rally apagado. Isto faz com que as estatísticas de destino (kills/attempts por zona P2, P3, P4, etc.) mostrem dados do ponto anulado.
+**Hooks já correctos** (lêem de `rally_actions`):
+- `useReceptionStats`, `useDefenseStats`, `useDestinationStatsFromActions`, `useDistributionStatsFromActions`
 
-## Fix — `src/hooks/useMatch.ts`
+## Plano
 
-### 1. Soft-delete `rally_actions` do rally apagado
+### 1. Actualizar `useStats` para aceitar `rallyActionsMap` opcional
 
-Antes do hard delete do rally, soft-delete as ações associadas:
+Assinatura: `useStats(rallies, players, rallyActionsMap?)`
 
-```typescript
-// Inside deleteLastRally, before deleting from rallies:
-// Get rally IDs to delete
-const rallyIdsToDelete = setRallies
-  .filter(r => r.rally_no === lastRallyNo)
-  .map(r => r.id);
+Quando o mapa existe, para cada rally com acções em `rallyActionsMap`:
+- Iterar **todas** as acções de ataque, defesa, bloco, serviço, receção
+- Contar por jogador usando `action.player_id` e `action.code`
+- Para blocos: contar participações de `b2_player_id` e `b3_player_id` também
+- Fallback para campos planos do `rallies` quando o mapa não tem dados para um rally
 
-// Soft-delete associated rally_actions
-await supabase
-  .from('rally_actions')
-  .update({ deleted_at: new Date().toISOString() })
-  .in('rally_id', rallyIdsToDelete);
-```
+### 2. Actualizar `useAttackStats` para aceitar `rallyActionsMap` opcional
 
-### 2. Invalidar cache de `rally-actions-match`
+Assinatura: `useAttackStats(rallies, players, filters, rallyActionsMap?)`
 
-Após o delete, adicionar invalidação da query:
+Quando o mapa existe:
+- Iterar acções de tipo `attack` em `rally_actions`
+- Usar `action.code`, `action.attack_direction`, `action.kill_type`
+- Para qualidade de distribuição: procurar a acção `setter` precedente no mesmo rally/lado e usar o `pass_code`
+- Fallback para `rallies` quando o mapa não tem dados
 
-```typescript
-// After the hard delete + loadMatch:
-await queryClient.invalidateQueries({ queryKey: ['rally-actions-match', matchId] });
-```
+### 3. Actualizar `useErrorStats` para aceitar `rallyActionsMap` opcional
 
-Isto garante que a próxima leitura re-executa a query, excluindo as ações dos rallies apagados.
+Assinatura: `useErrorStats(rallies, players, sanctions, filters, rallyActionsMap?)`
 
-### Impacto
+Quando o mapa existe:
+- Contar erros (code=0) de todas as acções por tipo e jogador
+- Captura erros de ataques, defesas e blocos múltiplos por rally
 
-Corrige o problema para **todas as ações** (serviço, receção, distribuição, ataque, bloco, defesa) e **ambas as equipas**, pois a invalidação força o refetch completo do mapa de ações.
+### 4. Actualizar `Stats.tsx` para passar `rallyActionsMap` aos hooks
+
+O `rallyActionsMap` já é obtido via `useRallyActionsForMatch(matchId)` na linha 36. Basta passá-lo como parâmetro adicional a:
+- `useStats(filteredRallies, effectivePlayers, rallyActionsMap)`
+- `useAttackStats` (via AttackTab)
+- `useErrorStats`
+
+### 5. Actualizar `useSetKPIs` — ataques, blocos e defesas
+
+O `useSetKPIs` é mais complexo porque calcula KPIs de equipa. Adicionar parâmetro opcional `rallyActionsMap` e, para as secções de ataque, bloco e defesa, contar a partir de `rally_actions` quando disponível.
+
+### Compatibilidade
+
+Todos os parâmetros são opcionais — sem `rallyActionsMap`, os hooks mantêm o comportamento actual (leitura de `rallies`), garantindo retrocompatibilidade com dados legados.
 
