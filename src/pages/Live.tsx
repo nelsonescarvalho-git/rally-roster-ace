@@ -99,6 +99,8 @@ interface PendingAction {
   attackDirection: AttackDirection | null;
   // Freeball attack (from reception over the net)
   isFreeballAttack?: boolean;
+  // Defense over the net
+  overTheNet?: boolean;
 }
 
 export default function Live() {
@@ -937,12 +939,13 @@ export default function Live() {
     passDestination?: PassDestination | null;
     passCode?: number | null;
     setterId?: string | null;
-    // Attack-specific overrides to avoid race conditions
     playerId?: string | null;
     code?: number | null;
     killType?: KillType | null;
     blockCode?: number | null;
     blocker1Id?: string | null;
+    serveType?: ServeType | null;
+    overTheNet?: boolean;
   }) => {
     if (!pendingAction) return;
     
@@ -1022,7 +1025,7 @@ export default function Live() {
       playerNo: player?.jersey_number || null,
       code: effectiveCode,
       killType: effectiveKillType,
-      serveType: pendingAction.serveType,
+      serveType: overrides?.serveType ?? pendingAction.serveType,
       // Use overrides with priority to avoid race conditions
       setterId: overrides?.setterId ?? pendingAction.setterId,
       passDestination: overrides?.passDestination ?? pendingAction.passDestination,
@@ -1032,6 +1035,7 @@ export default function Live() {
       b3PlayerId: pendingAction.b3PlayerId,
       attackPassQuality: pendingAction.attackPassQuality,
       attackDirection: pendingAction.attackDirection,
+      overTheNet: overrides?.overTheNet ?? pendingAction.overTheNet,
     };
     
     // Save last attacker for ultra-rapid mode

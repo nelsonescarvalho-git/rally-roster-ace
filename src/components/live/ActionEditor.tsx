@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ActionPad } from './ActionPad';
 import { QualityPad } from './QualityPad';
 import { PlayerStrip } from './PlayerStrip';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -83,13 +84,14 @@ interface ActionEditorProps {
     passDestination?: PassDestination | null;
     passCode?: number | null;
     setterId?: string | null;
-    // Attack-specific overrides to avoid race conditions
     playerId?: string | null;
     code?: number | null;
     killType?: KillType | null;
     blockCode?: number | null;
     blocker1Id?: string | null;
     attackDirection?: AttackDirection | null;
+    serveType?: ServeType | null;
+    overTheNet?: boolean;
   }) => void;
   onCancel: () => void;
   onUndo?: () => void;
@@ -183,9 +185,20 @@ export function ActionEditor({
   // Always start at step 1 to ensure player selection
   const [currentStep, setCurrentStep] = useState(1);
 
+  // Defense "Passou Rede" toggle state
+  const [defenseOverTheNet, setDefenseOverTheNet] = useState(false);
+
+  // Serve type default from localStorage
+  const [localServeType, setLocalServeType] = useState<ServeType>(() => {
+    try {
+      return (localStorage.getItem('lastServeType') as ServeType) || 'FLOAT';
+    } catch { return 'FLOAT'; }
+  });
+
   // Reset step when action type or side changes (for chained actions)
   useEffect(() => {
     setCurrentStep(1);
+    setDefenseOverTheNet(false);
   }, [actionType, side]);
 
   // Always show all positions - simplified UX
@@ -194,16 +207,16 @@ export function ActionEditor({
   // Calculate total steps based on action type and selected code
   const totalSteps = useMemo(() => {
     switch (actionType) {
-      case 'serve': return 3;      // Player → Type → Quality
+      case 'serve': return 2;      // Player → [Type toggle + Quality]
       case 'reception': return 2;  // Player → Quality
-      case 'defense': return 2;    // Player → Quality
-      case 'setter': return 3;     // Player → Quality → Destination
+      case 'defense': return 2;    // Player → Quality (+ overTheNet toggle)
+      case 'setter': return 2;     // Player → [Quality toggle + Destination]
       case 'attack': 
-        // +1 step for direction: Player → Direction → Quality → (KillType/BlockResult) → (Blocker)
-        if (selectedCode === 1 && (selectedBlockCode === 1 || selectedBlockCode === 2 || selectedBlockCode === 3)) return 5;
-        if (selectedCode === 1 || selectedCode === 3) return 4;
-        return 3; // Player → Direction → Quality
-      case 'block': return 2; // Blockers → Quality
+        // Player → [Direction toggle + Quality] → (KillType/BlockResult) → (Blocker)
+        if (selectedCode === 1 && (selectedBlockCode === 1 || selectedBlockCode === 2 || selectedBlockCode === 3)) return 4;
+        if (selectedCode === 1 || selectedCode === 3) return 3;
+        return 2; // Player → [Direction + Quality]
+      case 'block': return 2;
       default: return 1;
     }
   }, [actionType, selectedCode, selectedBlockCode]);
@@ -250,7 +263,7 @@ export function ActionEditor({
     onCodeChange(code);
     
     // Auto-confirm for Block and Defense (no additional input needed)
-    if (actionType === 'block' || actionType === 'defense') {
+    if (actionType === 'block') {
       if (!selectedPlayer) {
         toast.warning('Selecione um jogador primeiro');
         return;
@@ -265,6 +278,28 @@ export function ActionEditor({
       return;
     }
     
+    // Auto-confirm for Defense with optional overTheNet
+    if (actionType === 'defense') {
+      if (!selectedPlayer) {
+        toast.warning('Selecione um jogador primeiro');
+        return;
+      }
+      const player = players.find(p => p.id === selectedPlayer);
+      const isOverTheNet = defenseOverTheNet && code > 0;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          showConfirmToast(player?.jersey_number, code);
+          onConfirm({ code: code, overTheNet: isOverTheNet || undefined });
+          // If defense went over the net, chain to opponent attack (freeball)
+          if (isOverTheNet) {
+            const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+            onChainAction?.('attack', opponent);
+          }
+        }, 0);
+      });
+      return;
+    }
+    
     // Auto-confirm for Serve with auto-finish for ACE/Error
     if (actionType === 'serve') {
       if (!selectedPlayer) {
@@ -272,13 +307,13 @@ export function ActionEditor({
         return;
       }
       const player = players.find(p => p.id === selectedPlayer);
+      const currentServeType = selectedServeType || localServeType;
       
       if (code === 3) {
-        // ACE: server wins
         requestAnimationFrame(() => {
           setTimeout(() => {
             showConfirmToast(player?.jersey_number, code);
-            onConfirm();
+            onConfirm({ serveType: currentServeType });
             onAutoFinishPoint?.(side, 'ACE');
           }, 0);
         });
@@ -286,23 +321,21 @@ export function ActionEditor({
       }
       
       if (code === 0) {
-        // Serve error: receiver wins
         const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
         requestAnimationFrame(() => {
           setTimeout(() => {
             showConfirmToast(player?.jersey_number, code);
-            onConfirm();
+            onConfirm({ serveType: currentServeType });
             onAutoFinishPoint?.(opponent, 'SE');
           }, 0);
         });
         return;
       }
       
-      // code 1 or 2: just confirm, continue to reception
       requestAnimationFrame(() => {
         setTimeout(() => {
           showConfirmToast(player?.jersey_number, code);
-          onConfirm();
+          onConfirm({ serveType: currentServeType });
         }, 0);
       });
       return;
@@ -327,8 +360,8 @@ export function ActionEditor({
     // Attack: code 1 or 3 needs Step 4, code 0 auto-finishes, code 2 continues
     if (actionType === 'attack') {
       if (code === 1 || code === 3) {
-        // Go to Step 4 for block result (code 1) or kill type (code 3)
-        setCurrentStep(4);
+        setCurrentStep(3);
+        return;
         return;
       }
       
@@ -364,15 +397,15 @@ export function ActionEditor({
         }, 0);
       });
     }
-  }, [actionType, selectedCode, selectedPlayer, players, side, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange, onAutoFinishPoint, onChainAction]);
+  }, [actionType, selectedCode, selectedPlayer, selectedServeType, localServeType, players, side, defenseOverTheNet, onCodeChange, onConfirm, showConfirmToast, onKillTypeChange, onBlockCodeChange, onAutoFinishPoint, onChainAction]);
 
   // Handler for block result when a_code=1
   const handleBlockCodeWithAutoConfirm = useCallback((bCode: number) => {
     onBlockCodeChange?.(bCode);
     
-    // For block types 1, 2, 3 → go to Step 5 to select blocker
+    // For block types 1, 2, 3 → go to Step 4 to select blocker
     if (bCode === 1 || bCode === 2 || bCode === 3) {
-      setCurrentStep(5);
+      setCurrentStep(4);
       return;
     }
     
@@ -516,10 +549,7 @@ export function ActionEditor({
       // Block shortcuts in Step 1 (player selection step)
       if (currentStep === 1) return;
       
-      if (actionType === 'setter' && currentStep === 2) {
-        onPassCodeChange?.(code);
-        setCurrentStep(3);
-      } else if (actionType === 'attack' && currentStep === 3) {
+      if (actionType === 'attack' && currentStep === 2) {
         handleCodeWithAutoConfirm(code);
       } else if (currentStep === 2) {
         // For serve/reception/defense in Step 2
@@ -528,7 +558,7 @@ export function ActionEditor({
     },
     onUndo: onUndo,
     onCancel: onCancel,
-    onDestinationSelect: actionType === 'setter' && currentStep === 3 ? (dest) => {
+    onDestinationSelect: actionType === 'setter' && currentStep === 2 ? (dest) => {
       handleDestinationWithAutoConfirm(dest as PassDestination);
     } : undefined,
   });
@@ -543,7 +573,7 @@ export function ActionEditor({
     if (currentStep === 1) {
       return '←/→ Navegar • Enter Selecionar';
     }
-    if (actionType === 'setter' && currentStep === 3) {
+    if (actionType === 'setter' && currentStep === 2) {
       return '2/3/4 Posição • O OP • I PIPE • B BACK • U Undo';
     }
     return '0-3 Qualidade • U Undo • Esc Cancelar';
@@ -567,56 +597,52 @@ export function ActionEditor({
                 showZones={!!getZoneLabel}
                 getZoneLabel={getZoneLabelWrapper}
               />
-            ) : currentStep === 2 ? (
+            ) : (
               <div className="space-y-3">
+                {/* Serve type toggle (optional, defaults to last used) */}
                 <div className="text-xs font-medium text-muted-foreground text-center">
                   Tipo de Serviço
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <ToggleGroup 
+                  type="single" 
+                  value={selectedServeType || localServeType}
+                  onValueChange={(v) => {
+                    if (v) {
+                      const st = v as ServeType;
+                      onServeTypeChange?.(st);
+                      setLocalServeType(st);
+                      try { localStorage.setItem('lastServeType', st); } catch {}
+                    }
+                  }}
+                  className="justify-center"
+                >
                   {(['FLOAT', 'JUMP_FLOAT', 'POWER'] as ServeType[]).map((type) => {
                     const typeInfo = SERVE_TYPE_LABELS[type];
                     return (
-                      <Button
+                      <ToggleGroupItem
                         key={type}
-                        variant={selectedServeType === type ? 'default' : 'outline'}
-                        className={cn(
-                          'h-16 flex flex-col gap-1 text-base font-semibold transition-all',
-                          selectedServeType === type && 'ring-2 ring-offset-2'
-                        )}
-                        onClick={() => {
-                          onServeTypeChange?.(type);
-                          setCurrentStep(3);
-                        }}
+                        value={type}
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 px-3"
                       >
-                        <span className="text-lg">{typeInfo.emoji}</span>
+                        <span>{typeInfo.emoji}</span>
                         <span className="text-xs">{typeInfo.shortLabel}</span>
-                      </Button>
+                      </ToggleGroupItem>
                     );
                   })}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs text-muted-foreground"
-                  onClick={() => {
-                    onServeTypeChange?.('OTHER');
-                    setCurrentStep(3);
-                  }}
-                >
-                  ❓ Outro tipo
-                </Button>
+                </ToggleGroup>
+                
+                <QualityPad
+                  selectedCode={selectedCode ?? null}
+                  onSelect={handleCodeWithAutoConfirm}
+                />
               </div>
-            ) : (
-              <QualityPad
-                selectedCode={selectedCode ?? null}
-                onSelect={handleCodeWithAutoConfirm}
-              />
             )}
           </div>
         );
 
       case 'reception':
-      case 'defense':
         return (
           <div className="space-y-4">
             {currentStep === 1 ? (
@@ -641,6 +667,49 @@ export function ActionEditor({
           </div>
         );
 
+      case 'defense':
+        return (
+          <div className="space-y-4">
+            {currentStep === 1 ? (
+              <PlayerStrip
+                players={players}
+                selectedPlayerId={selectedPlayer || null}
+                onSelect={(playerId) => {
+                  onPlayerChange(playerId);
+                  setCurrentStep(2);
+                }}
+                teamSide={teamSide}
+                lastUsedPlayerId={lastUsedPlayerId}
+                showZones={!!getZoneLabel}
+                getZoneLabel={getZoneLabelWrapper}
+              />
+            ) : (
+              <div className="space-y-3">
+                {/* Passou Rede toggle */}
+                <button
+                  type="button"
+                  onClick={() => setDefenseOverTheNet(!defenseOverTheNet)}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 text-sm font-medium transition-all',
+                    defenseOverTheNet
+                      ? 'border-warning bg-warning/15 text-warning'
+                      : 'border-border/50 bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                  )}
+                >
+                  <span>↗️</span>
+                  <span>Passou Rede</span>
+                  {defenseOverTheNet && <span className="text-xs opacity-70">(ativo)</span>}
+                </button>
+                
+                <QualityPad
+                  selectedCode={selectedCode ?? null}
+                  onSelect={handleCodeWithAutoConfirm}
+                />
+              </div>
+            )}
+          </div>
+        );
+
       case 'setter':
         return (
           <div className="space-y-4">
@@ -650,105 +719,124 @@ export function ActionEditor({
                 selectedPlayerId={selectedSetter || null}
                 onSelect={(id) => {
                   onSetterChange?.(id);
+                  onPassCodeChange?.(2); // Default quality = 2 (Boa)
                   setCurrentStep(2);
                 }}
                 teamSide={teamSide}
                 showZones={!!getZoneLabel}
                 getZoneLabel={getZoneLabelWrapper}
               />
-            ) : currentStep === 2 ? (
-              <div className="space-y-2">
+            ) : (
+              <div className="space-y-3">
+                {/* Quality toggle at top */}
                 <div className="text-xs font-medium text-muted-foreground text-center">
                   Qualidade do Passe
                 </div>
-                <QualityPad
-                  selectedCode={selectedPassCode ?? null}
-                  onSelect={(code) => {
-                    onPassCodeChange?.(code);
-                    
-                    if (code === 0) {
-                      // Erro de distribuição: auto-confirmar e dar ponto ao adversário
-                      const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
-                      const player = players.find(p => p.id === selectedSetter);
+                <ToggleGroup 
+                  type="single" 
+                  value={String(selectedPassCode ?? 2)}
+                  onValueChange={(v) => {
+                    if (v) {
+                      const code = parseInt(v, 10);
+                      onPassCodeChange?.(code);
                       
-                      requestAnimationFrame(() => {
-                        setTimeout(() => {
-                          toast.success(
-                            `#${player?.jersey_number || '?'} · Distribuição · Erro`,
-                            { duration: 2500 }
-                          );
-                          onConfirm({
-                            passCode: 0,
-                            setterId: selectedSetter,
-                            passDestination: null,
-                          });
-                          // Auto-finish: ponto para adversário com razão 'OP' (out/falta)
-                          onAutoFinishPoint?.(opponent, 'OP');
-                        }, 0);
-                      });
-                      return;
+                      if (code === 0) {
+                        // Erro de distribuição: auto-confirmar
+                        const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                        const player = players.find(p => p.id === selectedSetter);
+                        
+                        requestAnimationFrame(() => {
+                          setTimeout(() => {
+                            toast.success(
+                              `#${player?.jersey_number || '?'} · Distribuição · Erro`,
+                              { duration: 2500 }
+                            );
+                            onConfirm({
+                              passCode: 0,
+                              setterId: selectedSetter,
+                              passDestination: null,
+                            });
+                            onAutoFinishPoint?.(opponent, 'OP');
+                          }, 0);
+                        });
+                      }
                     }
-                    
-                    // Código 1, 2 ou 3: avançar para destino
-                    setCurrentStep(3);
                   }}
-                />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="text-xs font-medium text-muted-foreground text-center">
-                  Destino do Passe
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {availablePositions.map((dest) => {
-                    const stats = destinationStats?.[dest];
-                    const hasData = stats && stats.attempts > 0;
-                    
-                    // Calculate dynamic difficulty based on real kill rate
-                    const killRate = hasData ? stats.killRate : null;
-                    const difficultyColor = killRate === null 
-                      ? 'border-l-muted-foreground/30'
-                      : killRate >= 0.45 
-                        ? 'border-l-success' 
-                        : killRate >= 0.30 
-                          ? 'border-l-warning'
-                          : 'border-l-destructive';
-                    
-                    return (
-                      <Button
-                        key={dest}
-                        variant={selectedDestination === dest ? 'default' : 'outline'}
-                        className={cn(
-                          'h-16 flex flex-col gap-0.5 text-base font-semibold transition-all border-l-4',
-                          selectedDestination === dest && 'ring-2 ring-offset-2',
-                          selectedDestination !== dest && difficultyColor
-                        )}
-                        onClick={() => handleDestinationWithAutoConfirm(dest)}
-                      >
-                        <span>{dest}</span>
-                        {hasData ? (
-                          <span className="text-xs opacity-70">
-                            {stats.kills}/{stats.attempts} · {Math.round(killRate! * 100)}%
-                          </span>
-                        ) : (
-                          <span className="text-xs opacity-50">-</span>
-                        )}
-                      </Button>
-                    );
-                  })}
-                </div>
-                {/* OUTROS - single click like all other destinations */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    'w-full h-10 text-xs text-muted-foreground',
-                    selectedDestination === 'OUTROS' && 'bg-primary text-primary-foreground'
-                  )}
-                  onClick={() => handleDestinationWithAutoConfirm('OUTROS' as PassDestination)}
+                  className="justify-center"
                 >
-                  OUTROS
-                </Button>
+                  {[
+                    { code: 0, label: '✗ Erro', className: 'data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground' },
+                    { code: 1, label: '- Fraca', className: 'data-[state=on]:bg-warning data-[state=on]:text-warning-foreground' },
+                    { code: 2, label: '+ Boa', className: 'data-[state=on]:bg-primary data-[state=on]:text-primary-foreground' },
+                    { code: 3, label: '⭐ Excelente', className: 'data-[state=on]:bg-success data-[state=on]:text-success-foreground' },
+                  ].map(({ code, label, className }) => (
+                    <ToggleGroupItem
+                      key={code}
+                      value={String(code)}
+                      variant="outline"
+                      size="sm"
+                      className={cn('px-2.5 text-xs', className)}
+                    >
+                      {label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                
+                {/* Destination grid (only if quality > 0) */}
+                {(selectedPassCode ?? 2) > 0 && (
+                  <>
+                    <div className="text-xs font-medium text-muted-foreground text-center">
+                      Destino do Passe
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {availablePositions.map((dest) => {
+                        const stats = destinationStats?.[dest];
+                        const hasData = stats && stats.attempts > 0;
+                        const killRate = hasData ? stats.killRate : null;
+                        const difficultyColor = killRate === null 
+                          ? 'border-l-muted-foreground/30'
+                          : killRate >= 0.45 
+                            ? 'border-l-success' 
+                            : killRate >= 0.30 
+                              ? 'border-l-warning'
+                              : 'border-l-destructive';
+                        
+                        return (
+                          <Button
+                            key={dest}
+                            variant={selectedDestination === dest ? 'default' : 'outline'}
+                            className={cn(
+                              'h-16 flex flex-col gap-0.5 text-base font-semibold transition-all border-l-4',
+                              selectedDestination === dest && 'ring-2 ring-offset-2',
+                              selectedDestination !== dest && difficultyColor
+                            )}
+                            onClick={() => handleDestinationWithAutoConfirm(dest)}
+                          >
+                            <span>{dest}</span>
+                            {hasData ? (
+                              <span className="text-xs opacity-70">
+                                {stats.kills}/{stats.attempts} · {Math.round(killRate! * 100)}%
+                              </span>
+                            ) : (
+                              <span className="text-xs opacity-50">-</span>
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        'w-full h-10 text-xs text-muted-foreground',
+                        selectedDestination === 'OUTROS' && 'bg-primary text-primary-foreground'
+                      )}
+                      onClick={() => handleDestinationWithAutoConfirm('OUTROS' as PassDestination)}
+                    >
+                      OUTROS
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -788,7 +876,7 @@ export function ActionEditor({
                 )}
               </>
             ) : currentStep === 2 ? (
-              // Step 2: Direction selection
+              // Step 2: Direction toggle (optional) + Quality (auto-confirms)
               <div className="space-y-3">
                 {selectedPlayer && (
                   <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/40 border border-border/50">
@@ -798,61 +886,6 @@ export function ActionEditor({
                     <span className="text-sm text-muted-foreground">
                       {players.find(p => p.id === selectedPlayer)?.name?.split(' ')[0]}
                     </span>
-                  </div>
-                )}
-                <div className="text-xs font-medium text-muted-foreground text-center">
-                  Direção do Ataque
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {(['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'] as AttackDirection[]).map((dir) => {
-                    const info = ATTACK_DIRECTION_LABELS[dir];
-                    return (
-                      <Button
-                        key={dir}
-                        variant={selectedAttackDirection === dir ? 'default' : 'outline'}
-                        className={cn(
-                          'h-16 flex flex-col gap-1 text-base font-semibold transition-all',
-                          selectedAttackDirection === dir && 'ring-2 ring-offset-2'
-                        )}
-                        onClick={() => {
-                          onAttackDirectionChange?.(dir);
-                          setCurrentStep(3);
-                        }}
-                      >
-                        <span className="text-lg">{info.emoji}</span>
-                        <span className="text-xs">{info.label}</span>
-                      </Button>
-                    );
-                  })}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs text-muted-foreground"
-                  onClick={() => {
-                    onAttackDirectionChange?.(null);
-                    setCurrentStep(3);
-                  }}
-                >
-                  Sem direção →
-                </Button>
-              </div>
-            ) : currentStep === 3 ? (
-              <div className="space-y-3">
-                {/* Contexto do Atacante */}
-                {selectedPlayer && (
-                  <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/40 border border-border/50">
-                    <span className="text-lg font-bold">
-                      #{players.find(p => p.id === selectedPlayer)?.jersey_number}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {players.find(p => p.id === selectedPlayer)?.name?.split(' ')[0]}
-                    </span>
-                    {selectedAttackDirection && (
-                      <Badge variant="secondary" className="text-xs">
-                        {ATTACK_DIRECTION_LABELS[selectedAttackDirection].emoji} {ATTACK_DIRECTION_LABELS[selectedAttackDirection].label}
-                      </Badge>
-                    )}
                     {getZoneLabel && (
                       <Badge variant="outline" className="text-[10px] h-5">
                         {getZoneLabelWrapper(selectedPlayer)}
@@ -863,24 +896,47 @@ export function ActionEditor({
                 
                 {/* Indicador de qualidade herdada ou freeball */}
                 {attackPassQuality !== null ? (
-                  <div className="flex items-center justify-center gap-2 p-2 rounded bg-primary/10 border border-primary/20">
+                  <div className="flex items-center justify-center gap-2 p-1.5 rounded bg-primary/10 border border-primary/20">
                     <span className="text-xs text-muted-foreground">Passe:</span>
                     <Badge variant="secondary" className="text-xs">
                       Q{attackPassQuality} · {getQualityLabel(attackPassQuality)}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground opacity-70">(via Dist.)</span>
                   </div>
                 ) : isFreeballAttack ? (
-                  <div className="flex items-center justify-center gap-2 p-2 rounded bg-warning/10 border border-warning/30">
-                    <span className="text-lg">🎁</span>
+                  <div className="flex items-center justify-center gap-2 p-1.5 rounded bg-warning/10 border border-warning/30">
+                    <span>🎁</span>
                     <span className="text-xs text-warning font-medium">Bola de Graça</span>
-                    <span className="text-[10px] text-muted-foreground">— Passe N/A</span>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-center gap-1 p-1.5 rounded bg-muted/20">
-                    <span className="text-[10px] text-muted-foreground">Ataque sem distribuição registada</span>
-                  </div>
-                )}
+                ) : null}
+
+                {/* Direction toggle (optional) */}
+                <div className="text-xs font-medium text-muted-foreground text-center">
+                  Direção <span className="opacity-50">(opcional)</span>
+                </div>
+                <ToggleGroup 
+                  type="single" 
+                  value={selectedAttackDirection || ''}
+                  onValueChange={(v) => {
+                    onAttackDirectionChange?.(v ? v as AttackDirection : null);
+                  }}
+                  className="justify-center flex-wrap"
+                >
+                  {(['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'] as AttackDirection[]).map((dir) => {
+                    const info = ATTACK_DIRECTION_LABELS[dir];
+                    return (
+                      <ToggleGroupItem
+                        key={dir}
+                        value={dir}
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 px-2.5"
+                      >
+                        <span>{info.emoji}</span>
+                        <span className="text-xs">{info.label}</span>
+                      </ToggleGroupItem>
+                    );
+                  })}
+                </ToggleGroup>
                 
                 <div className="text-xs font-medium text-muted-foreground text-center pt-1">
                   Avaliação do Ataque
@@ -896,8 +952,8 @@ export function ActionEditor({
                   }}
                 />
               </div>
-            ) : currentStep === 4 ? (
-              // Step 4: Kill Type (code=3) or Block Result (code=1)
+            ) : currentStep === 3 ? (
+              // Step 3: Kill Type (code=3) or Block Result (code=1)
               <div className="space-y-4">
                 {selectedCode === 3 && (
                   <div className="space-y-3">
@@ -1008,7 +1064,7 @@ export function ActionEditor({
                 )}
               </div>
             ) : (
-              // Step 5: Blocker selection for all block types (b_code 1, 2, 3)
+              // Step 4: Blocker selection for all block types (b_code 1, 2, 3)
               <div className="space-y-4">
                 <div className={cn(
                   "text-center p-3 rounded-lg border",
