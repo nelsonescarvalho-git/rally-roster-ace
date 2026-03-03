@@ -1,20 +1,22 @@
 
 
-# Fix: OUTROS com clique único (remover press-and-hold)
+# Fix: Badge de Distribuição sem informação no RallyTimeline
 
 ## Problema
-O botão "OUTROS" na etapa 3 da Distribuição exige manter pressionado 250ms para confirmar, enquanto todos os outros destinos (P2, P3, P4, OP, PIPE, BACK) confirmam com um clique simples. Isto é confuso e inconsistente.
+A ação de Distribuição (setter) armazena os dados em campos diferentes das outras ações:
+- Jogador → `setterId` (em vez de `playerId`)
+- Qualidade → `passCode` (em vez de `code`)
+
+O `RallyTimeline` só lê `playerId`/`playerNo` e `code`, por isso o badge do setter aparece vazio: apenas "D" sem número de jogador nem código de qualidade.
 
 ## Solução
 
-No ficheiro `src/components/live/ActionEditor.tsx`:
+No ficheiro `src/components/live/RallyTimeline.tsx`, alterar as funções `getPlayerDisplay()` e a lógica de `code` em **ambos** os componentes (`ActionBadge` e `SortableAction`) para tratar o caso especial do setter:
 
-1. **Remover** todo o estado e lógica de press-and-hold (`outrosPressed`, `outrosPressTimer`, `handleOutrosStart`, `handleOutrosEnd`)
-2. **Substituir** o botão OUTROS separado por uma entrada normal no array `availablePositions` — ou simplesmente chamar `handleDestinationWithAutoConfirm('OUTROS')` no `onClick`, igual aos outros destinos
-3. **Mover OUTROS para o grid** dos destinos (como 7º botão) ou mantê-lo separado mas com `onClick` simples — a opção mais limpa é incluí-lo no grid para consistência visual
+1. **`getPlayerDisplay()`** — se `action.type === 'setter'`, procurar o jogador via `action.setterId` (em vez de `playerId`)
+2. **Código/qualidade** — se `action.type === 'setter'`, usar `action.passCode` em vez de `action.code`
+3. **Extra** — opcionalmente mostrar o destino (`action.passDestination`) como texto adicional no badge, para consistência com o `RallyActionsTimeline` que já o faz
 
-### Resultado
-- OUTROS comporta-se exactamente como P2/P3/P4/OP/PIPE/BACK: clique → confirma
-- Texto do botão passa de "OUTROS (manter 250ms)" para apenas "OUTROS"
-- Sem alterações a BD
+### Resultado esperado
+O badge passará de `D` para algo como `D #7 (−) P4` — com o número do distribuidor, a qualidade do passe e o destino.
 
