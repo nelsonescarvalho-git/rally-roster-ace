@@ -98,7 +98,7 @@ export default function Stats() {
   });
 
   const filteredRallies = selectedSet === 0 ? rallies : getRalliesForSet(selectedSet);
-  const { playerStats, rotationStats } = useStats(filteredRallies, effectivePlayers);
+  const { playerStats, rotationStats } = useStats(filteredRallies, effectivePlayers, rallyActionsMap);
   const serveTypeStats = useServeTypeStats(filteredRallies);
   const filteredPlayerStats = playerStats.filter(p => p.side === selectedSide);
   const filteredRotationStats = rotationStats.filter(r => r.side === selectedSide);
@@ -727,6 +727,7 @@ export default function Stats() {
               match={match}
               selectedSet={selectedSet}
               getRalliesForSet={getRalliesForSet}
+              rallyActionsMap={rallyActionsMap}
             />
           </TabsContent>
 
@@ -765,6 +766,7 @@ export default function Stats() {
               match={match}
               sanctions={sanctions}
               selectedSet={selectedSet}
+              rallyActionsMap={rallyActionsMap}
             />
           </TabsContent>
         </Tabs>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Side, Rally, Player, MatchPlayer, Sanction } from '@/types/volleyball';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 
 export interface PlayerErrorStats {
   playerId: string;
@@ -42,7 +43,8 @@ export function useErrorStats(
   rallies: Rally[],
   players: (Player | MatchPlayer)[],
   sanctions: Sanction[],
-  filters: { side: Side | 'TODAS'; selectedSet: number }
+  filters: { side: Side | 'TODAS'; selectedSet: number },
+  rallyActionsMap?: Map<string, RallyActionWithPlayer[]>
 ): ErrorStatsResult {
   return useMemo(() => {
     const filteredRallies = filters.selectedSet === 0
@@ -60,7 +62,6 @@ export function useErrorStats(
       playerMetaMap[p.id] = { name: p.name, jerseyNumber: p.jersey_number };
     });
 
-    // Error stats from rallies
     const errorMap: Record<string, PlayerErrorStats> = {};
 
     const getOrCreate = (playerId: string): PlayerErrorStats => {
@@ -87,21 +88,33 @@ export function useErrorStats(
     });
 
     Object.values(finalPhases).forEach(r => {
-      // Serve error
-      if (r.s_player_id && r.s_code === 0) {
-        getOrCreate(r.s_player_id).serveErrors++;
-      }
-      // Attack error
-      if (r.a_player_id && r.a_code === 0) {
-        getOrCreate(r.a_player_id).attackErrors++;
-      }
-      // Reception error
-      if (r.r_player_id && r.r_code === 0) {
-        getOrCreate(r.r_player_id).receptionErrors++;
-      }
-      // Block error
-      if (r.b1_player_id && r.b_code === 0) {
-        getOrCreate(r.b1_player_id).blockErrors++;
+      const actions = rallyActionsMap?.get(r.id);
+
+      if (actions && actions.length > 0) {
+        // Use rally_actions for complete error counting
+        for (const action of actions) {
+          if (action.code !== 0 || !action.player_id) continue;
+
+          const entry = getOrCreate(action.player_id);
+          switch (action.action_type) {
+            case 'serve': entry.serveErrors++; break;
+            case 'attack': entry.attackErrors++; break;
+            case 'reception': entry.receptionErrors++; break;
+            case 'block':
+              entry.blockErrors++;
+              // Secondary blockers also get the error
+              [action.b2_player_id, action.b3_player_id].forEach(bpid => {
+                if (bpid) getOrCreate(bpid).blockErrors++;
+              });
+              break;
+          }
+        }
+      } else {
+        // Fallback: flat rally fields
+        if (r.s_player_id && r.s_code === 0) getOrCreate(r.s_player_id).serveErrors++;
+        if (r.a_player_id && r.a_code === 0) getOrCreate(r.a_player_id).attackErrors++;
+        if (r.r_player_id && r.r_code === 0) getOrCreate(r.r_player_id).receptionErrors++;
+        if (r.b1_player_id && r.b_code === 0) getOrCreate(r.b1_player_id).blockErrors++;
       }
     });
 
@@ -167,5 +180,5 @@ export function useErrorStats(
       playerSanctions,
       teamSanctions: { home: homeSanctions, away: awaySanctions },
     };
-  }, [rallies, players, sanctions, filters.side, filters.selectedSet]);
+  }, [rallies, players, sanctions, filters.side, filters.selectedSet, rallyActionsMap]);
 }

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useErrorStats } from '@/hooks/useErrorStats';
 import { Side, Rally, Player, MatchPlayer, Match, Sanction } from '@/types/volleyball';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 
 interface ErrorsTabProps {
   rallies: Rally[];
@@ -13,13 +14,14 @@ interface ErrorsTabProps {
   match: Match;
   sanctions: Sanction[];
   selectedSet: number;
+  rallyActionsMap?: Map<string, RallyActionWithPlayer[]>;
 }
 
-export function ErrorsTab({ rallies, players, match, sanctions, selectedSet }: ErrorsTabProps) {
+export function ErrorsTab({ rallies, players, match, sanctions, selectedSet, rallyActionsMap }: ErrorsTabProps) {
   const [sideFilter, setSideFilter] = useState<Side | 'TODAS'>('TODAS');
 
   const { playerErrors, teamTotals, playerSanctions, teamSanctions } = useErrorStats(
-    rallies, players, sanctions, { side: sideFilter, selectedSet }
+    rallies, players, sanctions, { side: sideFilter, selectedSet }, rallyActionsMap
   );
 
   return (

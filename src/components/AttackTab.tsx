@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAttackStats, AttackerStats, DistributionBreakdown } from '@/hooks/useAttackStats';
 import { Rally, Player, MatchPlayer, Side, Match, DISTRIBUTION_LABELS, AttackDirection, ATTACK_DIRECTION_LABELS } from '@/types/volleyball';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 import { Progress } from '@/components/ui/progress';
 import { Zap, TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -41,9 +42,10 @@ interface AttackTabProps {
   match: Match;
   selectedSet: number;
   getRalliesForSet: (setNo: number) => Rally[];
+  rallyActionsMap?: Map<string, RallyActionWithPlayer[]>;
 }
 
-export function AttackTab({ rallies, players, match, selectedSet, getRalliesForSet }: AttackTabProps) {
+export function AttackTab({ rallies, players, match, selectedSet, getRalliesForSet, rallyActionsMap }: AttackTabProps) {
   const [sideFilter, setSideFilter] = useState<Side | 'TODAS'>('TODAS');
   const [attackerFilter, setAttackerFilter] = useState<string | null>(null);
   const [distributionFilter, setDistributionFilter] = useState<number | null>(null);
@@ -54,7 +56,8 @@ export function AttackTab({ rallies, players, match, selectedSet, getRalliesForS
   const { attackerStats, attackers, globalDistributionBreakdown } = useAttackStats(
     filteredRallies,
     players,
-    { side: sideFilter, attackerId: attackerFilter, distributionCode: distributionFilter, attackDirection: directionFilter }
+    { side: sideFilter, attackerId: attackerFilter, distributionCode: distributionFilter, attackDirection: directionFilter },
+    rallyActionsMap
   );
 
   // Group stats by side when showing all

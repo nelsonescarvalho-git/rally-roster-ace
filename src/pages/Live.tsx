@@ -478,15 +478,15 @@ export default function Live() {
     };
   }, []);
 
+  // Fetch rally actions for real-time destination stats
+  const { data: rallyActionsMap } = useRallyActionsForMatch(matchId || null);
+
   // Calculate KPIs for current set (for WizardLegend insights)
   const previousSetRalliesForKPI = useMemo(() => 
     currentSet > 1 ? rallies.filter(r => r.set_no === currentSet - 1) : undefined,
     [rallies, currentSet]
   );
-  const currentSetKPIs = useSetKPIs(rallies, currentSet, previousSetRalliesForKPI, matchPlayers);
-
-  // Fetch rally actions for real-time destination stats
-  const { data: rallyActionsMap } = useRallyActionsForMatch(matchId || null);
+  const currentSetKPIs = useSetKPIs(rallies, currentSet, previousSetRalliesForKPI, matchPlayers, rallyActionsMap);
 
   // Calculate destination stats by correlating setter→attack pairs from rally_actions
   const destinationStats = useDestinationStatsFromActions(
