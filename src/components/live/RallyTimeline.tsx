@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { X, CircleDot, Shield, Target, Swords, Square, ShieldCheck, GripVertical, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { RallyAction, RallyActionType, Player } from '@/types/volleyball';
+import { RallyAction, RallyActionType, Player, ATTACK_DIRECTION_LABELS } from '@/types/volleyball';
 import {
   DndContext,
   closestCenter,
@@ -125,6 +125,9 @@ function ActionBadge({ action, players, isDragOverlay, onRemove }: ActionBadgePr
       {action.type === 'setter' && action.passDestination && (
         <span className="ml-0.5 text-[10px] opacity-60">{action.passDestination}</span>
       )}
+      {action.type === 'attack' && action.attackDirection && (
+        <span className="ml-0.5 text-[10px]">{ATTACK_DIRECTION_LABELS[action.attackDirection].emoji}</span>
+      )}
       {onRemove && (
         <button
           onClick={(e) => {
@@ -241,6 +244,9 @@ function SortableAction({ action, index, id, players, onRemove, onEdit, isDraggi
         )}
         {action.type === 'setter' && action.passDestination && (
           <span className="ml-0.5 text-[10px] opacity-60">{action.passDestination}</span>
+        )}
+        {action.type === 'attack' && action.attackDirection && (
+          <span className="ml-0.5 text-[10px]">{ATTACK_DIRECTION_LABELS[action.attackDirection].emoji}</span>
         )}
         <button
           onClick={(e) => {

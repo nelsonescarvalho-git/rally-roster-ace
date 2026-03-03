@@ -52,7 +52,9 @@ import {
   PassDestination, 
   KillType,
   ServeType,
+  AttackDirection,
   SERVE_TYPE_LABELS,
+  ATTACK_DIRECTION_LABELS,
   RallyAction,
   RallyActionType,
   Sanction,
@@ -93,6 +95,8 @@ interface PendingAction {
   attackPassQuality: number | null;
   // Block result when a_code=1
   blockCode: number | null;
+  // Attack direction
+  attackDirection: AttackDirection | null;
   // Freeball attack (from reception over the net)
   isFreeballAttack?: boolean;
 }
@@ -903,6 +907,7 @@ export default function Live() {
       b3PlayerId: null,
       attackPassQuality: inheritedPassQuality,
       blockCode: null,
+      attackDirection: null,
       isFreeballAttack: isFreeballAttackFlag,
     });
   };
@@ -964,6 +969,7 @@ export default function Live() {
         code: 1, // Touched block
         attackPassQuality: pendingAction.attackPassQuality,
         blockCode: effectiveBlockCode,
+        attackDirection: pendingAction.attackDirection,
       };
       
       const blockAction: RallyAction = {
@@ -1025,6 +1031,7 @@ export default function Live() {
       b2PlayerId: pendingAction.b2PlayerId,
       b3PlayerId: pendingAction.b3PlayerId,
       attackPassQuality: pendingAction.attackPassQuality,
+      attackDirection: pendingAction.attackDirection,
     };
     
     // Save last attacker for ultra-rapid mode
@@ -1126,6 +1133,7 @@ export default function Live() {
       b3PlayerId: action.b3PlayerId || null,
       attackPassQuality: action.attackPassQuality ?? null,
       blockCode: action.blockCode ?? null,
+      attackDirection: action.attackDirection || null,
     });
     setEditingActionIndex(index);
   };
@@ -1182,6 +1190,7 @@ export default function Live() {
       b3PlayerId: prevAction.b3PlayerId || null,
       attackPassQuality: prevAction.attackPassQuality ?? null,
       blockCode: prevAction.blockCode ?? null,
+      attackDirection: prevAction.attackDirection || null,
     });
   };
 
@@ -1237,6 +1246,7 @@ export default function Live() {
       b3PlayerId: nextAction.b3PlayerId || null,
       attackPassQuality: nextAction.attackPassQuality ?? null,
       blockCode: nextAction.blockCode ?? null,
+      attackDirection: nextAction.attackDirection || null,
     });
   };
 
@@ -1365,7 +1375,7 @@ export default function Live() {
       a_code: effectiveAttackCode,
       a_pass_quality: attackAction?.attackPassQuality ?? null,
       kill_type: effectiveAttackCode === 3 ? effectiveKillType : null,
-      // Block - use effective values from overrides or registeredActions
+      attack_direction: attackAction?.attackDirection || null,
       b1_player_id: effectiveBlocker1Id,
       b1_no: getPlayerNo(effectiveBlocker1Id),
       b2_player_id: blockAction?.b2PlayerId || null,
@@ -1445,6 +1455,7 @@ export default function Live() {
           pass_code: action.passCode ?? null,
           kill_type: action.killType || null,
           serve_type: action.serveType || null,
+          attack_direction: action.attackDirection || null,
           b2_player_id: action.b2PlayerId || null,
           b3_player_id: action.b3PlayerId || null,
           b2_no: null, // Will be populated if needed
@@ -2789,6 +2800,7 @@ export default function Live() {
               selectedBlocker2={pendingAction.b2PlayerId}
               selectedBlocker3={pendingAction.b3PlayerId}
               selectedBlockCode={pendingAction.blockCode}
+              selectedAttackDirection={pendingAction.attackDirection}
               receptionCode={getEffectiveReceptionCode()}
               attackPassQuality={pendingAction.attackPassQuality}
               isFreeballAttack={pendingAction.isFreeballAttack ?? false}
@@ -2797,6 +2809,7 @@ export default function Live() {
               onPlayerChange={(id) => setPendingAction(prev => prev ? { ...prev, playerId: id } : null)}
               onCodeChange={(code) => setPendingAction(prev => prev ? { ...prev, code } : null)}
               onKillTypeChange={(type) => setPendingAction(prev => prev ? { ...prev, killType: type } : null)}
+              onAttackDirectionChange={(dir) => setPendingAction(prev => prev ? { ...prev, attackDirection: dir } : null)}
               onServeTypeChange={(type) => setPendingAction(prev => prev ? { ...prev, serveType: type } : null)}
               onSetterChange={(id) => setPendingAction(prev => prev ? { ...prev, setterId: id } : null)}
               onDestinationChange={(dest) => setPendingAction(prev => prev ? { ...prev, passDestination: dest } : null)}

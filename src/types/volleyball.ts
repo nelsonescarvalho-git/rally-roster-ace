@@ -43,6 +43,17 @@ export const SERVE_TYPE_LABELS: Record<ServeType, {
 };
 export type KillType = 'FLOOR' | 'BLOCKOUT';
 
+// Attack direction types
+export type AttackDirection = 'DIAGONAL' | 'LINE' | 'TIP' | 'Z1' | 'Z5';
+
+export const ATTACK_DIRECTION_LABELS: Record<AttackDirection, { emoji: string; label: string }> = {
+  DIAGONAL: { emoji: '↗️', label: 'Diagonal' },
+  LINE:     { emoji: '↕️', label: 'Linha' },
+  TIP:      { emoji: '🤏', label: 'Amorti' },
+  Z1:       { emoji: '1️⃣', label: 'Z1' },
+  Z5:       { emoji: '5️⃣', label: 'Z5' },
+};
+
 // Action types for modular wizard
 export type RallyActionType = 'serve' | 'reception' | 'setter' | 'attack' | 'block' | 'defense';
 
@@ -72,6 +83,8 @@ export interface RallyAction {
   overTheNet?: boolean;
   // Inherited destination from setter (redundancy for attack actions)
   inheritedDestination?: PassDestination | null;
+  // Attack direction
+  attackDirection?: AttackDirection | null;
 }
 
 // Persistent team (reusable across matches)
@@ -241,6 +254,7 @@ export interface Rally {
   pass_destination: PassDestination | null;
   pass_code: number | null;
   kill_type: KillType | null;
+  attack_direction: AttackDirection | null;
   fault_player_id: string | null;
   fault_no: number | null;
   created_at: string;
