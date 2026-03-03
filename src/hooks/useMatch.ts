@@ -324,6 +324,19 @@ export function useMatch(matchId: string | null) {
     const lastRallyNo = Math.max(...setRallies.map(r => r.rally_no));
     
     try {
+      // Get rally IDs to delete for soft-deleting associated rally_actions
+      const rallyIdsToDelete = setRallies
+        .filter(r => r.rally_no === lastRallyNo)
+        .map(r => r.id);
+
+      // Soft-delete associated rally_actions BEFORE deleting rallies
+      if (rallyIdsToDelete.length > 0) {
+        await supabase
+          .from('rally_actions')
+          .update({ deleted_at: new Date().toISOString() })
+          .in('rally_id', rallyIdsToDelete);
+      }
+
       // Delete ALL phases of the last rally (entire rally), not just the last phase
       const { error } = await supabase
         .from('rallies')
@@ -333,6 +346,10 @@ export function useMatch(matchId: string | null) {
         .eq('rally_no', lastRallyNo);
       if (error) throw error;
       await loadMatch();
+      
+      // Invalidate rally-actions cache so stats update for both teams
+      await queryClient.invalidateQueries({ queryKey: ['rally-actions-match', matchId] });
+      
       toast({ title: 'Anulado', description: 'Rally completo removido' });
       return true;
     } catch (error: any) {
