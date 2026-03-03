@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Rally, Side, MatchPlayer } from '@/types/volleyball';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 
 export interface TeamKPIs {
   // Sideout & Break
@@ -218,7 +219,8 @@ export function useSetKPIs(
   rallies: Rally[],
   setNo: number,
   previousSetRallies?: Rally[],
-  players?: MatchPlayer[]
+  players?: MatchPlayer[],
+  rallyActionsMap?: Map<string, RallyActionWithPlayer[]>
 ): SetKPIs {
   // Create maps of player ID to their side and metadata for accurate team identification
   const playerSideMap = useMemo(() => {
@@ -467,56 +469,54 @@ export function useSetKPIs(
       }
     }
     
-    // === ATTACK STATS (using rawSetRallies to include all phases) ===
-    // SEMANTIC CORRECTION: a_code=1 means "touched block", the outcome is in b_code
-    // Only count as "blocked" (penalizing efficiency) when b_code=3 (stuff block = point)
+    // === ATTACK STATS ===
+    // Use rally_actions when available for complete multi-attack counting
+    const processedAttackRallyIds = new Set<string>();
+    
     for (const rally of rawSetRallies) {
-      if (rally.a_player_id && rally.a_code !== null) {
-        // Use playerSideMap to determine attacker's team directly
-        const attackerSide = playerSideMap[rally.a_player_id];
+      const actions = rallyActionsMap?.get(rally.id);
+      
+      if (actions && actions.length > 0 && !processedAttackRallyIds.has(rally.id)) {
+        processedAttackRallyIds.add(rally.id);
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
         
-        if (attackerSide === 'CASA') {
-          home.attTotal++;
-          if (rally.a_code === 3) home.attKills++;
-          if (rally.a_code === 0) home.attErrors++;
-          if (rally.a_code === 1) {
-            // a_code=1 = attack touched block, check b_code for outcome
-            if (rally.b_code === 3) {
-              // Stuff block = point for blocker, penalizes attacker efficiency
-              home.attBlocked++;
-              home.attBlockedPoint++;
-            } else if (rally.b_code === 1 || rally.b_code === 2) {
-              // Block touch, rally continues - does NOT penalize efficiency
-              home.attBlockedTouch++;
-            } else if (rally.b_code === 0) {
-              // Block fault = point for attacker
-              home.attBlockFault++;
-            } else {
-              // b_code NULL = missing data, flag as incomplete
-              home.attBlockIncomplete++;
-              console.warn(`⚠️ Rally ${rally.rally_no}: a_code=1 mas b_code é NULL (dados incompletos)`);
-            }
+        for (const attackAction of attackActions) {
+          const attackerSide = playerSideMap[attackAction.player_id!];
+          if (!attackerSide) continue;
+          const team = attackerSide === 'CASA' ? home : away;
+          const aCode = attackAction.code!;
+          
+          team.attTotal++;
+          if (aCode === 3) team.attKills++;
+          if (aCode === 0) team.attErrors++;
+          if (aCode === 1) {
+            // Find block action after this attack from opposite side
+            const blockAfter = actions.find(a =>
+              a.action_type === 'block' &&
+              a.sequence_no > attackAction.sequence_no &&
+              a.side !== attackAction.side
+            );
+            const bCode = blockAfter?.code;
+            if (bCode === 3) { team.attBlocked++; team.attBlockedPoint++; }
+            else if (bCode === 1 || bCode === 2) { team.attBlockedTouch++; }
+            else if (bCode === 0) { team.attBlockFault++; }
+            else { team.attBlockIncomplete++; }
           }
-        } else if (attackerSide === 'FORA') {
-          away.attTotal++;
-          if (rally.a_code === 3) away.attKills++;
-          if (rally.a_code === 0) away.attErrors++;
-          if (rally.a_code === 1) {
-            // a_code=1 = attack touched block, check b_code for outcome
-            if (rally.b_code === 3) {
-              // Stuff block = point for blocker, penalizes attacker efficiency
-              away.attBlocked++;
-              away.attBlockedPoint++;
-            } else if (rally.b_code === 1 || rally.b_code === 2) {
-              // Block touch, rally continues - does NOT penalize efficiency
-              away.attBlockedTouch++;
-            } else if (rally.b_code === 0) {
-              // Block fault = point for attacker
-              away.attBlockFault++;
-            } else {
-              // b_code NULL = missing data, flag as incomplete
-              away.attBlockIncomplete++;
-              console.warn(`⚠️ Rally ${rally.rally_no}: a_code=1 mas b_code é NULL (dados incompletos)`);
+        }
+      } else if (!processedAttackRallyIds.has(rally.id)) {
+        // Fallback: flat rally fields
+        if (rally.a_player_id && rally.a_code !== null) {
+          const attackerSide = playerSideMap[rally.a_player_id];
+          if (attackerSide === 'CASA' || attackerSide === 'FORA') {
+            const team = attackerSide === 'CASA' ? home : away;
+            team.attTotal++;
+            if (rally.a_code === 3) team.attKills++;
+            if (rally.a_code === 0) team.attErrors++;
+            if (rally.a_code === 1) {
+              if (rally.b_code === 3) { team.attBlocked++; team.attBlockedPoint++; }
+              else if (rally.b_code === 1 || rally.b_code === 2) { team.attBlockedTouch++; }
+              else if (rally.b_code === 0) { team.attBlockFault++; }
+              else { team.attBlockIncomplete++; }
             }
           }
         }
@@ -524,28 +524,57 @@ export function useSetKPIs(
     }
 
     // === NEW DATAVOLLEY METRICS ===
-    // Block stats (from rawSetRallies)
+    // Block stats
+    const processedBlockRallyIds = new Set<string>();
     for (const rally of rawSetRallies) {
-      // Block participation: b1_player_id not null
-      if (rally.b1_player_id) {
-        const blockerSide = playerSideMap[rally.b1_player_id];
-        const team = blockerSide === 'CASA' ? home : blockerSide === 'FORA' ? away : null;
-        if (team) {
-          team.blkParticipations++;
-          if (rally.b_code === 3) team.blkPoints++;
-          else if (rally.b_code === 0) team.blkFaults++;
-          else if (rally.b_code === 1 || rally.b_code === 2) team.blkTouches++;
+      const actions = rallyActionsMap?.get(rally.id);
+      
+      if (actions && actions.length > 0 && !processedBlockRallyIds.has(rally.id)) {
+        processedBlockRallyIds.add(rally.id);
+        const blockActions = actions.filter(a => a.action_type === 'block' && a.code !== null && a.player_id);
+        for (const blockAction of blockActions) {
+          const blockerSide = playerSideMap[blockAction.player_id!];
+          const team = blockerSide === 'CASA' ? home : blockerSide === 'FORA' ? away : null;
+          if (team) {
+            team.blkParticipations++;
+            if (blockAction.code === 3) team.blkPoints++;
+            else if (blockAction.code === 0) team.blkFaults++;
+            else if (blockAction.code === 1 || blockAction.code === 2) team.blkTouches++;
+          }
         }
-      }
-      // Defense stats
-      if (rally.d_player_id && rally.d_code !== null) {
-        const defSide = playerSideMap[rally.d_player_id];
-        const team = defSide === 'CASA' ? home : defSide === 'FORA' ? away : null;
-        if (team) {
-          team.defTotal++;
-          if (rally.d_code >= 2) team.defPositive++;
-          if (rally.d_code === 3) team.defExcellent++;
-          if (rally.d_code === 0) team.defErrors++;
+        // Defense stats from actions
+        const defenseActions = actions.filter(a => a.action_type === 'defense' && a.code !== null && a.player_id);
+        for (const defAction of defenseActions) {
+          const defSide = playerSideMap[defAction.player_id!];
+          const team = defSide === 'CASA' ? home : defSide === 'FORA' ? away : null;
+          if (team) {
+            team.defTotal++;
+            if (defAction.code! >= 2) team.defPositive++;
+            if (defAction.code === 3) team.defExcellent++;
+            if (defAction.code === 0) team.defErrors++;
+          }
+        }
+      } else if (!processedBlockRallyIds.has(rally.id)) {
+        // Fallback: flat rally fields
+        if (rally.b1_player_id) {
+          const blockerSide = playerSideMap[rally.b1_player_id];
+          const team = blockerSide === 'CASA' ? home : blockerSide === 'FORA' ? away : null;
+          if (team) {
+            team.blkParticipations++;
+            if (rally.b_code === 3) team.blkPoints++;
+            else if (rally.b_code === 0) team.blkFaults++;
+            else if (rally.b_code === 1 || rally.b_code === 2) team.blkTouches++;
+          }
+        }
+        if (rally.d_player_id && rally.d_code !== null) {
+          const defSide = playerSideMap[rally.d_player_id];
+          const team = defSide === 'CASA' ? home : defSide === 'FORA' ? away : null;
+          if (team) {
+            team.defTotal++;
+            if (rally.d_code >= 2) team.defPositive++;
+            if (rally.d_code === 3) team.defExcellent++;
+            if (rally.d_code === 0) team.defErrors++;
+          }
         }
       }
     }
@@ -566,20 +595,40 @@ export function useSetKPIs(
       }
     }
 
-    // K1 vs K2 and Point Origin
+    // K1 vs K2
+    const processedK1K2RallyIds = new Set<string>();
     for (const rally of rawSetRallies) {
-      if (rally.a_player_id && rally.a_code !== null) {
-        const attackerSide = playerSideMap[rally.a_player_id];
-        if (attackerSide) {
+      const actions = rallyActionsMap?.get(rally.id);
+      
+      if (actions && actions.length > 0 && !processedK1K2RallyIds.has(rally.id)) {
+        processedK1K2RallyIds.add(rally.id);
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
+        for (const attackAction of attackActions) {
+          const attackerSide = playerSideMap[attackAction.player_id!];
+          if (!attackerSide) continue;
           const team = attackerSide === 'CASA' ? home : away;
-          // K1 = sideout attack (attacker's team was receiving)
           const isK1 = rally.recv_side === attackerSide;
           if (isK1) {
             team.k1Attacks++;
-            if (rally.a_code === 3) team.k1Kills++;
+            if (attackAction.code === 3) team.k1Kills++;
           } else {
             team.k2Attacks++;
-            if (rally.a_code === 3) team.k2Kills++;
+            if (attackAction.code === 3) team.k2Kills++;
+          }
+        }
+      } else if (!processedK1K2RallyIds.has(rally.id)) {
+        if (rally.a_player_id && rally.a_code !== null) {
+          const attackerSide = playerSideMap[rally.a_player_id];
+          if (attackerSide) {
+            const team = attackerSide === 'CASA' ? home : away;
+            const isK1 = rally.recv_side === attackerSide;
+            if (isK1) {
+              team.k1Attacks++;
+              if (rally.a_code === 3) team.k1Kills++;
+            } else {
+              team.k2Attacks++;
+              if (rally.a_code === 3) team.k2Kills++;
+            }
           }
         }
       }
@@ -1138,5 +1187,5 @@ export function useSetKPIs(
       allRotationsHome,
       allRotationsAway,
     };
-  }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap, playerByTeamAndNumber]);
+  }, [rallies, setNo, previousSetRallies, playerSideMap, playerMetaMap, playerByTeamAndNumber, rallyActionsMap]);
 }

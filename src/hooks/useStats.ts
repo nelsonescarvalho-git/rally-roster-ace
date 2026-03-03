@@ -1,7 +1,12 @@
 import { useMemo } from 'react';
 import { Rally, Player, MatchPlayer, PlayerStats, RotationStats, Side } from '@/types/volleyball';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 
-export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
+export function useStats(
+  rallies: Rally[],
+  players: (Player | MatchPlayer)[],
+  rallyActionsMap?: Map<string, RallyActionWithPlayer[]>
+) {
   const playerStats = useMemo(() => {
     const stats: Record<string, PlayerStats> = {};
 
@@ -50,84 +55,145 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
     }, {} as Record<string, Rally>);
 
     Object.values(finalPhases).forEach(rally => {
-      // Serve
-      if (rally.s_player_id && rally.s_code !== null && stats[rally.s_player_id]) {
-        stats[rally.s_player_id].serveAttempts++;
-        if (rally.s_code === 3) stats[rally.s_player_id].servePoints++;
-        if (rally.s_code === 0) stats[rally.s_player_id].serveErrors++;
-      }
+      const actions = rallyActionsMap?.get(rally.id);
 
-      // Reception
-      if (rally.r_player_id && rally.r_code !== null && stats[rally.r_player_id]) {
-        stats[rally.r_player_id].recAttempts++;
-        if (rally.r_code === 3) stats[rally.r_player_id].recPoints++;
-        if (rally.r_code === 0) stats[rally.r_player_id].recErrors++;
-      }
+      if (actions && actions.length > 0) {
+        // Use rally_actions for complete data
+        for (const action of actions) {
+          const pid = action.player_id;
+          if (!pid || !stats[pid]) continue;
 
-      // Attack
-      if (rally.a_player_id && rally.a_code !== null && stats[rally.a_player_id]) {
-        stats[rally.a_player_id].attAttempts++;
-        if (rally.a_code === 3) {
-          stats[rally.a_player_id].attPoints++;
-          // Track kill type
-          if (rally.kill_type === 'FLOOR') {
-            stats[rally.a_player_id].attFloorKills++;
-          } else if (rally.kill_type === 'BLOCKOUT') {
-            stats[rally.a_player_id].attBlockoutKills++;
+          switch (action.action_type) {
+            case 'serve':
+              if (action.code !== null) {
+                stats[pid].serveAttempts++;
+                if (action.code === 3) stats[pid].servePoints++;
+                if (action.code === 0) stats[pid].serveErrors++;
+              }
+              break;
+
+            case 'reception':
+              if (action.code !== null) {
+                stats[pid].recAttempts++;
+                if (action.code === 3) stats[pid].recPoints++;
+                if (action.code === 0) stats[pid].recErrors++;
+              }
+              break;
+
+            case 'attack':
+              if (action.code !== null) {
+                stats[pid].attAttempts++;
+                if (action.code === 3) {
+                  stats[pid].attPoints++;
+                  if (action.kill_type === 'FLOOR') stats[pid].attFloorKills++;
+                  else if (action.kill_type === 'BLOCKOUT') stats[pid].attBlockoutKills++;
+                }
+                if (action.code === 0) stats[pid].attErrors++;
+                // Check for stuff block: find the block action right after this attack from opposite side
+                if (action.code === 1) {
+                  // Look for a block action in the same rally from opposite side with code=3
+                  const blockAfter = actions.find(a =>
+                    a.action_type === 'block' &&
+                    a.sequence_no > action.sequence_no &&
+                    a.side !== action.side &&
+                    a.code === 3
+                  );
+                  if (blockAfter) {
+                    stats[pid].attBlocked = (stats[pid].attBlocked || 0) + 1;
+                  }
+                }
+              }
+              break;
+
+            case 'block':
+              if (action.code !== null) {
+                // Primary blocker
+                stats[pid].blkAttempts++;
+                if (action.code === 3) stats[pid].blkPoints++;
+                if (action.code === 0) stats[pid].blkErrors++;
+                // Secondary blockers
+                [action.b2_player_id, action.b3_player_id].forEach(bpid => {
+                  if (bpid && stats[bpid]) {
+                    stats[bpid].blkAttempts++;
+                    if (action.code === 3) stats[bpid].blkPoints++;
+                    if (action.code === 0) stats[bpid].blkErrors++;
+                  }
+                });
+              }
+              break;
+
+            case 'defense':
+              if (action.code !== null) {
+                stats[pid].defAttempts++;
+                if (action.code === 3) stats[pid].defPoints++;
+                if (action.code === 0) stats[pid].defErrors++;
+              }
+              break;
           }
         }
-        if (rally.a_code === 0) stats[rally.a_player_id].attErrors++;
-        // Track blocked for efficiency: only when a_code=1 AND b_code=3 (stuff block)
-        if (rally.a_code === 1 && rally.b_code === 3) {
-          stats[rally.a_player_id].attBlocked = (stats[rally.a_player_id].attBlocked || 0) + 1;
+      } else {
+        // Fallback: use flat rally fields (legacy data)
+        if (rally.s_player_id && rally.s_code !== null && stats[rally.s_player_id]) {
+          stats[rally.s_player_id].serveAttempts++;
+          if (rally.s_code === 3) stats[rally.s_player_id].servePoints++;
+          if (rally.s_code === 0) stats[rally.s_player_id].serveErrors++;
         }
-      }
 
-      // Block
-      if (rally.b_code !== null) {
-        [rally.b1_player_id, rally.b2_player_id, rally.b3_player_id].forEach(pid => {
-          if (pid && stats[pid]) {
-            stats[pid].blkAttempts++;
-            if (rally.b_code === 3) stats[pid].blkPoints++;
-            if (rally.b_code === 0) stats[pid].blkErrors++;
+        if (rally.r_player_id && rally.r_code !== null && stats[rally.r_player_id]) {
+          stats[rally.r_player_id].recAttempts++;
+          if (rally.r_code === 3) stats[rally.r_player_id].recPoints++;
+          if (rally.r_code === 0) stats[rally.r_player_id].recErrors++;
+        }
+
+        if (rally.a_player_id && rally.a_code !== null && stats[rally.a_player_id]) {
+          stats[rally.a_player_id].attAttempts++;
+          if (rally.a_code === 3) {
+            stats[rally.a_player_id].attPoints++;
+            if (rally.kill_type === 'FLOOR') stats[rally.a_player_id].attFloorKills++;
+            else if (rally.kill_type === 'BLOCKOUT') stats[rally.a_player_id].attBlockoutKills++;
           }
-        });
-      }
+          if (rally.a_code === 0) stats[rally.a_player_id].attErrors++;
+          if (rally.a_code === 1 && rally.b_code === 3) {
+            stats[rally.a_player_id].attBlocked = (stats[rally.a_player_id].attBlocked || 0) + 1;
+          }
+        }
 
-      // Defense
-      if (rally.d_player_id && rally.d_code !== null && stats[rally.d_player_id]) {
-        stats[rally.d_player_id].defAttempts++;
-        if (rally.d_code === 3) stats[rally.d_player_id].defPoints++;
-        if (rally.d_code === 0) stats[rally.d_player_id].defErrors++;
+        if (rally.b_code !== null) {
+          [rally.b1_player_id, rally.b2_player_id, rally.b3_player_id].forEach(pid => {
+            if (pid && stats[pid]) {
+              stats[pid].blkAttempts++;
+              if (rally.b_code === 3) stats[pid].blkPoints++;
+              if (rally.b_code === 0) stats[pid].blkErrors++;
+            }
+          });
+        }
+
+        if (rally.d_player_id && rally.d_code !== null && stats[rally.d_player_id]) {
+          stats[rally.d_player_id].defAttempts++;
+          if (rally.d_code === 3) stats[rally.d_player_id].defPoints++;
+          if (rally.d_code === 0) stats[rally.d_player_id].defErrors++;
+        }
       }
     });
 
     // Calculate averages and efficiencies
     Object.values(stats).forEach(s => {
-      // Serve efficiency: (aces - errors) / total
       if (s.serveAttempts > 0) {
         s.serveAvg = (s.servePoints * 3 + (s.serveAttempts - s.servePoints - s.serveErrors) * 1.5) / s.serveAttempts;
         s.serveEfficiency = (s.servePoints - s.serveErrors) / s.serveAttempts;
       }
-      // Reception efficiency: positives (code 2+3) / total
-      // Note: recPoints counts code 3 (excellent), we need to also count code 2 (good)
-      // For now, using recPoints as "positive" - in practice this should track code 2+3
       if (s.recAttempts > 0) {
         s.recAvg = (s.recPoints * 3 + (s.recAttempts - s.recPoints - s.recErrors) * 1.5) / s.recAttempts;
-        // Positive = all non-errors (simplified: total - errors)
         const recPositive = s.recAttempts - s.recErrors;
         s.recEfficiency = recPositive / s.recAttempts;
       }
-      // Attack efficiency: (kills - errors - blocked) / total
       if (s.attAttempts > 0) {
         s.attAvg = (s.attPoints * 3 + (s.attAttempts - s.attPoints - s.attErrors) * 1.5) / s.attAttempts;
         s.attEfficiency = (s.attPoints - s.attErrors - (s.attBlocked || 0)) / s.attAttempts;
       }
-      // Block efficiency: points / attempts
       if (s.blkAttempts > 0) {
         s.blkEfficiency = s.blkPoints / s.blkAttempts;
       }
-      // Defense efficiency: good / total (non-errors)
       if (s.defAttempts > 0) {
         s.defAvg = (s.defPoints * 3 + (s.defAttempts - s.defPoints - s.defErrors) * 1.5) / s.defAttempts;
         const defPositive = s.defAttempts - s.defErrors;
@@ -136,7 +202,7 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
     });
 
     return Object.values(stats);
-  }, [rallies, players]);
+  }, [rallies, players, rallyActionsMap]);
 
   const rotationStats = useMemo(() => {
     const stats: Record<string, RotationStats> = {};
@@ -158,7 +224,6 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
       });
     });
 
-    // Get final phases only
     const finalPhases = rallies.reduce((acc, rally) => {
       const key = `${rally.set_no}-${rally.rally_no}`;
       if (!acc[key] || rally.phase > acc[key].phase) {
@@ -173,7 +238,6 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
       const serveKey = `${rally.serve_side}-${rally.serve_rot}`;
       const recvKey = `${rally.recv_side}-${rally.recv_rot}`;
 
-      // Serving team stats
       stats[serveKey].breakAttempts++;
       if (rally.point_won_by === rally.serve_side) {
         stats[serveKey].breakPoints++;
@@ -182,7 +246,6 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
         stats[serveKey].pointsAgainst++;
       }
 
-      // Receiving team stats
       stats[recvKey].sideoutAttempts++;
       if (rally.point_won_by === rally.recv_side) {
         stats[recvKey].sideoutPoints++;
@@ -192,7 +255,6 @@ export function useStats(rallies: Rally[], players: (Player | MatchPlayer)[]) {
       }
     });
 
-    // Calculate percentages
     Object.values(stats).forEach(s => {
       if (s.sideoutAttempts > 0) {
         s.sideoutPercent = (s.sideoutPoints / s.sideoutAttempts) * 100;

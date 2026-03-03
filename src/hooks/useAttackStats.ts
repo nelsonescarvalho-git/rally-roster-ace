@@ -1,20 +1,17 @@
 import { useMemo } from 'react';
 import { Rally, Player, MatchPlayer, Side, ATTACK_DIFFICULTY_BY_DISTRIBUTION, DISTRIBUTION_LABELS, AttackDirection, ATTACK_DIRECTION_LABELS } from '@/types/volleyball';
+import type { RallyActionWithPlayer } from '@/types/rallyActions';
 
 export interface AttackerStats {
   attackerId: string;
   attackerName: string;
   jerseyNumber: number;
   side: Side;
-  
-  // Total stats
   totalAttempts: number;
   totalKills: number;
   totalErrors: number;
-  totalBlocked: number; // Blocked for point (a_code=1 AND b_code=3)
+  totalBlocked: number;
   efficiency: number;
-  
-  // New metrics by distribution quality
   avgDistributionQuality: number;
   killsWithGoodDist: number;
   killsWithBadDist: number;
@@ -22,8 +19,6 @@ export interface AttackerStats {
   attemptsWithBadDist: number;
   efficiencyWithGoodDist: number;
   efficiencyWithBadDist: number;
-  
-  // Breakdown by distribution quality
   statsByDistribution: {
     distributionCode: number;
     attempts: number;
@@ -32,8 +27,6 @@ export interface AttackerStats {
     blocked: number;
     efficiency: number;
   }[];
-  
-  // Direction breakdown
   statsByDirection: {
     direction: AttackDirection;
     attempts: number;
@@ -65,16 +58,26 @@ interface AttackFilters {
   attackDirection?: AttackDirection | null;
 }
 
+interface AttackEvent {
+  attackerId: string;
+  aCode: number;
+  passCode: number;
+  direction: string | null;
+  killType: string | null;
+  // For blocked detection
+  isBlocked: boolean;
+}
+
 export function useAttackStats(
   rallies: Rally[],
   players: (Player | MatchPlayer)[],
-  filters?: AttackFilters
+  filters?: AttackFilters,
+  rallyActionsMap?: Map<string, RallyActionWithPlayer[]>
 ) {
   const attackers = useMemo(() => {
     return players.filter(p => {
       const position = p.position?.toUpperCase();
-      // Include all players who have attacks, or typical attackers
-      return !position || position !== 'L'; // Exclude liberos
+      return !position || position !== 'L';
     });
   }, [players]);
 
@@ -88,26 +91,74 @@ export function useAttackStats(
       return acc;
     }, {} as Record<string, Rally>);
 
+    // Collect all attack events from rally_actions or flat rallies
+    const attackEvents: AttackEvent[] = [];
+
+    Object.values(finalPhases).forEach(rally => {
+      const actions = rallyActionsMap?.get(rally.id);
+
+      if (actions && actions.length > 0) {
+        // Use rally_actions: iterate ALL attack actions
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
+        
+        for (const attackAction of attackActions) {
+          // Find preceding setter action from same side for pass quality
+          const setterAction = actions
+            .filter(a => a.action_type === 'setter' && a.side === attackAction.side && a.sequence_no < attackAction.sequence_no)
+            .pop(); // last setter before this attack
+          
+          const passCode = attackAction.pass_code ?? setterAction?.pass_code ?? setterAction?.code ?? 2;
+
+          // Check if blocked for point
+          const blockAfter = actions.find(a =>
+            a.action_type === 'block' &&
+            a.sequence_no > attackAction.sequence_no &&
+            a.side !== attackAction.side &&
+            a.code === 3
+          );
+
+          attackEvents.push({
+            attackerId: attackAction.player_id!,
+            aCode: attackAction.code!,
+            passCode,
+            direction: attackAction.attack_direction,
+            killType: attackAction.kill_type,
+            isBlocked: attackAction.code === 1 && !!blockAfter,
+          });
+        }
+      } else {
+        // Fallback: flat rally fields
+        if (rally.a_player_id && rally.a_code !== null) {
+          const passCode = rally.a_pass_quality ?? rally.pass_code ?? 2;
+          attackEvents.push({
+            attackerId: rally.a_player_id,
+            aCode: rally.a_code,
+            passCode,
+            direction: rally.attack_direction,
+            killType: rally.kill_type,
+            isBlocked: rally.a_code === 1 && rally.b_code === 3,
+          });
+        }
+      }
+    });
+
     // Apply filters
-    let filteredRallies = Object.values(finalPhases).filter(r => r.a_player_id && r.a_code !== null);
-    
+    let filteredEvents = attackEvents;
+
     if (filters?.side && filters.side !== 'TODAS') {
-      filteredRallies = filteredRallies.filter(r => {
-        const attacker = players.find(p => p.id === r.a_player_id);
+      filteredEvents = filteredEvents.filter(e => {
+        const attacker = players.find(p => p.id === e.attackerId);
         return attacker?.side === filters.side;
       });
     }
-    
     if (filters?.attackerId) {
-      filteredRallies = filteredRallies.filter(r => r.a_player_id === filters.attackerId);
+      filteredEvents = filteredEvents.filter(e => e.attackerId === filters.attackerId);
     }
-    
     if (filters?.distributionCode !== null && filters?.distributionCode !== undefined) {
-      filteredRallies = filteredRallies.filter(r => r.pass_code === filters.distributionCode);
+      filteredEvents = filteredEvents.filter(e => e.passCode === filters.distributionCode);
     }
-    
     if (filters?.attackDirection) {
-      filteredRallies = filteredRallies.filter(r => r.attack_direction === filters.attackDirection);
+      filteredEvents = filteredEvents.filter(e => e.direction === filters.attackDirection);
     }
 
     // Build attacker stats
@@ -118,7 +169,6 @@ export function useAttackStats(
       byDirection: Record<string, { attempts: number; kills: number; errors: number }>;
     }> = {};
 
-    // Initialize for all attackers
     attackers.forEach(p => {
       if (!statsMap[p.id]) {
         statsMap[p.id] = {
@@ -127,22 +177,13 @@ export function useAttackStats(
             attackerName: p.name,
             jerseyNumber: p.jersey_number,
             side: p.side as Side,
-            totalAttempts: 0,
-            totalKills: 0,
-            totalErrors: 0,
-            totalBlocked: 0,
-            efficiency: 0,
+            totalAttempts: 0, totalKills: 0, totalErrors: 0, totalBlocked: 0, efficiency: 0,
             avgDistributionQuality: 0,
-            killsWithGoodDist: 0,
-            killsWithBadDist: 0,
-            attemptsWithGoodDist: 0,
-            attemptsWithBadDist: 0,
-            efficiencyWithGoodDist: 0,
-            efficiencyWithBadDist: 0,
-            statsByDistribution: [],
-            statsByDirection: [],
-            preferredDirection: null,
-            bestDirection: null,
+            killsWithGoodDist: 0, killsWithBadDist: 0,
+            attemptsWithGoodDist: 0, attemptsWithBadDist: 0,
+            efficiencyWithGoodDist: 0, efficiencyWithBadDist: 0,
+            statsByDistribution: [], statsByDirection: [],
+            preferredDirection: null, bestDirection: null,
           },
           passCodeSum: 0,
           byDistribution: { 0: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 1: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 2: { attempts: 0, kills: 0, errors: 0, blocked: 0 }, 3: { attempts: 0, kills: 0, errors: 0, blocked: 0 } },
@@ -151,7 +192,6 @@ export function useAttackStats(
       }
     });
 
-    // Global distribution breakdown
     const globalByDist: Record<number, { attempts: number; kills: number; errors: number; attackers: Record<string, number> }> = {
       0: { attempts: 0, kills: 0, errors: 0, attackers: {} },
       1: { attempts: 0, kills: 0, errors: 0, attackers: {} },
@@ -159,73 +199,64 @@ export function useAttackStats(
       3: { attempts: 0, kills: 0, errors: 0, attackers: {} },
     };
 
-    // Process rallies
-    filteredRallies.forEach(rally => {
-      const attackerId = rally.a_player_id!;
-      const aCode = rally.a_code!;
-      // Use a_pass_quality if available, fallback to pass_code, then default to 2
-      const passCode = rally.a_pass_quality ?? rally.pass_code ?? 2;
-      
-      if (!statsMap[attackerId]) return;
-      
-      const entry = statsMap[attackerId];
+    // Process events
+    filteredEvents.forEach(event => {
+      if (!statsMap[event.attackerId]) return;
+
+      const entry = statsMap[event.attackerId];
       entry.stats.totalAttempts++;
-      entry.passCodeSum += passCode;
-      
-      if (aCode === 3) entry.stats.totalKills++;
-      if (aCode === 0) entry.stats.totalErrors++;
-      // SEMANTIC CORRECTION: blocked for point = a_code=1 AND b_code=3
-      if (aCode === 1 && rally.b_code === 3) entry.stats.totalBlocked++;
+      entry.passCodeSum += event.passCode;
+
+      if (event.aCode === 3) entry.stats.totalKills++;
+      if (event.aCode === 0) entry.stats.totalErrors++;
+      if (event.isBlocked) entry.stats.totalBlocked++;
 
       // By distribution quality
-      if (!entry.byDistribution[passCode]) {
-        entry.byDistribution[passCode] = { attempts: 0, kills: 0, errors: 0, blocked: 0 };
+      const pc = event.passCode;
+      if (!entry.byDistribution[pc]) {
+        entry.byDistribution[pc] = { attempts: 0, kills: 0, errors: 0, blocked: 0 };
       }
-      entry.byDistribution[passCode].attempts++;
-      if (aCode === 3) entry.byDistribution[passCode].kills++;
-      if (aCode === 0) entry.byDistribution[passCode].errors++;
-      if (aCode === 1 && rally.b_code === 3) entry.byDistribution[passCode].blocked++;
+      entry.byDistribution[pc].attempts++;
+      if (event.aCode === 3) entry.byDistribution[pc].kills++;
+      if (event.aCode === 0) entry.byDistribution[pc].errors++;
+      if (event.isBlocked) entry.byDistribution[pc].blocked++;
 
-      // Good dist (>= 2) vs Bad dist (<= 1)
-      if (passCode >= 2) {
+      if (pc >= 2) {
         entry.stats.attemptsWithGoodDist++;
-        if (aCode === 3) entry.stats.killsWithGoodDist++;
+        if (event.aCode === 3) entry.stats.killsWithGoodDist++;
       } else {
         entry.stats.attemptsWithBadDist++;
-        if (aCode === 3) entry.stats.killsWithBadDist++;
+        if (event.aCode === 3) entry.stats.killsWithBadDist++;
       }
 
-      // By direction
-      const dir = rally.attack_direction;
-      if (dir) {
-        if (!entry.byDirection[dir]) {
-          entry.byDirection[dir] = { attempts: 0, kills: 0, errors: 0 };
+      if (event.direction) {
+        if (!entry.byDirection[event.direction]) {
+          entry.byDirection[event.direction] = { attempts: 0, kills: 0, errors: 0 };
         }
-        entry.byDirection[dir].attempts++;
-        if (aCode === 3) entry.byDirection[dir].kills++;
-        if (aCode === 0) entry.byDirection[dir].errors++;
+        entry.byDirection[event.direction].attempts++;
+        if (event.aCode === 3) entry.byDirection[event.direction].kills++;
+        if (event.aCode === 0) entry.byDirection[event.direction].errors++;
       }
 
-      if (!globalByDist[passCode]) {
-        globalByDist[passCode] = { attempts: 0, kills: 0, errors: 0, attackers: {} };
+      if (!globalByDist[pc]) {
+        globalByDist[pc] = { attempts: 0, kills: 0, errors: 0, attackers: {} };
       }
-      globalByDist[passCode].attempts++;
-      if (aCode === 3) {
-        globalByDist[passCode].kills++;
-        const attacker = players.find(p => p.id === attackerId);
+      globalByDist[pc].attempts++;
+      if (event.aCode === 3) {
+        globalByDist[pc].kills++;
+        const attacker = players.find(p => p.id === event.attackerId);
         if (attacker) {
           const key = `#${attacker.jersey_number}`;
-          globalByDist[passCode].attackers[key] = (globalByDist[passCode].attackers[key] || 0) + 1;
+          globalByDist[pc].attackers[key] = (globalByDist[pc].attackers[key] || 0) + 1;
         }
       }
-      if (aCode === 0) globalByDist[passCode].errors++;
+      if (event.aCode === 0) globalByDist[pc].errors++;
     });
 
     // Calculate final stats
     Object.values(statsMap).forEach(entry => {
       const s = entry.stats;
       if (s.totalAttempts > 0) {
-        // Correct efficiency: (kills - errors - blocked_point) / total
         s.efficiency = (s.totalKills - s.totalErrors - s.totalBlocked) / s.totalAttempts;
         s.avgDistributionQuality = entry.passCodeSum / s.totalAttempts;
       }
@@ -239,7 +270,7 @@ export function useAttackStats(
         const blockedWithBad = [1, 0].reduce((sum, code) => sum + (entry.byDistribution[code]?.blocked || 0), 0);
         s.efficiencyWithBadDist = (s.killsWithBadDist - errorsWithBad - blockedWithBad) / s.attemptsWithBadDist;
       }
-      
+
       s.statsByDistribution = [3, 2, 1, 0].map(code => {
         const d = entry.byDistribution[code] || { attempts: 0, kills: 0, errors: 0, blocked: 0 };
         return {
@@ -248,12 +279,10 @@ export function useAttackStats(
           kills: d.kills,
           errors: d.errors,
           blocked: d.blocked,
-          // Correct efficiency per distribution: (kills - errors - blocked) / attempts
           efficiency: d.attempts > 0 ? (d.kills - d.errors - d.blocked) / d.attempts : 0,
         };
       });
-      
-      // Direction stats
+
       const directions: AttackDirection[] = ['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'];
       s.statsByDirection = directions
         .map(dir => {
@@ -267,22 +296,20 @@ export function useAttackStats(
           };
         })
         .filter(d => d.attempts > 0);
-      
-      // Preferred = most attempts, Best = highest efficiency (min 2 attempts)
+
       if (s.statsByDirection.length > 0) {
         s.preferredDirection = s.statsByDirection.reduce((a, b) => a.attempts >= b.attempts ? a : b).direction;
         const eligible = s.statsByDirection.filter(d => d.attempts >= 2);
-        s.bestDirection = eligible.length > 0 
-          ? eligible.reduce((a, b) => a.efficiency >= b.efficiency ? a : b).direction 
+        s.bestDirection = eligible.length > 0
+          ? eligible.reduce((a, b) => a.efficiency >= b.efficiency ? a : b).direction
           : s.preferredDirection;
       }
     });
 
-    // Build global breakdown
     const breakdown: DistributionBreakdown[] = [3, 2, 1, 0].map(code => {
       const data = globalByDist[code];
       const info = ATTACK_DIFFICULTY_BY_DISTRIBUTION[code];
-      
+
       const topAttackers = Object.entries(data.attackers)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
@@ -310,7 +337,7 @@ export function useAttackStats(
         .sort((a, b) => b.efficiency - a.efficiency),
       globalDistributionBreakdown: breakdown,
     };
-  }, [rallies, players, attackers, filters]);
+  }, [rallies, players, attackers, filters, rallyActionsMap]);
 
   return {
     attackerStats,
