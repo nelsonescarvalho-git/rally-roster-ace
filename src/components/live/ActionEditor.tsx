@@ -469,32 +469,7 @@ export function ActionEditor({
     }, 50);
   }, [onKillTypeChange, onConfirm, onAutoFinishPoint, side, selectedPlayer, players, showConfirmToast]);
 
-  // Long press state for OUTROS
-  const [outrosPressed, setOutrosPressed] = useState(false);
-  const [outrosPressTimer, setOutrosPressTimer] = useState<NodeJS.Timeout | null>(null);
-
-  const handleOutrosStart = useCallback(() => {
-    const timer = setTimeout(() => {
-      onDestinationChange?.('OUTROS');
-      if (!selectedSetter) {
-        toast.warning('Selecione um distribuidor primeiro');
-        setOutrosPressed(false);
-        return;
-      }
-      setTimeout(() => onConfirm(), 50);
-      setOutrosPressed(false);
-    }, 250);
-    setOutrosPressTimer(timer);
-    setOutrosPressed(true);
-  }, [selectedSetter, onDestinationChange, onConfirm]);
-
-  const handleOutrosEnd = useCallback(() => {
-    if (outrosPressTimer) {
-      clearTimeout(outrosPressTimer);
-      setOutrosPressTimer(null);
-    }
-    setOutrosPressed(false);
-  }, [outrosPressTimer]);
+  // OUTROS uses same single-click as all other destinations
 
   const handleDestinationWithAutoConfirm = useCallback((dest: PassDestination) => {
     if (selectedDestination === dest) {
@@ -755,22 +730,17 @@ export function ActionEditor({
                     );
                   })}
                 </div>
-                {/* OUTROS with press-and-hold */}
+                {/* OUTROS - single click like all other destinations */}
                 <Button
                   variant="outline"
                   size="sm"
                   className={cn(
                     'w-full h-10 text-xs text-muted-foreground',
-                    outrosPressed && 'bg-muted',
                     selectedDestination === 'OUTROS' && 'bg-primary text-primary-foreground'
                   )}
-                  onMouseDown={handleOutrosStart}
-                  onMouseUp={handleOutrosEnd}
-                  onMouseLeave={handleOutrosEnd}
-                  onTouchStart={handleOutrosStart}
-                  onTouchEnd={handleOutrosEnd}
+                  onClick={() => handleDestinationWithAutoConfirm('OUTROS' as PassDestination)}
                 >
-                  OUTROS (manter 250ms)
+                  OUTROS
                 </Button>
               </div>
             )}
