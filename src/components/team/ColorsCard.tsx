@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Palette } from 'lucide-react';
+import { getContrastForeground } from '@/hooks/useTeamColors';
 
 interface ColorsCardProps {
   teamName: string;
@@ -92,8 +93,8 @@ export function ColorsCard({
               className="h-12 w-12 rounded-xl flex items-center justify-center text-lg font-bold shadow-md"
               style={{ 
                 backgroundColor: primaryColor, 
-                color: '#fff',
-                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                color: `hsl(${getContrastForeground(primaryColor)})`,
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
               }}
             >
               #7
@@ -112,7 +113,7 @@ export function ColorsCard({
               className="px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ 
                 backgroundColor: primaryColor, 
-                color: '#fff',
+                color: `hsl(${getContrastForeground(primaryColor)})`,
               }}
             >
               {teamName}
