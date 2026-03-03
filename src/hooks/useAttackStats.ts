@@ -62,6 +62,7 @@ interface AttackFilters {
   side?: Side | 'TODAS';
   attackerId?: string | null;
   distributionCode?: number | null;
+  attackDirection?: AttackDirection | null;
 }
 
 export function useAttackStats(
@@ -103,6 +104,10 @@ export function useAttackStats(
     
     if (filters?.distributionCode !== null && filters?.distributionCode !== undefined) {
       filteredRallies = filteredRallies.filter(r => r.pass_code === filters.distributionCode);
+    }
+    
+    if (filters?.attackDirection) {
+      filteredRallies = filteredRallies.filter(r => r.attack_direction === filters.attackDirection);
     }
 
     // Build attacker stats
