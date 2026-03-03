@@ -45,6 +45,10 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
     root.style.setProperty('--home-secondary', hexToHsl(homeSecondary));
     root.style.setProperty('--away-secondary', hexToHsl(awaySecondary));
 
+    // Dynamic foreground colors for contrast
+    root.style.setProperty('--home-foreground', getContrastForeground(homePrimary));
+    root.style.setProperty('--away-foreground', getContrastForeground(awayPrimary));
+
     // Cleanup
     return () => {
       root.style.removeProperty('--team-home-primary');
@@ -55,6 +59,8 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
       root.style.removeProperty('--away');
       root.style.removeProperty('--home-secondary');
       root.style.removeProperty('--away-secondary');
+      root.style.removeProperty('--home-foreground');
+      root.style.removeProperty('--away-foreground');
     };
   }, [homeColors, awayColors]);
 
@@ -68,6 +74,15 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
       secondary: awayColors?.secondary || AWAY_DEFAULT.secondary,
     },
   };
+}
+
+// Helper: calculate contrast foreground for a given hex background
+export function getContrastForeground(hex: string): string {
+  const r = parseInt(hex.replace('#', '').substring(0, 2), 16) / 255;
+  const g = parseInt(hex.replace('#', '').substring(2, 4), 16) / 255;
+  const b = parseInt(hex.replace('#', '').substring(4, 6), 16) / 255;
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+  return luminance > 0.55 ? '220 30% 10%' : '0 0% 100%';
 }
 
 // Helper to convert HEX to HSL for Tailwind compatibility

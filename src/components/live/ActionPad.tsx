@@ -76,11 +76,14 @@ export function ActionPad({
           {/* Right: Team Badge + Undo */}
           <div className="flex items-center gap-2">
             <Badge 
-              className="text-xs font-semibold text-white"
+              className="text-xs font-semibold"
               style={{ 
                 backgroundColor: teamSide === 'home' 
                   ? 'hsl(var(--home))' 
-                  : 'hsl(var(--away))'
+                  : 'hsl(var(--away))',
+                color: teamSide === 'home'
+                  ? 'hsl(var(--home-foreground))'
+                  : 'hsl(var(--away-foreground))'
               }}
             >
               {teamName.length > 10 ? teamName.slice(0, 10) + '…' : teamName}

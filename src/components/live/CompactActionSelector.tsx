@@ -137,7 +137,7 @@ export function CompactActionSelector({
             className={cn(
               'h-9 px-3 text-xs font-semibold transition-all',
               selectedSide === 'CASA' 
-                ? 'bg-home text-white hover:bg-home/90' 
+                ? 'bg-home text-home-foreground hover:bg-home/90' 
                 : 'border-home/40 text-home hover:bg-home/10'
             )}
             onClick={() => setSelectedSide('CASA')}
@@ -150,7 +150,7 @@ export function CompactActionSelector({
             className={cn(
               'h-9 px-3 text-xs font-semibold transition-all',
               selectedSide === 'FORA' 
-                ? 'bg-away text-white hover:bg-away/90' 
+                ? 'bg-away text-away-foreground hover:bg-away/90' 
                 : 'border-away/40 text-away hover:bg-away/10'
             )}
             onClick={() => setSelectedSide('FORA')}
