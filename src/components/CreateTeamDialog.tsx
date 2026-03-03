@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useTeams } from '@/hooks/useTeams';
 import { Team } from '@/types/volleyball';
+import { getContrastForeground } from '@/hooks/useTeamColors';
 
 const DEFAULT_COLORS = {
   primary: '#3B82F6',
@@ -182,8 +183,8 @@ export function CreateTeamDialog({ open, onOpenChange, onTeamCreated }: CreateTe
                 className="h-10 w-10 rounded-xl flex items-center justify-center text-sm font-bold shadow-md flex-shrink-0"
                 style={{ 
                   backgroundColor: primaryColor, 
-                  color: '#fff',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                  color: `hsl(${getContrastForeground(primaryColor)})`,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
                 }}
               >
                 #7
@@ -203,7 +204,7 @@ export function CreateTeamDialog({ open, onOpenChange, onTeamCreated }: CreateTe
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold truncate max-w-[100px]"
                   style={{ 
                     backgroundColor: primaryColor, 
-                    color: '#fff',
+                    color: `hsl(${getContrastForeground(primaryColor)})`,
                   }}
                 >
                   {name}
