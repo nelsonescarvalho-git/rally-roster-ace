@@ -1,49 +1,70 @@
 
 
-# Fix: Dados em falta e validação de ordem no EditRallyActionsModal
+# Bug: Última ação terminal nunca é gravada na tabela `rally_actions`
 
-## Problemas identificados
+## Causa raiz
 
-1. **Setter usa `code` em vez de `pass_code`** — Linha 280: o dropdown de código usa sempre `action.code`. Para setter, a qualidade está em `pass_code` (que é `null` no `code`). Ao abrir o modal, o utilizador não vê a qualidade do passe nem consegue editá-la.
+Quando uma ação terminal é confirmada (Kill, Ace, Bloco Ponto, Erro), o fluxo é:
 
-2. **`attack_direction` não está no modal** — O campo existe na BD mas não está no `ActionEditState` nem na UI. Ao editar um ataque, perde-se a direcção.
+1. `onConfirm()` → chama `handleConfirmAction` → `setRegisteredActions(prev => [...prev, newAction])` **(async — React state)**
+2. `onAutoFinishPoint()` → chama `handleFinishPoint` → lê `registeredActions` **(stale — ainda sem a ação do passo 1)**
 
-3. **Sem validação de ordem** — Não há indicação visual se a sequência de acções segue a lógica esperada (ex: serviço → receção → distribuição → ataque). Se acções estiverem fora de ordem ou repetidas inesperadamente, nada sinaliza.
+A tabela `rallies` recebe os dados correctos porque usa `attackOverrides`. Mas a tabela `rally_actions` (linha 1449-1467) itera sobre `registeredActions` que ainda não inclui a última ação confirmada. **Resultado: a ação terminal nunca é persistida em `rally_actions`.**
 
-## Alterações — `src/components/EditRallyActionsModal.tsx`
+Isto afecta: Kills, Aces, Erros de serviço, Erros de ataque, Blocos ponto — qualquer acção que auto-finalize o rally.
 
-### 1. Fix setter code → pass_code
+## Fix — `src/pages/Live.tsx`
 
-No Code Select (linhas 279-297):
-- Quando `action.action_type === 'setter'`: ler `action.pass_code` e gravar em `pass_code`
-- Caso contrário: manter `action.code` como agora
+### Alterar `handleFinishPoint` para receber as ações actuais como parâmetro
+
+Em vez de ler `registeredActions` (stale), o `handleFinishPoint` deve construir a lista de ações a partir de `registeredActions` + as ações que acabaram de ser confirmadas via `attackOverrides`.
+
+**Abordagem concreta**: No `handleFinishPoint` (linha ~1449), antes de mapear `registeredActions` para `actionsToInsert`, construir uma lista completa que inclui ações inferidas dos `attackOverrides`:
 
 ```typescript
-value={(action.action_type === 'setter' ? action.pass_code : action.code)?.toString() ?? 'none'}
-onValueChange={(v) => updateAction(idx, 
-  action.action_type === 'setter' 
-    ? { pass_code: v === 'none' ? null : parseInt(v) } 
-    : { code: v === 'none' ? null : parseInt(v) }
-)}
+// Build complete actions list including terminal action from overrides
+let allActions = [...registeredActions];
+
+// If attackOverrides contain data not yet in registeredActions, add them
+if (attackOverrides) {
+  const hasAttack = allActions.some(a => a.type === 'attack');
+  if (!hasAttack && attackOverrides.attackPlayerId) {
+    allActions.push({
+      type: 'attack', side: /* infer */, phase: 1,
+      playerId: attackOverrides.attackPlayerId,
+      playerNo: getPlayerNo(attackOverrides.attackPlayerId),
+      code: attackOverrides.attackCode ?? null,
+      killType: attackOverrides.killType ?? null,
+    });
+  }
+  // Same for block if blockCode exists but no block in registeredActions
+  const hasBlock = allActions.some(a => a.type === 'block');
+  if (!hasBlock && attackOverrides.blockCode !== undefined) {
+    allActions.push({
+      type: 'block', side: /* opponent */, phase: 1,
+      playerId: attackOverrides.blocker1Id ?? null,
+      code: attackOverrides.blockCode,
+    });
+  }
+}
 ```
 
-### 2. Adicionar `attack_direction` ao ActionEditState e UI
+Além disso, tratar os casos sem `attackOverrides` (ex: Ace, Erro de serviço) onde `onConfirm` é chamado imediatamente antes de `onAutoFinishPoint`:
+- Para o **serviço** (ace/SE), a ação de serviço já deveria estar em `registeredActions` antes do auto-finish. Verificar se o `setTimeout(0)` no ActionEditor causa o mesmo problema.
 
-- Adicionar campo `attack_direction` ao interface `ActionEditState`
-- No `useEffect` de inicialização, mapear `a.attack_direction`
-- Para acções de ataque, adicionar um Select com as 5 direcções usando `ATTACK_DIRECTION_LABELS` de `volleyball.ts`
-- Importar `AttackDirection` e `ATTACK_DIRECTION_LABELS`
+Verificando o ActionEditor: nas linhas 315-318, o fluxo é `onConfirm({serveType})` seguido de `onAutoFinishPoint` dentro de um `setTimeout(0)`. Ambos usam `setTimeout(0)`, o que coloca ambos na mesma microtask queue — `registeredActions` ainda não terá a ação de serviço.
 
-### 3. Validação de ordem das acções
+**Fix mais robusto**: adicionar as ações do `registeredActions` mais a ação pendente como parâmetro directo:
 
-Adicionar uma função `getSequenceWarnings()` que verifica:
-- **Primeiro acção deve ser serviço** — se não, warning "Esperado serviço como 1ª ação"
-- **Acções consecutivas do mesmo tipo e lado** — warning "Ação duplicada consecutiva"
-- **Lados alternados na sequência esperada** — serviço de um lado deve ser seguido de receção do lado oposto
+Modificar `handleAutoFinishPoint` para capturar `pendingAction` no momento da chamada e passá-lo como parâmetro adicional a `handleFinishPoint`. Assim, `handleFinishPoint` pode reconstruir a lista completa.
 
-Mostrar warnings como badges laranja junto ao cabeçalho de cada acção (similar aos issues existentes).
+**Alternativa mais simples**: no `handleFinishPoint`, ao construir `actionsToInsert`, reconstruir a lista a partir dos dados já disponíveis no `rallyData` (que usa overrides correctamente). Isto garante que o `rally_actions` reflecte exactamente o que está no `rallies`.
 
-### 4. Incluir `attack_direction` no save
+### Implementação preferida
 
-O `handleSave` já passa `editActions` para `onSave`. Basta garantir que o campo `attack_direction` está no interface e é passado ao update no hook `useRallyActions`.
+No `handleFinishPoint`, após `saveRally` e obter o `createdRally.id`, reconstruir `actionsToInsert` a partir de `rallyData` em vez de `registeredActions`. Assim:
+
+1. Manter `registeredActions` para as ações intermédias (receção, distribuição, defesa)
+2. Complementar com dados do `rallyData`/`attackOverrides` para garantir que ações terminais são incluídas
+3. Comparar com `registeredActions` para evitar duplicados
 
