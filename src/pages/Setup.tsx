@@ -275,7 +275,7 @@ export default function Setup() {
             className="flex-1 font-semibold transition-all"
             style={activeSide === 'CASA' ? {
               backgroundColor: 'hsl(var(--home))',
-              color: 'white',
+              color: 'hsl(var(--home-foreground))',
               borderColor: 'hsl(var(--home))',
             } : {
               borderColor: 'hsl(var(--home) / 0.5)',
@@ -290,7 +290,7 @@ export default function Setup() {
             className="flex-1 font-semibold transition-all"
             style={activeSide === 'FORA' ? {
               backgroundColor: 'hsl(var(--away))',
-              color: 'white',
+              color: 'hsl(var(--away-foreground))',
               borderColor: 'hsl(var(--away))',
             } : {
               borderColor: 'hsl(var(--away) / 0.5)',
@@ -439,8 +439,8 @@ export default function Setup() {
                               onCheckedChange={() => togglePlayerSelection(player.id)}
                             />
                             <div 
-                              className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white"
-                              style={{ backgroundColor: activeSide === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))' }}
+                              className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold"
+                              style={{ backgroundColor: activeSide === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))', color: activeSide === 'CASA' ? 'hsl(var(--home-foreground))' : 'hsl(var(--away-foreground))' }}
                             >
                               {player.jersey_number}
                             </div>
@@ -481,8 +481,8 @@ export default function Setup() {
                     <CardContent className="flex items-center justify-between py-3 px-4">
                       <div className="flex items-center gap-3">
                         <div 
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white"
-                          style={{ backgroundColor: activeSide === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))' }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold"
+                          style={{ backgroundColor: activeSide === 'CASA' ? 'hsl(var(--home))' : 'hsl(var(--away))', color: activeSide === 'CASA' ? 'hsl(var(--home-foreground))' : 'hsl(var(--away-foreground))' }}
                         >
                           {player.jersey_number}
                         </div>

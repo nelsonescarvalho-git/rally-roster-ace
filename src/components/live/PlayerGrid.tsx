@@ -47,8 +47,8 @@ export function PlayerGrid({
     
     if (isSelected) {
       return colorSide === 'home' 
-        ? 'bg-home text-white border-home ring-2 ring-home ring-offset-1' 
-        : 'bg-away text-white border-away ring-2 ring-away ring-offset-1';
+        ? 'bg-home text-home-foreground border-home ring-2 ring-home ring-offset-1' 
+        : 'bg-away text-away-foreground border-away ring-2 ring-away ring-offset-1';
     }
     
     return colorSide === 'home'

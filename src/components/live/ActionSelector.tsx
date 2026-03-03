@@ -93,7 +93,7 @@ export function ActionSelector({
             className={cn(
               'flex-1 h-11 transition-all font-semibold',
               selectedSide === 'CASA' 
-                ? 'bg-home text-white hover:bg-home/90' 
+                ? 'bg-home text-home-foreground hover:bg-home/90' 
                 : 'border-home/40 text-home hover:bg-home/10'
             )}
             onClick={() => setSelectedSide('CASA')}
@@ -105,7 +105,7 @@ export function ActionSelector({
             className={cn(
               'flex-1 h-11 transition-all font-semibold',
               selectedSide === 'FORA' 
-                ? 'bg-away text-white hover:bg-away/90' 
+                ? 'bg-away text-away-foreground hover:bg-away/90' 
                 : 'border-away/40 text-away hover:bg-away/10'
             )}
             onClick={() => setSelectedSide('FORA')}
