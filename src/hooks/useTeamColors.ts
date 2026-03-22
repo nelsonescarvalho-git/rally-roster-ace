@@ -89,15 +89,25 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
     };
   }, [homeColors, awayColors]);
 
+  // Return the visibility-adjusted colors (computed inside useEffect, recompute here for return)
+  const ensureVisibleReturn = (colors: Partial<TeamColors> | undefined, defaults: TeamColors): TeamColors => {
+    let primary = colors?.primary || defaults.primary;
+    let secondary = colors?.secondary || defaults.secondary;
+    const primLum = getRelativeLuminance(primary);
+    const secLum = getRelativeLuminance(secondary);
+    const isUsable = (lum: number) => lum >= 0.08 && lum <= 0.85;
+    if (!isUsable(primLum) && isUsable(secLum)) {
+      [primary, secondary] = [secondary, primary];
+    } else if (!isUsable(primLum) && !isUsable(secLum)) {
+      primary = defaults.primary;
+      secondary = defaults.secondary;
+    }
+    return { primary, secondary };
+  };
+
   return {
-    home: {
-      primary: homeColors?.primary || HOME_DEFAULT.primary,
-      secondary: homeColors?.secondary || HOME_DEFAULT.secondary,
-    },
-    away: {
-      primary: awayColors?.primary || AWAY_DEFAULT.primary,
-      secondary: awayColors?.secondary || AWAY_DEFAULT.secondary,
-    },
+    home: ensureVisibleReturn(homeColors, HOME_DEFAULT),
+    away: ensureVisibleReturn(awayColors, AWAY_DEFAULT),
   };
 }
 
