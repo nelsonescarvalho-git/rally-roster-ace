@@ -542,6 +542,10 @@ export default function Setup() {
                           <SelectContent>
                             {sidePlayers
                               .filter((p) => {
+                                // Block liberos from starting lineup
+                                const pos = p.position?.toUpperCase();
+                                if (pos === 'L' || pos === 'LIBERO') return false;
+                                
                                 // Allow the current selection for this rotation
                                 const currentValue = lineupSelections[`rot${rot}`];
                                 if (p.id === currentValue) return true;
