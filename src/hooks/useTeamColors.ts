@@ -26,14 +26,23 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
     const root = document.documentElement;
 
     // Ensure team colors are visible: if primary is too dark, swap with secondary
+    // Also handle case where primary is too light (e.g. white) for dark theme backgrounds
     const ensureVisible = (colors: Partial<TeamColors> | undefined, defaults: TeamColors): TeamColors => {
       let primary = colors?.primary || defaults.primary;
       let secondary = colors?.secondary || defaults.secondary;
       
-      // If primary is very dark (luminance < 0.08), swap with secondary if it's brighter
       const primLum = getRelativeLuminance(primary);
       const secLum = getRelativeLuminance(secondary);
+      
+      // If primary is very dark (nearly black), swap with secondary if brighter
       if (primLum < 0.08 && secLum > primLum) {
+        [primary, secondary] = [secondary, primary];
+      }
+      
+      // If primary is very light (nearly white), swap with secondary if darker and usable
+      const newPrimLum = getRelativeLuminance(primary);
+      const newSecLum = getRelativeLuminance(secondary);
+      if (newPrimLum > 0.85 && newSecLum >= 0.08 && newSecLum <= 0.85) {
         [primary, secondary] = [secondary, primary];
       }
       
