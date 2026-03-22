@@ -25,16 +25,24 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
   useEffect(() => {
     const root = document.documentElement;
 
-    // Ensure team colors are visible: if primary is too dark, swap with secondary
+    // Ensure team colors are visible on both light and dark themes
     const ensureVisible = (colors: Partial<TeamColors> | undefined, defaults: TeamColors): TeamColors => {
       let primary = colors?.primary || defaults.primary;
       let secondary = colors?.secondary || defaults.secondary;
       
-      // If primary is very dark (luminance < 0.08), swap with secondary if it's brighter
       const primLum = getRelativeLuminance(primary);
       const secLum = getRelativeLuminance(secondary);
-      if (primLum < 0.08 && secLum > primLum) {
+      
+      // Check which colors are in a usable range (not too dark, not too light)
+      const isUsable = (lum: number) => lum >= 0.08 && lum <= 0.85;
+      
+      if (!isUsable(primLum) && isUsable(secLum)) {
+        // Primary is extreme, secondary is usable — swap
         [primary, secondary] = [secondary, primary];
+      } else if (!isUsable(primLum) && !isUsable(secLum)) {
+        // Both are extreme — fall back to defaults
+        primary = defaults.primary;
+        secondary = defaults.secondary;
       }
       
       return { primary, secondary };
