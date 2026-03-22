@@ -25,13 +25,30 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
   useEffect(() => {
     const root = document.documentElement;
 
+    // Ensure team colors are visible: if primary is too dark, swap with secondary
+    const ensureVisible = (colors: Partial<TeamColors> | undefined, defaults: TeamColors): TeamColors => {
+      let primary = colors?.primary || defaults.primary;
+      let secondary = colors?.secondary || defaults.secondary;
+      
+      // If primary is very dark (luminance < 0.08), swap with secondary if it's brighter
+      const primLum = getRelativeLuminance(primary);
+      const secLum = getRelativeLuminance(secondary);
+      if (primLum < 0.08 && secLum > primLum) {
+        [primary, secondary] = [secondary, primary];
+      }
+      
+      return { primary, secondary };
+    };
+
     // Home team colors
-    const homePrimary = homeColors?.primary || HOME_DEFAULT.primary;
-    const homeSecondary = homeColors?.secondary || HOME_DEFAULT.secondary;
+    const home = ensureVisible(homeColors, HOME_DEFAULT);
+    const homePrimary = home.primary;
+    const homeSecondary = home.secondary;
     
     // Away team colors
-    const awayPrimary = awayColors?.primary || AWAY_DEFAULT.primary;
-    const awaySecondary = awayColors?.secondary || AWAY_DEFAULT.secondary;
+    const away = ensureVisible(awayColors, AWAY_DEFAULT);
+    const awayPrimary = away.primary;
+    const awaySecondary = away.secondary;
 
     // Set CSS custom properties with HEX values
     root.style.setProperty('--team-home-primary', homePrimary);
@@ -74,6 +91,15 @@ export function useTeamColors({ homeColors, awayColors }: UseTeamColorsProps = {
       secondary: awayColors?.secondary || AWAY_DEFAULT.secondary,
     },
   };
+}
+
+// Helper: get relative luminance from hex
+function getRelativeLuminance(hex: string): number {
+  hex = hex.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
 // Helper: calculate contrast foreground for a given hex background

@@ -405,7 +405,13 @@ export function useMatch(matchId: string | null) {
       }
     }
 
-    return activePlayerIds;
+    // Defensive: remove duplicate IDs (keep first occurrence, clear subsequent)
+    const seen = new Set<string>();
+    return activePlayerIds.filter(id => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
   }, [getLineupForSet, substitutions]);
 
   // Get the player serving based on active lineup (considers substitutions)
