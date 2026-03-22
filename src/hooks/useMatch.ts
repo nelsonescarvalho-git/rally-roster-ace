@@ -390,22 +390,27 @@ export function useMatch(matchId: string | null) {
       .filter(s => s.set_no === setNo && s.side === side && s.rally_no <= upToRally)
       .sort((a, b) => {
         if (a.rally_no !== b.rally_no) return a.rally_no - b.rally_no;
-        // Secondary sort by created_at for deterministic order
         const timeA = new Date(a.created_at).getTime();
         const timeB = new Date(b.created_at).getTime();
         if (timeA !== timeB) return timeA - timeB;
-        // Fallback to id comparison
         return a.id.localeCompare(b.id);
       });
 
     for (const sub of relevantSubs) {
       const outIndex = activePlayerIds.indexOf(sub.player_out_id);
       if (outIndex !== -1) {
+        // If player_in is already in the lineup (e.g. libero placed in starting 6),
+        // swap both positions instead of creating a duplicate
+        const inIndex = activePlayerIds.indexOf(sub.player_in_id);
+        if (inIndex !== -1 && inIndex !== outIndex) {
+          // Swap: put the outgoing player into the position the incoming player occupied
+          activePlayerIds[inIndex] = sub.player_out_id;
+        }
         activePlayerIds[outIndex] = sub.player_in_id;
       }
     }
 
-    // Defensive: remove duplicate IDs (keep first occurrence, clear subsequent)
+    // Defensive: remove any remaining duplicate IDs (keep first occurrence)
     const seen = new Set<string>();
     return activePlayerIds.filter(id => {
       if (seen.has(id)) return false;
