@@ -1313,6 +1313,8 @@ export function useSetKPIs(
       bestAttackersAway,
       bestServersHome,
       bestServersAway,
+      bestBlockersHome,
+      bestBlockersAway,
       deltaFromPrevious,
       totalRallies: setRallies.length,
       allRotationsHome,
