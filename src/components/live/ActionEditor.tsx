@@ -931,6 +931,37 @@ export function ActionEditor({
                   })}
                 </div>
                 
+                {/* Freeball button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedPlayer) {
+                      toast.warning('Selecione um jogador primeiro');
+                      return;
+                    }
+                    const player = players.find(p => p.id === selectedPlayer);
+                    const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                    requestAnimationFrame(() => {
+                      setTimeout(() => {
+                        toast.success(
+                          `#${player?.jersey_number || '?'} · Ataque · Freeball`,
+                          { duration: 2500, action: onUndo ? { label: 'Desfazer', onClick: onUndo } : undefined }
+                        );
+                        onConfirm({ playerId: selectedPlayer, code: -1 });
+                        onChainAction?.('defense', opponent);
+                      }, 0);
+                    });
+                  }}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 text-sm font-medium transition-all',
+                    'border-warning/40 bg-warning/10 text-warning hover:bg-warning/20 hover:border-warning/60 active:scale-95'
+                  )}
+                >
+                  <span>🎁</span>
+                  <span>Freeball</span>
+                  <span className="text-xs opacity-60">(bola fácil)</span>
+                </button>
+
                 <div className="text-xs font-medium text-muted-foreground text-center pt-1">
                   Avaliação do Ataque
                 </div>

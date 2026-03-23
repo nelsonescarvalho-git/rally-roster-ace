@@ -64,6 +64,7 @@ export const ACTION_CODE_LABELS: Record<ActionType, Record<number, { emoji: stri
     3: { emoji: '⭐', label: 'Excelente' },
   },
   attack: {
+    [-1]: { emoji: '🎁', label: 'Freeball' },
     0: { emoji: '✗', label: 'Erro' },
     1: { emoji: '□', label: 'Tocou Bloco' },
     2: { emoji: '◎', label: 'Defendido' },

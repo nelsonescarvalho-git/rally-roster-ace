@@ -81,7 +81,7 @@ export function useStats(
               break;
 
             case 'attack':
-              if (action.code !== null) {
+              if (action.code !== null && action.code !== -1) {
                 stats[pid].attAttempts++;
                 if (action.code === 3) {
                   stats[pid].attPoints++;
