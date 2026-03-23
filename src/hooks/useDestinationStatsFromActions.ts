@@ -66,21 +66,11 @@ export function useDestinationStatsFromActions(
           
           // Apply side filter
           if (!side || setterSide === side) {
-            // 1. Count ALL distributions as attempts immediately
+            // Count ALL distributions as attempts immediately
             stats[dest].attempts++;
-            
-            // 2. Architecture 2 (Combo): If setter has code, use it directly
-            if (action.code !== null && action.code !== undefined) {
-              if (action.code === 3) stats[dest].kills++;
-              else if (action.code === 0) stats[dest].errors++;
-              else if (action.code === 1) stats[dest].blocked++;
-              else if (action.code === 2) stats[dest].defended++;
-              // Result already processed, no need to wait for attack
-              continue;
-            }
           }
           
-          // 3. Architecture 1: Store for correlation with subsequent attack
+          // Store for correlation with subsequent attack
           pendingDestination = dest;
           pendingSetterSide = setterSide;
         }
