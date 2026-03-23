@@ -1151,7 +1151,9 @@ export function SetSummaryKPIs({
            kpis.topScorersHome.length === 0 &&
            kpis.topScorersAway.length === 0 &&
            kpis.topReceiversHome.length === 0 &&
-           kpis.topReceiversAway.length === 0 && (
+           kpis.topReceiversAway.length === 0 &&
+           kpis.bestBlockersHome.length === 0 &&
+           kpis.bestBlockersAway.length === 0 && (
             <div className="text-center text-sm text-muted-foreground py-4">
               Sem insights disponíveis para este set
             </div>
