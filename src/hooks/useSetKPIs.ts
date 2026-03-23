@@ -150,6 +150,27 @@ interface TopReceiver {
   positivePercent: number;
 }
 
+export interface TopAttackerEfficiency {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  kills: number;
+  errors: number;
+  blocked: number;
+  total: number;
+  efficiency: number;
+}
+
+export interface TopServerEfficiency {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  aces: number;
+  errors: number;
+  total: number;
+  efficiency: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
