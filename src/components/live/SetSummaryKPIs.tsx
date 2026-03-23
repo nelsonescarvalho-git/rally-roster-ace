@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Rally, Side, MatchPlayer } from '@/types/volleyball';
-import { useSetKPIs, SetKPIs } from '@/hooks/useSetKPIs';
+import { useSetKPIs, SetKPIs, TopAttackerEfficiency, TopServerEfficiency } from '@/hooks/useSetKPIs';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -752,6 +752,150 @@ export function SetSummaryKPIs({
                             <span>{server.count} svc</span>
                             <Badge variant="outline" className="text-[10px] px-1">
                               {server.percent}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Best Attack Efficiency */}
+          {(kpis.bestAttackersHome.length > 0 || kpis.bestAttackersAway.length > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="h-4 w-4 text-emerald-500" />
+                  <span className="text-xs font-medium">Melhor Eficácia (Ataque)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-home font-medium text-xs mb-1">{homeName}</div>
+                    {kpis.bestAttackersHome.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.bestAttackersHome.map((a) => (
+                          <div key={a.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{a.playerNo}</span>
+                            {a.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{a.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{a.kills}/{a.total}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                a.efficiency >= 40 && "border-green-500 text-green-600",
+                                a.efficiency >= 20 && a.efficiency < 40 && "border-yellow-500 text-yellow-600",
+                                a.efficiency < 20 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {a.efficiency}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-away font-medium text-xs mb-1">{awayName}</div>
+                    {kpis.bestAttackersAway.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.bestAttackersAway.map((a) => (
+                          <div key={a.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{a.playerNo}</span>
+                            {a.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{a.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{a.kills}/{a.total}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                a.efficiency >= 40 && "border-green-500 text-green-600",
+                                a.efficiency >= 20 && a.efficiency < 40 && "border-yellow-500 text-yellow-600",
+                                a.efficiency < 20 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {a.efficiency}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Best Serve Efficiency */}
+          {(kpis.bestServersHome.length > 0 || kpis.bestServersAway.length > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs font-medium">Melhor Eficácia (Serviço)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-home font-medium text-xs mb-1">{homeName}</div>
+                    {kpis.bestServersHome.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.bestServersHome.map((s) => (
+                          <div key={s.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{s.playerNo}</span>
+                            {s.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{s.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{s.aces}A/{s.total}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                s.efficiency >= 15 && "border-green-500 text-green-600",
+                                s.efficiency >= 0 && s.efficiency < 15 && "border-yellow-500 text-yellow-600",
+                                s.efficiency < 0 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {s.efficiency}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-away font-medium text-xs mb-1">{awayName}</div>
+                    {kpis.bestServersAway.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.bestServersAway.map((s) => (
+                          <div key={s.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{s.playerNo}</span>
+                            {s.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{s.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{s.aces}A/{s.total}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                s.efficiency >= 15 && "border-green-500 text-green-600",
+                                s.efficiency >= 0 && s.efficiency < 15 && "border-yellow-500 text-yellow-600",
+                                s.efficiency < 0 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {s.efficiency}%
                             </Badge>
                           </div>
                         ))}

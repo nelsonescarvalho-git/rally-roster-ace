@@ -150,6 +150,27 @@ interface TopReceiver {
   positivePercent: number;
 }
 
+export interface TopAttackerEfficiency {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  kills: number;
+  errors: number;
+  blocked: number;
+  total: number;
+  efficiency: number;
+}
+
+export interface TopServerEfficiency {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  aces: number;
+  errors: number;
+  total: number;
+  efficiency: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
@@ -171,6 +192,10 @@ export interface SetKPIs {
   topScorersAway: TopScorer[];
   topReceiversHome: TopReceiver[];
   topReceiversAway: TopReceiver[];
+  bestAttackersHome: TopAttackerEfficiency[];
+  bestAttackersAway: TopAttackerEfficiency[];
+  bestServersHome: TopServerEfficiency[];
+  bestServersAway: TopServerEfficiency[];
   
   // Delta from previous set
   deltaFromPrevious?: {
@@ -830,8 +855,8 @@ export function useSetKPIs(
     // Calculate top zones and attackers by team
     const zoneCountsHome: Record<string, number> = {};
     const zoneCountsAway: Record<string, number> = {};
-    const attackerCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
-    const attackerCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
+    const attackerCountsHome: Record<string, { count: number; kills: number; errors: number; blocked: number; playerNo: number | null }> = {};
+    const attackerCountsAway: Record<string, { count: number; kills: number; errors: number; blocked: number; playerNo: number | null }> = {};
     
     // Zone distribution uses consolidated rallies (one per point)
     for (const rally of setRallies) {
@@ -845,31 +870,38 @@ export function useSetKPIs(
     }
     
     // Attacker counts - use RAW rallies to count ALL attack attempts (all phases)
-    // This ensures we don't lose attacks from intermediate phases
     for (const rally of rawSetRallies) {
       if (rally.a_player_id) {
-        // Determine attacker's team from the player's actual side (from match_players)
         const attackerSide = playerSideMap[rally.a_player_id];
         const playerNo = rally.a_no;
+        const isKill = rally.a_code === 3;
+        const isError = rally.a_code === 0;
+        const isBlocked = rally.a_code === 1 && rally.b_code === 3;
         
         if (attackerSide === 'CASA') {
           if (!attackerCountsHome[rally.a_player_id]) {
-            attackerCountsHome[rally.a_player_id] = { count: 0, playerNo };
+            attackerCountsHome[rally.a_player_id] = { count: 0, kills: 0, errors: 0, blocked: 0, playerNo };
           }
           attackerCountsHome[rally.a_player_id].count++;
+          if (isKill) attackerCountsHome[rally.a_player_id].kills++;
+          if (isError) attackerCountsHome[rally.a_player_id].errors++;
+          if (isBlocked) attackerCountsHome[rally.a_player_id].blocked++;
         } else if (attackerSide === 'FORA') {
           if (!attackerCountsAway[rally.a_player_id]) {
-            attackerCountsAway[rally.a_player_id] = { count: 0, playerNo };
+            attackerCountsAway[rally.a_player_id] = { count: 0, kills: 0, errors: 0, blocked: 0, playerNo };
           }
           attackerCountsAway[rally.a_player_id].count++;
+          if (isKill) attackerCountsAway[rally.a_player_id].kills++;
+          if (isError) attackerCountsAway[rally.a_player_id].errors++;
+          if (isBlocked) attackerCountsAway[rally.a_player_id].blocked++;
         }
       }
     }
     
     // Server counts - use RAW rallies to count ALL serve attempts (all phases, but typically phase 1)
     // FALLBACK: When s_player_id is NULL, infer server from serve_side + s_no
-    const serverCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
-    const serverCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
+    const serverCountsHome: Record<string, { count: number; aces: number; errors: number; playerNo: number | null }> = {};
+    const serverCountsAway: Record<string, { count: number; aces: number; errors: number; playerNo: number | null }> = {};
     
     for (const rally of rawSetRallies) {
       let serverId = rally.s_player_id;
@@ -877,11 +909,8 @@ export function useSetKPIs(
       let playerNo = rally.s_no;
       
       if (serverId) {
-        // We have s_player_id, use playerSideMap
         serverSide = playerSideMap[serverId];
       } else if (rally.serve_side && rally.s_no) {
-        // FALLBACK: s_player_id is NULL, but we have serve_side and s_no
-        // Infer the player from serve_side + jersey number
         serverSide = rally.serve_side as Side;
         const inferredPlayerId = playerByTeamAndNumber[`${serverSide}_${rally.s_no}`];
         if (inferredPlayerId) {
@@ -890,16 +919,23 @@ export function useSetKPIs(
       }
       
       if (serverId && serverSide) {
+        const isAce = rally.s_code === 3;
+        const isError = rally.s_code === 0;
+        
         if (serverSide === 'CASA') {
           if (!serverCountsHome[serverId]) {
-            serverCountsHome[serverId] = { count: 0, playerNo };
+            serverCountsHome[serverId] = { count: 0, aces: 0, errors: 0, playerNo };
           }
           serverCountsHome[serverId].count++;
+          if (isAce) serverCountsHome[serverId].aces++;
+          if (isError) serverCountsHome[serverId].errors++;
         } else if (serverSide === 'FORA') {
           if (!serverCountsAway[serverId]) {
-            serverCountsAway[serverId] = { count: 0, playerNo };
+            serverCountsAway[serverId] = { count: 0, aces: 0, errors: 0, playerNo };
           }
           serverCountsAway[serverId].count++;
+          if (isAce) serverCountsAway[serverId].aces++;
+          if (isError) serverCountsAway[serverId].errors++;
         }
       }
     }
@@ -1111,7 +1147,7 @@ export function useSetKPIs(
     }
     
     const topReceiversHome: TopReceiver[] = Object.entries(receiverCountsHome)
-      .filter(([_, data]) => data.total >= 1) // At least 1 reception
+      .filter(([_, data]) => data.total >= 3)
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
@@ -1120,11 +1156,11 @@ export function useSetKPIs(
         positive: data.positive,
         positivePercent: data.total > 0 ? Math.round((data.positive / data.total) * 100) : 0,
       }))
-      .sort((a, b) => b.total - a.total) // Sort by total receptions
+      .sort((a, b) => b.positivePercent - a.positivePercent)
       .slice(0, 3);
     
     const topReceiversAway: TopReceiver[] = Object.entries(receiverCountsAway)
-      .filter(([_, data]) => data.total >= 1) // At least 1 reception
+      .filter(([_, data]) => data.total >= 3)
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
@@ -1133,8 +1169,49 @@ export function useSetKPIs(
         positive: data.positive,
         positivePercent: data.total > 0 ? Math.round((data.positive / data.total) * 100) : 0,
       }))
-      .sort((a, b) => b.total - a.total) // Sort by total receptions
+      .sort((a, b) => b.positivePercent - a.positivePercent)
       .slice(0, 3);
+    
+    // ========== BEST ATTACKERS BY EFFICIENCY ==========
+    const MIN_ATTEMPTS = 3;
+    
+    const computeAttackEfficiency = (counts: typeof attackerCountsHome): TopAttackerEfficiency[] =>
+      Object.entries(counts)
+        .filter(([_, d]) => d.count >= MIN_ATTEMPTS)
+        .map(([playerId, d]) => ({
+          playerId,
+          playerNo: d.playerNo,
+          playerName: playerMetaMap[playerId]?.name || null,
+          kills: d.kills,
+          errors: d.errors,
+          blocked: d.blocked,
+          total: d.count,
+          efficiency: Math.round(((d.kills - d.errors - d.blocked) / d.count) * 100),
+        }))
+        .sort((a, b) => b.efficiency - a.efficiency)
+        .slice(0, 3);
+    
+    const bestAttackersHome = computeAttackEfficiency(attackerCountsHome);
+    const bestAttackersAway = computeAttackEfficiency(attackerCountsAway);
+    
+    // ========== BEST SERVERS BY EFFICIENCY ==========
+    const computeServeEfficiency = (counts: typeof serverCountsHome): TopServerEfficiency[] =>
+      Object.entries(counts)
+        .filter(([_, d]) => d.count >= MIN_ATTEMPTS)
+        .map(([playerId, d]) => ({
+          playerId,
+          playerNo: d.playerNo,
+          playerName: playerMetaMap[playerId]?.name || null,
+          aces: d.aces,
+          errors: d.errors,
+          total: d.count,
+          efficiency: Math.round(((d.aces - d.errors) / d.count) * 100),
+        }))
+        .sort((a, b) => b.efficiency - a.efficiency)
+        .slice(0, 3);
+    
+    const bestServersHome = computeServeEfficiency(serverCountsHome);
+    const bestServersAway = computeServeEfficiency(serverCountsAway);
     
     // Calculate new DataVolley percentages
     const calcPercent2 = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0;
@@ -1182,6 +1259,10 @@ export function useSetKPIs(
       topScorersAway,
       topReceiversHome,
       topReceiversAway,
+      bestAttackersHome,
+      bestAttackersAway,
+      bestServersHome,
+      bestServersAway,
       deltaFromPrevious,
       totalRallies: setRallies.length,
       allRotationsHome,
