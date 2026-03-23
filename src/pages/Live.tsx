@@ -1986,8 +1986,8 @@ export default function Live() {
             onSkip={handleLiberoSkip}
             isLoading={liberoLoading}
             teamColor={gameState!.recvSide === 'CASA' 
-              ? teamColors.home.primary 
-              : teamColors.away.primary}
+              ? safeTeamColors.home.primary 
+              : safeTeamColors.away.primary}
           />
         );
       })()}
@@ -2003,8 +2003,8 @@ export default function Live() {
           onConfirm={handleLiberoExit}
           isLoading={liberoLoading}
           teamColor={liberoExitSide === 'CASA' 
-            ? teamColors.home.primary 
-            : teamColors.away.primary}
+            ? safeTeamColors.home.primary 
+            : safeTeamColors.away.primary}
         />
       )}
       
@@ -2056,8 +2056,8 @@ export default function Live() {
             onSkip={() => setManualLiberoPromptSide(null)}
             isLoading={liberoLoading}
             teamColor={manualLiberoPromptSide === 'CASA' 
-              ? teamColors.home.primary 
-              : teamColors.away.primary}
+              ? safeTeamColors.home.primary 
+              : safeTeamColors.away.primary}
           />
         );
       })()}
@@ -2088,8 +2088,8 @@ export default function Live() {
             onSkip={() => setLiberoSwapPromptSide(null)}
             isLoading={liberoLoading}
             teamColor={liberoSwapPromptSide === 'CASA' 
-              ? teamColors.home.primary 
-              : teamColors.away.primary}
+              ? safeTeamColors.home.primary 
+              : safeTeamColors.away.primary}
           />
         );
       })()}
@@ -2382,8 +2382,8 @@ export default function Live() {
               homeLiberoId={liberoTrackingHome.activeLiberoPlayer?.id ?? null}
               awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
               awayLiberoId={liberoTrackingAway.activeLiberoPlayer?.id ?? null}
-              homeColor={teamColors.home.primary}
-              awayColor={teamColors.away.primary}
+              homeColor={safeTeamColors.home.primary}
+              awayColor={safeTeamColors.away.primary}
               rallies={rallies}
               homeTimeoutsUsed={homeTimeoutsUsed}
               awayTimeoutsUsed={awayTimeoutsUsed}
@@ -2409,8 +2409,8 @@ export default function Live() {
               gameState={gameState}
               homeName={match.home_name}
               awayName={match.away_name}
-              homeColor={teamColors.home.primary}
-              awayColor={teamColors.away.primary}
+              homeColor={safeTeamColors.home.primary}
+              awayColor={safeTeamColors.away.primary}
               timeouts={timeouts.filter(t => t.set_no === currentSet)}
               onTimeoutCalled={handleTimeoutCalled}
             />
@@ -2419,8 +2419,8 @@ export default function Live() {
             <SubstitutionsCard
               homeName={match.home_name}
               awayName={match.away_name}
-              homeColor={teamColors.home.primary}
-              awayColor={teamColors.away.primary}
+              homeColor={safeTeamColors.home.primary}
+              awayColor={safeTeamColors.away.primary}
               homeSubsUsed={getSubstitutionsUsed(currentSet, 'CASA')}
               awaySubsUsed={getSubstitutionsUsed(currentSet, 'FORA')}
               maxSubstitutions={6}
@@ -2431,8 +2431,8 @@ export default function Live() {
             <LiberoCard
               homeName={match.home_name}
               awayName={match.away_name}
-              homeColor={teamColors.home.primary}
-              awayColor={teamColors.away.primary}
+              homeColor={safeTeamColors.home.primary}
+              awayColor={safeTeamColors.away.primary}
               homeLiberoOnCourt={liberoTrackingHome.isLiberoOnCourt}
               homeLiberoPlayer={liberoTrackingHome.activeLiberoPlayer}
               awayLiberoOnCourt={liberoTrackingAway.isLiberoOnCourt}
@@ -3032,8 +3032,8 @@ export default function Live() {
         }}
         homeName={match.home_name}
         awayName={match.away_name}
-        homeColor={teamColors.home.primary}
-        awayColor={teamColors.away.primary}
+        homeColor={safeTeamColors.home.primary}
+        awayColor={safeTeamColors.away.primary}
         onSanctionApplied={handleSanctionApplied}
       />
 
@@ -3046,8 +3046,8 @@ export default function Live() {
           validSubstitutes={mandatorySubModal.validSubstitutes}
           exceptionalSubstitutes={mandatorySubModal.exceptionalSubstitutes}
           teamColor={mandatorySubModal.side === 'CASA' 
-            ? teamColors.home.primary 
-            : teamColors.away.primary}
+            ? safeTeamColors.home.primary 
+            : safeTeamColors.away.primary}
           onSubstitute={handleMandatorySubstitution}
           onDeclareIncomplete={handleDeclareIncomplete}
         />
