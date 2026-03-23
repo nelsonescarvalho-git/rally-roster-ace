@@ -1147,7 +1147,7 @@ export function useSetKPIs(
     }
     
     const topReceiversHome: TopReceiver[] = Object.entries(receiverCountsHome)
-      .filter(([_, data]) => data.total >= 1) // At least 1 reception
+      .filter(([_, data]) => data.total >= 3)
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
@@ -1156,11 +1156,11 @@ export function useSetKPIs(
         positive: data.positive,
         positivePercent: data.total > 0 ? Math.round((data.positive / data.total) * 100) : 0,
       }))
-      .sort((a, b) => b.total - a.total) // Sort by total receptions
+      .sort((a, b) => b.positivePercent - a.positivePercent)
       .slice(0, 3);
     
     const topReceiversAway: TopReceiver[] = Object.entries(receiverCountsAway)
-      .filter(([_, data]) => data.total >= 1) // At least 1 reception
+      .filter(([_, data]) => data.total >= 3)
       .map(([playerId, data]) => ({
         playerId,
         playerNo: data.playerNo,
@@ -1169,8 +1169,49 @@ export function useSetKPIs(
         positive: data.positive,
         positivePercent: data.total > 0 ? Math.round((data.positive / data.total) * 100) : 0,
       }))
-      .sort((a, b) => b.total - a.total) // Sort by total receptions
+      .sort((a, b) => b.positivePercent - a.positivePercent)
       .slice(0, 3);
+    
+    // ========== BEST ATTACKERS BY EFFICIENCY ==========
+    const MIN_ATTEMPTS = 3;
+    
+    const computeAttackEfficiency = (counts: typeof attackerCountsHome): TopAttackerEfficiency[] =>
+      Object.entries(counts)
+        .filter(([_, d]) => d.count >= MIN_ATTEMPTS)
+        .map(([playerId, d]) => ({
+          playerId,
+          playerNo: d.playerNo,
+          playerName: playerMetaMap[playerId]?.name || null,
+          kills: d.kills,
+          errors: d.errors,
+          blocked: d.blocked,
+          total: d.count,
+          efficiency: Math.round(((d.kills - d.errors - d.blocked) / d.count) * 100),
+        }))
+        .sort((a, b) => b.efficiency - a.efficiency)
+        .slice(0, 3);
+    
+    const bestAttackersHome = computeAttackEfficiency(attackerCountsHome);
+    const bestAttackersAway = computeAttackEfficiency(attackerCountsAway);
+    
+    // ========== BEST SERVERS BY EFFICIENCY ==========
+    const computeServeEfficiency = (counts: typeof serverCountsHome): TopServerEfficiency[] =>
+      Object.entries(counts)
+        .filter(([_, d]) => d.count >= MIN_ATTEMPTS)
+        .map(([playerId, d]) => ({
+          playerId,
+          playerNo: d.playerNo,
+          playerName: playerMetaMap[playerId]?.name || null,
+          aces: d.aces,
+          errors: d.errors,
+          total: d.count,
+          efficiency: Math.round(((d.aces - d.errors) / d.count) * 100),
+        }))
+        .sort((a, b) => b.efficiency - a.efficiency)
+        .slice(0, 3);
+    
+    const bestServersHome = computeServeEfficiency(serverCountsHome);
+    const bestServersAway = computeServeEfficiency(serverCountsAway);
     
     // Calculate new DataVolley percentages
     const calcPercent2 = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0;
