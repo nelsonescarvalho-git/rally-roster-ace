@@ -7,6 +7,7 @@ interface RatingDotsProps {
 }
 
 const codeLabels: Record<number, string> = {
+  [-1]: 'Freeball',
   0: 'Erro',
   1: 'Fraco',
   2: 'Bom',
