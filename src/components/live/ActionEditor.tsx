@@ -893,34 +893,43 @@ export function ActionEditor({
                   </div>
                 ) : null}
 
-                {/* Direction toggle (optional) */}
+                {/* Direction pad (optional) */}
                 <div className="text-xs font-medium text-muted-foreground text-center">
                   Direção <span className="opacity-50">(opcional)</span>
                 </div>
-                <ToggleGroup 
-                  type="single" 
-                  value={selectedAttackDirection || ''}
-                  onValueChange={(v) => {
-                    onAttackDirectionChange?.(v ? v as AttackDirection : null);
-                  }}
-                  className="justify-center flex-wrap"
-                >
-                  {(['DIAGONAL', 'LINE', 'TIP', 'Z1', 'Z5'] as AttackDirection[]).map((dir) => {
+                <div className="flex gap-2 w-full">
+                  {([
+                    { dir: 'DIAGONAL' as AttackDirection, color: 'primary' },
+                    { dir: 'LINE' as AttackDirection, color: 'accent' },
+                    { dir: 'TIP' as AttackDirection, color: 'warning' },
+                    { dir: 'Z1' as AttackDirection, color: 'primary' },
+                    { dir: 'Z5' as AttackDirection, color: 'destructive' },
+                  ]).map(({ dir, color }) => {
                     const info = ATTACK_DIRECTION_LABELS[dir];
+                    const isSelected = selectedAttackDirection === dir;
+                    const baseBtn = 'relative flex flex-col items-center justify-center gap-0.5 rounded-xl border-2 cursor-pointer select-none transition-all duration-200 min-h-[64px] px-2 py-2 flex-1';
+                    const selectedStyles = `bg-${color} text-${color}-foreground border-${color} scale-105 shadow-lg shadow-${color}/30 ring-2 ring-${color}/50 ring-offset-2 ring-offset-background`;
+                    const unselectedStyles = `bg-${color}/8 text-${color} border-${color}/20 hover:bg-${color}/15 hover:border-${color}/40 hover:scale-[1.02] active:scale-95`;
                     return (
-                      <ToggleGroupItem
+                      <button
                         key={dir}
-                        value={dir}
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 px-2.5"
+                        type="button"
+                        onClick={() => onAttackDirectionChange?.(selectedAttackDirection === dir ? null : dir)}
+                        className={cn(
+                          baseBtn,
+                          isSelected ? selectedStyles : unselectedStyles,
+                        )}
                       >
-                        <span>{info.emoji}</span>
-                        <span className="text-xs">{info.label}</span>
-                      </ToggleGroupItem>
+                        <span className={cn("text-xl font-bold leading-none", isSelected && "animate-bounce-once")}>
+                          {info.emoji}
+                        </span>
+                        <span className={cn("text-[11px] font-semibold leading-tight whitespace-nowrap", isSelected ? "opacity-100" : "opacity-80")}>
+                          {info.label}
+                        </span>
+                      </button>
                     );
                   })}
-                </ToggleGroup>
+                </div>
                 
                 <div className="text-xs font-medium text-muted-foreground text-center pt-1">
                   Avaliação do Ataque
