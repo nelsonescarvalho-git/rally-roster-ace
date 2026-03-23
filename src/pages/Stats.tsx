@@ -761,6 +761,15 @@ export default function Stats() {
             />
           </TabsContent>
 
+          <TabsContent value="block">
+            <BlockTab
+              rallyActionsMap={rallyActionsMap}
+              players={effectivePlayers}
+              match={match}
+              selectedSet={selectedSet}
+            />
+          </TabsContent>
+
           <TabsContent value="errors">
             <ErrorsTab
               rallies={rallies}
