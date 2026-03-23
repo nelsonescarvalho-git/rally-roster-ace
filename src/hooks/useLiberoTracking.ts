@@ -138,20 +138,11 @@ export function useLiberoTracking({
   
   // Calculate if the replaced player has rotated to Z4 (libero must exit)
   const mustExitLibero = useMemo(() => {
-    if (!currentLiberoState.isOnCourt || !currentLiberoState.replacedPlayerId) return false;
+    if (!currentLiberoState.isOnCourt || !currentLiberoState.liberoId) return false;
     
-    // Get the zone the replaced player WOULD be in if they were on court
-    // We need to calculate based on lineup position, not active lineup (since libero is there)
-    const zone = getPlayerZone(currentSet, side, currentLiberoState.replacedPlayerId, rotation, currentRally);
-    
-    // If zone calculation fails (player not in lineup), check if libero's zone is 4
-    if (zone === null) {
-      // Fallback: check libero's current zone
-      const liberoZone = getPlayerZone(currentSet, side, currentLiberoState.liberoId!, rotation, currentRally);
-      return liberoZone === 4;
-    }
-    
-    return zone === 4;
+    // Always check the libero's own zone — if they've rotated to Z4 (front row), they must exit
+    const liberoZone = getPlayerZone(currentSet, side, currentLiberoState.liberoId, rotation, currentRally);
+    return liberoZone === 4;
   }, [currentLiberoState, getPlayerZone, currentSet, side, rotation, currentRally]);
   
   // Get the player who should return when libero exits
