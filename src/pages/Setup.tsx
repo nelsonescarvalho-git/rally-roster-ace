@@ -222,18 +222,42 @@ export default function Setup() {
         }).eq('id', existing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('lineups').insert([{
-          match_id: matchId,
-          set_no: activeSet,
-          side: activeSide,
-          rot1: lineupSelections.rot1 || null,
-          rot2: lineupSelections.rot2 || null,
-          rot3: lineupSelections.rot3 || null,
-          rot4: lineupSelections.rot4 || null,
-          rot5: lineupSelections.rot5 || null,
-          rot6: lineupSelections.rot6 || null,
-        }]);
-        if (error) throw error;
+        // Check for soft-deleted lineup that would conflict with unique constraint
+        const { data: softDeleted } = await supabase
+          .from('lineups')
+          .select('id')
+          .eq('match_id', matchId)
+          .eq('set_no', activeSet)
+          .eq('side', activeSide)
+          .not('deleted_at', 'is', null)
+          .maybeSingle();
+
+        if (softDeleted) {
+          const { error } = await supabase.from('lineups').update({
+            rot1: lineupSelections.rot1 || null,
+            rot2: lineupSelections.rot2 || null,
+            rot3: lineupSelections.rot3 || null,
+            rot4: lineupSelections.rot4 || null,
+            rot5: lineupSelections.rot5 || null,
+            rot6: lineupSelections.rot6 || null,
+            deleted_at: null,
+            deleted_by: null,
+          }).eq('id', softDeleted.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('lineups').insert([{
+            match_id: matchId,
+            set_no: activeSet,
+            side: activeSide,
+            rot1: lineupSelections.rot1 || null,
+            rot2: lineupSelections.rot2 || null,
+            rot3: lineupSelections.rot3 || null,
+            rot4: lineupSelections.rot4 || null,
+            rot5: lineupSelections.rot5 || null,
+            rot6: lineupSelections.rot6 || null,
+          }]);
+          if (error) throw error;
+        }
       }
       loadMatch();
       toast({ title: 'Lineup guardado' });
