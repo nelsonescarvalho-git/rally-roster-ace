@@ -1,53 +1,48 @@
 
 
-## Adicionar Rankings por Eficácia nos Insights
+## Problema
 
-Atualmente os insights mostram apenas volume ("Mais Solicitados") — quem atacou/serviu mais. O pedido é adicionar cards paralelos que mostrem quem teve melhor **aproveitamento** (eficácia).
+Após apagar um set (soft delete), o lineup antigo permanece na tabela com `deleted_at` preenchido. Quando se tenta criar um novo lineup para o mesmo set, o `getLineupForSet` não encontra nada (filtra `deleted_at IS NULL`) e tenta fazer INSERT — que falha porque a unique constraint `lineups_match_id_set_no_side_key` ainda vê o registo soft-deleted.
 
-### Alterações
+## Solução
 
-#### 1. `src/hooks/useSetKPIs.ts` — Novas interfaces e cálculos
+Alterar `saveLineup` em `src/pages/Setup.tsx` para, antes de inserir, verificar se existe um lineup soft-deleted para o mesmo `(match_id, set_no, side)` e, nesse caso, fazer UPDATE (reactivar) em vez de INSERT.
 
-Adicionar novas interfaces e arrays ao `SetKPIs`:
+### Alteração em `src/pages/Setup.tsx` — função `saveLineup`
 
-- **`TopAttackerEfficiency`**: `playerId, playerNo, playerName, kills, total, efficiency` — ordenado por `(kills - errors - blocked) / total`, mínimo 3 ataques
-- **`TopServerEfficiency`**: `playerId, playerNo, playerName, aces, errors, total, efficiency` — ordenado por `(aces - errors) / total`, mínimo 3 serviços  
-- **`TopScorerEfficiency`**: Já existe — o TopScorer pode ser reordenado por eficácia (pontos/rally)
+No ramo `else` (quando `existing` é `null`), antes do INSERT:
 
-Novos campos no `SetKPIs`:
-- `bestAttackersHome/Away` — top 3 por eficácia de ataque
-- `bestServersHome/Away` — top 3 por eficácia de serviço
+1. Consultar se existe um lineup soft-deleted: `supabase.from('lineups').select('id').eq('match_id', matchId).eq('set_no', activeSet).eq('side', activeSide).not('deleted_at', 'is', null).maybeSingle()`
+2. Se existir → fazer UPDATE nesse registo, limpando `deleted_at` e `deleted_by` e preenchendo as rotações
+3. Se não existir → INSERT normal (comportamento actual)
 
-Para calcular, reutilizar os dados já acumulados nos `attackerCounts` e `serverCounts`, adicionando campos `kills`, `errors`, `blocked` ao `attackerCounts` e `aces`, `errors` ao `serverCounts`.
+### Detalhe técnico
 
-Filtro mínimo: **≥3 tentativas** para evitar jogadores com 1/1 = 100%.
-
-#### 2. `src/components/live/SetSummaryKPIs.tsx` — Novos cards de eficácia
-
-Adicionar 3 cards novos na tab Insights, depois dos existentes:
-
-- **Melhor Eficácia (Ataque)** — ícone Target, cor emerald — mostra `#jersey Nome kills/total (eff%)` com badge colorido
-- **Melhor Eficácia (Serviço)** — ícone Zap, cor blue — mostra `#jersey Nome aces/total (eff%)`  
-- Os cards de Receção já mostram eficácia (`positivePercent`), mas reordenar por `positivePercent` em vez de `total`
-
-Layout idêntico aos cards existentes (grid 2 colunas, CASA/FORA).
-
-### Detalhes Técnicos
-
-**`attackerCounts` expandido:**
 ```typescript
-Record<string, { count: number; kills: number; errors: number; blocked: number; playerNo: number | null }>
+// Inside saveLineup, replace the else branch:
+} else {
+  // Check for soft-deleted lineup
+  const { data: softDeleted } = await supabase
+    .from('lineups')
+    .select('id')
+    .eq('match_id', matchId)
+    .eq('set_no', activeSet)
+    .eq('side', activeSide)
+    .not('deleted_at', 'is', null)
+    .maybeSingle();
+
+  if (softDeleted) {
+    // Reactivate soft-deleted lineup
+    const { error } = await supabase.from('lineups').update({
+      rot1: ..., rot2: ..., ..., rot6: ...,
+      deleted_at: null, deleted_by: null,
+    }).eq('id', softDeleted.id);
+  } else {
+    // Normal insert
+    const { error } = await supabase.from('lineups').insert([...]);
+  }
+}
 ```
 
-**Cálculo eficácia ataque:**
-```typescript
-efficiency = total >= 3 ? Math.round(((kills - errors - blocked) / total) * 100) : null
-```
-
-**Cálculo eficácia serviço:**
-```typescript
-efficiency = total >= 3 ? Math.round(((aces - errors) / total) * 100) : null
-```
-
-**Receção** — alterar sort de `.sort((a,b) => b.total - a.total)` para `.sort((a,b) => b.positivePercent - a.positivePercent)` com filtro `total >= 3`.
+Nenhuma migração necessária — apenas alteração de código.
 
