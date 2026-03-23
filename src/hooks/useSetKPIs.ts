@@ -171,6 +171,15 @@ export interface TopServerEfficiency {
   efficiency: number;
 }
 
+export interface TopBlockerEfficiency {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  points: number;
+  participations: number;
+  efficiency: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
