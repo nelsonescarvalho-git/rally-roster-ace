@@ -1,42 +1,29 @@
 
 
-## Corrigir Soft Delete de Set — Dados Órfãos
+## Corrigir Conflito de Unique Constraint após Soft Delete de Set
 
 ### Problema
 
-A função `soft_delete_set` não marca como apagados os registos nas tabelas `rally_actions`, `timeouts` e `sanctions`. Isto faz com que, após apagar um set, as ações dos rallies continuem visíveis nos insights e KPIs.
+A tabela `rallies` tem um unique index em `(match_id, set_no, rally_no, phase)` que **não exclui registos soft-deleted** (`deleted_at IS NOT NULL`). Quando um set é apagado (soft delete) e o utilizador começa a registar novos rallies no mesmo set, o INSERT falha com "duplicate key value violates unique constraint".
 
-O mesmo problema existe em `soft_delete_match` (falta `rally_actions`, `timeouts`, `sanctions`) e em `purge_deleted` (falta purgar essas mesmas tabelas).
+### Solução — 1 migração SQL
 
-### Correção — 1 migração SQL
-
-Recriar as 3 funções:
-
-**`soft_delete_set`** — adicionar:
-- `rally_actions`: soft-delete via JOIN com rallies do set
-- `timeouts`: soft-delete por match_id + set_no
-- `sanctions`: soft-delete por match_id + set_no
-
-**`soft_delete_match`** — adicionar:
-- `rally_actions`: soft-delete via JOIN com rallies do match
-- `timeouts`: soft-delete por match_id
-- `sanctions`: soft-delete por match_id
-
-**`purge_deleted`** — adicionar (antes dos rallies, pela integridade referencial):
-- `DELETE FROM rally_actions WHERE deleted_at < now() - interval '15 days'`
-- `DELETE FROM timeouts WHERE deleted_at < now() - interval '15 days'`
-- `DELETE FROM sanctions WHERE deleted_at < now() - interval '15 days'`
-
-### Correção imediata dos dados actuais
-
-Após a migração, executar uma query de limpeza para soft-deletar `rally_actions` órfãos cujo `rally_id` aponta para rallies já soft-deleted:
+Substituir o unique index atual por um **partial unique index** que só se aplica a registos ativos:
 
 ```sql
-UPDATE rally_actions 
-SET deleted_at = now()
-WHERE deleted_at IS NULL 
-  AND rally_id IN (SELECT id FROM rallies WHERE deleted_at IS NOT NULL);
+-- Drop the old constraint
+ALTER TABLE public.rallies 
+  DROP CONSTRAINT rallies_match_id_set_no_rally_no_phase_key;
+
+-- Create partial unique index (only for non-deleted rows)
+CREATE UNIQUE INDEX rallies_match_id_set_no_rally_no_phase_active_key 
+  ON public.rallies (match_id, set_no, rally_no, phase) 
+  WHERE deleted_at IS NULL;
 ```
 
-E o mesmo para timeouts/sanctions cujo match_id+set_no corresponda a sets apagados.
+Isto permite que registos soft-deleted coexistam com novos registos para o mesmo `(match_id, set_no, rally_no, phase)`, eliminando o erro sem alterar qualquer código da aplicação.
+
+### Ficheiros afetados
+- 1 nova migração SQL (apenas)
+- Zero alterações de código
 
