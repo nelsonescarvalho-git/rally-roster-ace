@@ -759,6 +759,13 @@ export function ActionEditor({
                   }}
                 />
                 
+                {/* Hint when quality not yet selected */}
+                {selectedPassCode === null && (
+                  <div className="text-center text-xs text-muted-foreground py-2 animate-pulse">
+                    👆 Seleciona a qualidade do passe primeiro
+                  </div>
+                )}
+                
                 {/* Destination grid (only if quality selected and > 0) */}
                 {selectedPassCode !== null && selectedPassCode > 0 && (
                   <>
