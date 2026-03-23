@@ -264,11 +264,11 @@ export function ActionEditor({
     
     // Auto-confirm for Block and Defense (no additional input needed)
     if (actionType === 'block') {
-      if (!selectedPlayer) {
+      if (!selectedBlocker1) {
         toast.warning('Selecione um jogador primeiro');
         return;
       }
-      const player = players.find(p => p.id === selectedPlayer);
+      const player = blockersPool.find(p => p.id === selectedBlocker1);
       requestAnimationFrame(() => {
         setTimeout(() => {
           showConfirmToast(player?.jersey_number, code);
