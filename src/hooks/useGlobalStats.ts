@@ -286,7 +286,7 @@ export function useGlobalStats(filters?: GlobalStatsFilters) {
       }
 
       // Attack
-      if (rally.a_player_id && rally.a_code !== null) {
+      if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
         const key = playerIdToKey[rally.a_player_id];
         if (key && playerMap[key]) {
           playerMap[key].stats.attAttempts++;
