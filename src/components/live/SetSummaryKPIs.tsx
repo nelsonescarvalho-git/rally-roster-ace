@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Rally, Side, MatchPlayer } from '@/types/volleyball';
-import { useSetKPIs, SetKPIs, TopAttackerEfficiency, TopServerEfficiency } from '@/hooks/useSetKPIs';
+import { useSetKPIs, SetKPIs, TopAttackerEfficiency, TopServerEfficiency, TopBlockerEfficiency } from '@/hooks/useSetKPIs';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
