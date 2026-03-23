@@ -1,48 +1,21 @@
 
 
-## Problema
+## Adicionar Ranking de Eficácia de Bloco nos Insights
 
-Após apagar um set (soft delete), o lineup antigo permanece na tabela com `deleted_at` preenchido. Quando se tenta criar um novo lineup para o mesmo set, o `getLineupForSet` não encontra nada (filtra `deleted_at IS NULL`) e tenta fazer INSERT — que falha porque a unique constraint `lineups_match_id_set_no_side_key` ainda vê o registo soft-deleted.
+Seguir o mesmo padrão dos rankings de eficácia de ataque e serviço.
 
-## Solução
+### 1. `src/hooks/useSetKPIs.ts`
 
-Alterar `saveLineup` em `src/pages/Setup.tsx` para, antes de inserir, verificar se existe um lineup soft-deleted para o mesmo `(match_id, set_no, side)` e, nesse caso, fazer UPDATE (reactivar) em vez de INSERT.
+- Adicionar interface `TopBlockerEfficiency` com `playerId, playerNo, playerName, points, participations, efficiency`
+- Adicionar `bestBlockersHome/Away` ao `SetKPIs`
+- Acumular dados por jogador em `blockerCountsHome/Away`: `Record<string, { participations, points, playerNo }>` — iterar sobre rallies contando `b1_player_id`, `b2_player_id`, `b3_player_id` como participações e `b_code === 3` como pontos
+- Calcular eficácia: `Math.round((points / participations) * 100)`, filtro mínimo **≥2 participações** (blocos-ponto são raros)
+- Ordenar por eficácia descendente, top 3
 
-### Alteração em `src/pages/Setup.tsx` — função `saveLineup`
+### 2. `src/components/live/SetSummaryKPIs.tsx`
 
-No ramo `else` (quando `existing` é `null`), antes do INSERT:
-
-1. Consultar se existe um lineup soft-deleted: `supabase.from('lineups').select('id').eq('match_id', matchId).eq('set_no', activeSet).eq('side', activeSide).not('deleted_at', 'is', null).maybeSingle()`
-2. Se existir → fazer UPDATE nesse registo, limpando `deleted_at` e `deleted_by` e preenchendo as rotações
-3. Se não existir → INSERT normal (comportamento actual)
-
-### Detalhe técnico
-
-```typescript
-// Inside saveLineup, replace the else branch:
-} else {
-  // Check for soft-deleted lineup
-  const { data: softDeleted } = await supabase
-    .from('lineups')
-    .select('id')
-    .eq('match_id', matchId)
-    .eq('set_no', activeSet)
-    .eq('side', activeSide)
-    .not('deleted_at', 'is', null)
-    .maybeSingle();
-
-  if (softDeleted) {
-    // Reactivate soft-deleted lineup
-    const { error } = await supabase.from('lineups').update({
-      rot1: ..., rot2: ..., ..., rot6: ...,
-      deleted_at: null, deleted_by: null,
-    }).eq('id', softDeleted.id);
-  } else {
-    // Normal insert
-    const { error } = await supabase.from('lineups').insert([...]);
-  }
-}
-```
-
-Nenhuma migração necessária — apenas alteração de código.
+- Adicionar card "Melhor Eficácia (Bloco)" com ícone `Shield` e cor amber/orange
+- Layout idêntico aos cards existentes (grid 2 colunas CASA/FORA)
+- Badge colorido: verde ≥30%, amarelo ≥15%, vermelho <15% (blocos-ponto são raros)
+- Formato: `#jersey Nome pts/total (eff%)`
 
