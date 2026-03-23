@@ -1,59 +1,34 @@
 
 
-## Adicionar "Freeball" como Opção no Ataque
+## Corrigir Contagem de Kills por Destino (P4 0/5 → 1/5)
 
-### Conceito
+### Problema
 
-Quando a equipa não consegue montar um ataque efetivo e envia uma bola fácil para o adversário, o utilizador pode selecionar "Freeball" no Step 2 do Ataque (ao lado da QualityPad). Isto:
-1. Regista a ação como `action_type: 'attack'` com um novo código especial (code = **-1**) para distinguir de ataques efetivos
-2. Auto-confirma e encadeia imediatamente para a ação de **Defesa do adversário**
-3. Nas estatísticas e KPIs, freeballs são **excluídas** dos contadores de ataque efetivo e apresentadas em separado
+Em `useDestinationStatsFromActions.ts`, a lógica "Architecture 2 (Combo)" na linha 73 verifica `action.code` nas ações de setter. Mas o setter guarda a qualidade do passe em `pass_code`, não em `code`. Quando `code` existe no setter (pode ter valor residual), o hook interpreta-o como resultado do ataque (kill/erro/bloco/defendido), executa `continue`, e **nunca correlaciona com a ação de ataque real que se segue** (Architecture 1).
 
-### Alterações
+Resultado: kills (incluindo blockouts) não são contados — daí o "0/5 · 0%" no P4.
 
-#### 1. Tipo e semântica (`src/types/volleyball.ts` + `src/types/rallyActions.ts`)
-- Adicionar código `-1` ao mapeamento de attack codes com label "Freeball" e emoji "🎁"
-- No `ACTION_CODE_LABELS.attack`, adicionar `{ -1: { emoji: '🎁', label: 'Freeball' } }`
+### Correção — 1 ficheiro
 
-#### 2. UI do Ataque — Step 2 (`src/components/live/ActionEditor.tsx`)
-- Adicionar um botão "🎁 Freeball" **acima** da QualityPad no Step 2 do ataque (semelhante ao toggle "Passou Rede" na defesa)
-- Ao clicar:
-  - Confirma a ação com `code: -1` (sem kill type, sem direção)
-  - Encadeia para `defense` do lado adversário via `onChainAction`
-  - Mostra toast de confirmação
+**`src/hooks/useDestinationStatsFromActions.ts`** (linhas 73-79):
 
-#### 3. Handler `handleCodeWithAutoConfirm` (`src/components/live/ActionEditor.tsx`)
-- Adicionar case para `code === -1` no bloco de ataque:
-  - Auto-confirma sem passos adicionais
-  - Encadeia para defesa adversária (igual ao `code === 2` mas sem ser "defendido")
+Substituir `action.code` por `action.pass_code` na verificação Combo, já que a qualidade da distribuição é armazenada em `pass_code`. Mas na verdade, a Architecture 2 (Combo) usava `code` do setter como proxy do resultado do ataque — isto é incorreto. O setter nunca armazena o resultado do ataque no seu `code`.
 
-#### 4. Estatísticas — Excluir freeballs do ataque efetivo
+**Solução**: Remover completamente o bloco Architecture 2 (Combo). O resultado do ataque vem **sempre** da ação de ataque subsequente (Architecture 1). O setter apenas regista `pass_destination` e `pass_code`.
 
-**`src/hooks/useStats.ts`**: No case `'attack'`, ignorar ações com `code === -1` (não contar em attAttempts/attPoints/attErrors)
+```typescript
+// ANTES (buggy):
+if (action.code !== null && action.code !== undefined) {
+  if (action.code === 3) stats[dest].kills++;
+  // ... interpreta code do setter como resultado de ataque
+  continue; // ← pula a correlação com o ataque real
+}
 
-**`src/hooks/useAttackStats.ts`**: Filtrar `attackActions` para excluir `code === -1`
-
-**`src/hooks/useSetKPIs.ts`**: Excluir `code === -1` do cálculo de attTotal/attKills/attErrors/attEfficiency
-
-**`src/hooks/useGlobalStats.ts`**: Mesma exclusão
-
-#### 5. Apresentação separada de Freeballs
-- Adicionar contadores `freeballsGiven` nos KPIs por equipa (`useSetKPIs.ts`) — contar ações de ataque com `code === -1`
-- Mostrar no `SetSummaryKPIs.tsx` como métrica separada ("Freeballs Oferecidas")
-
-#### 6. Timeline e histórico (`src/components/rally/TimelineItem.tsx`)
-- Garantir que `code === -1` mostra "🎁 Freeball" na timeline do rally
+// DEPOIS (correto):
+// Remover este bloco inteiro. 
+// Manter apenas: attempts++ e pendingDestination tracking
+```
 
 ### Ficheiros afetados
-- `src/types/rallyActions.ts` — novo code label
-- `src/components/live/ActionEditor.tsx` — botão freeball + handler
-- `src/hooks/useStats.ts` — excluir code -1
-- `src/hooks/useAttackStats.ts` — excluir code -1
-- `src/hooks/useSetKPIs.ts` — excluir code -1 + contar freeballs
-- `src/hooks/useGlobalStats.ts` — excluir code -1
-- `src/components/live/SetSummaryKPIs.tsx` — mostrar freeballs
-- `src/components/rally/TimelineItem.tsx` — display freeball
-
-### Sem alterações de base de dados
-O campo `code` na tabela `rally_actions` já é integer e aceita `-1`. Não é necessária migração.
+- `src/hooks/useDestinationStatsFromActions.ts` — remover bloco Combo (linhas 72-80)
 
