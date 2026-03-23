@@ -759,8 +759,8 @@ export function ActionEditor({
                   }}
                 />
                 
-                {/* Destination grid (only if quality > 0) */}
-                {(selectedPassCode ?? 2) > 0 && (
+                {/* Destination grid (only if quality selected and > 0) */}
+                {selectedPassCode !== null && selectedPassCode > 0 && (
                   <>
                     <div className="text-xs font-medium text-muted-foreground text-center">
                       Destino do Passe
