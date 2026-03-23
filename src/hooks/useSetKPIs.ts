@@ -653,7 +653,7 @@ export function useSetKPIs(
           }
         }
       } else if (!processedK1K2RallyIds.has(rally.id)) {
-        if (rally.a_player_id && rally.a_code !== null) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
           const attackerSide = playerSideMap[rally.a_player_id];
           if (attackerSide) {
             const team = attackerSide === 'CASA' ? home : away;

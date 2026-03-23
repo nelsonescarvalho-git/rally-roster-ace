@@ -128,7 +128,7 @@ export function useAttackStats(
         }
       } else {
         // Fallback: flat rally fields
-        if (rally.a_player_id && rally.a_code !== null) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
           const passCode = rally.a_pass_quality ?? rally.pass_code ?? 2;
           attackEvents.push({
             attackerId: rally.a_player_id,

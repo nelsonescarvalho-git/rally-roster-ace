@@ -145,7 +145,7 @@ export function useStats(
           if (rally.r_code === 0) stats[rally.r_player_id].recErrors++;
         }
 
-        if (rally.a_player_id && rally.a_code !== null && stats[rally.a_player_id]) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1 && stats[rally.a_player_id]) {
           stats[rally.a_player_id].attAttempts++;
           if (rally.a_code === 3) {
             stats[rally.a_player_id].attPoints++;
