@@ -541,7 +541,7 @@ export function useSetKPIs(
         }
       } else if (!processedAttackRallyIds.has(rally.id)) {
         // Fallback: flat rally fields
-        if (rally.a_player_id && rally.a_code !== null) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
           const attackerSide = playerSideMap[rally.a_player_id];
           if (attackerSide === 'CASA' || attackerSide === 'FORA') {
             const team = attackerSide === 'CASA' ? home : away;
