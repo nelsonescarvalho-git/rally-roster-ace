@@ -400,20 +400,26 @@ export function useMatch(matchId: string | null) {
       const outIndex = activePlayerIds.indexOf(sub.player_out_id);
       if (outIndex !== -1) {
         // If player_in is already in the lineup (e.g. libero placed in starting 6),
-        // swap both positions instead of creating a duplicate
+        // handle the duplicate
         const inIndex = activePlayerIds.indexOf(sub.player_in_id);
         if (inIndex !== -1 && inIndex !== outIndex) {
-          // Swap: put the outgoing player into the position the incoming player occupied
-          activePlayerIds[inIndex] = sub.player_out_id;
+          if (sub.is_libero) {
+            // Libero already in starting lineup: clear their old slot
+            // (the outgoing player leaves the court entirely)
+            activePlayerIds[inIndex] = '';
+          } else {
+            // Normal sub: swap positions to keep both on court
+            activePlayerIds[inIndex] = sub.player_out_id;
+          }
         }
         activePlayerIds[outIndex] = sub.player_in_id;
       }
     }
 
-    // Defensive: remove any remaining duplicate IDs (keep first occurrence)
+    // Defensive: remove empty slots and duplicate IDs (keep first occurrence)
     const seen = new Set<string>();
     return activePlayerIds.filter(id => {
-      if (seen.has(id)) return false;
+      if (!id || seen.has(id)) return false;
       seen.add(id);
       return true;
     });
