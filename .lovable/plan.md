@@ -1,21 +1,23 @@
 
 
-## Adicionar Ranking de Eficácia de Bloco nos Insights
+## Redesenhar Direção de Ataque com o Mesmo Estilo do QualityPad
 
-Seguir o mesmo padrão dos rankings de eficácia de ataque e serviço.
+Aplicar o mesmo tratamento visual (botões grandes, emojis, cores, feedback forte com scale/glow/ring) à seleção de Direção no fluxo de ataque. A direção continua **opcional** (o utilizador pode avançar sem selecionar).
 
-### 1. `src/hooks/useSetKPIs.ts`
+### Alteração em `src/components/live/ActionEditor.tsx` (linhas ~896-923)
 
-- Adicionar interface `TopBlockerEfficiency` com `playerId, playerNo, playerName, points, participations, efficiency`
-- Adicionar `bestBlockersHome/Away` ao `SetKPIs`
-- Acumular dados por jogador em `blockerCountsHome/Away`: `Record<string, { participations, points, playerNo }>` — iterar sobre rallies contando `b1_player_id`, `b2_player_id`, `b3_player_id` como participações e `b_code === 3` como pontos
-- Calcular eficácia: `Math.round((points / participations) * 100)`, filtro mínimo **≥2 participações** (blocos-ponto são raros)
-- Ordenar por eficácia descendente, top 3
+Substituir o `ToggleGroup` da direção por um layout horizontal de botões estilizados, idêntico ao `QualityPad`:
 
-### 2. `src/components/live/SetSummaryKPIs.tsx`
+- **Layout**: `flex gap-2 w-full` com botões `flex-1`
+- **Cada botão**: `rounded-xl border-2 min-h-[64px]`, emoji grande (`text-xl`), label em baixo (`text-[11px]`)
+- **Cores por direção**:
+  - Diagonal → `primary` (azul)
+  - Linha → `cyan/teal`
+  - Amorti → `warning` (amarelo)
+  - Z1 → `indigo`
+  - Z5 → `violet`
+- **Estado selecionado**: `scale-105 shadow-lg ring-2 ring-offset-2 animate-bounce-once` (mesmo padrão do QualityPad)
+- **Estado hover**: `hover:scale-[1.02] active:scale-95`
 
-- Adicionar card "Melhor Eficácia (Bloco)" com ícone `Shield` e cor amber/orange
-- Layout idêntico aos cards existentes (grid 2 colunas CASA/FORA)
-- Badge colorido: verde ≥30%, amarelo ≥15%, vermelho <15% (blocos-ponto são raros)
-- Formato: `#jersey Nome pts/total (eff%)`
+Pode ser implementado inline ou como um novo componente `DirectionPad` — inline é mais simples dado que só é usado neste sítio.
 
