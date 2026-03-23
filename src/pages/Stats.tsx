@@ -18,6 +18,7 @@ import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
 import { ReceptionTab } from '@/components/ReceptionTab';
 import { DefenseTab } from '@/components/DefenseTab';
+import { BlockTab } from '@/components/BlockTab';
 import { ErrorsTab } from '@/components/ErrorsTab';
 import { Sanction } from '@/types/volleyball';
 import { EditRallyModal } from '@/components/EditRallyModal';
@@ -260,6 +261,7 @@ export default function Stats() {
               <TabsTrigger value="serve" className="text-xs flex-1">Serviço</TabsTrigger>
               <TabsTrigger value="reception" className="text-xs flex-1">Receção</TabsTrigger>
               <TabsTrigger value="defense" className="text-xs flex-1">Defesa</TabsTrigger>
+              <TabsTrigger value="block" className="text-xs flex-1">Bloco</TabsTrigger>
               <TabsTrigger value="attack" className="text-xs flex-1">Ataque</TabsTrigger>
               <TabsTrigger value="distribution" className="text-xs flex-1">Dist.</TabsTrigger>
               <TabsTrigger value="errors" className="text-xs flex-1">Erros</TabsTrigger>
@@ -752,6 +754,15 @@ export default function Stats() {
 
           <TabsContent value="defense">
             <DefenseTab
+              rallyActionsMap={rallyActionsMap}
+              players={effectivePlayers}
+              match={match}
+              selectedSet={selectedSet}
+            />
+          </TabsContent>
+
+          <TabsContent value="block">
+            <BlockTab
               rallyActionsMap={rallyActionsMap}
               players={effectivePlayers}
               match={match}
