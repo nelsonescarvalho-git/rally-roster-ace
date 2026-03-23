@@ -1,29 +1,29 @@
 
 
-## Corrigir Conflito de Unique Constraint após Soft Delete de Set
+## Corrigir Validação do Bloco — "Selecione um jogador primeiro"
 
 ### Problema
 
-A tabela `rallies` tem um unique index em `(match_id, set_no, rally_no, phase)` que **não exclui registos soft-deleted** (`deleted_at IS NOT NULL`). Quando um set é apagado (soft delete) e o utilizador começa a registar novos rallies no mesmo set, o INSERT falha com "duplicate key value violates unique constraint".
+No passo 2 do Bloco (Avaliação do Bloco), ao selecionar uma qualidade (ex: "Ofensivo"), a validação em `handleCodeWithAutoConfirm` verifica `selectedPlayer` (linha 267). Mas no fluxo de bloco, os jogadores são selecionados via `selectedBlocker1/2/3` — não via `selectedPlayer`. Assim, `selectedPlayer` é sempre `null` no passo 2 e o toast de erro dispara incorretamente.
 
-### Solução — 1 migração SQL
+### Correção em `src/components/live/ActionEditor.tsx`
 
-Substituir o unique index atual por um **partial unique index** que só se aplica a registos ativos:
+**Linhas 266-270**: Substituir a verificação de `selectedPlayer` por `selectedBlocker1` para a ação de bloco:
 
-```sql
--- Drop the old constraint
-ALTER TABLE public.rallies 
-  DROP CONSTRAINT rallies_match_id_set_no_rally_no_phase_key;
-
--- Create partial unique index (only for non-deleted rows)
-CREATE UNIQUE INDEX rallies_match_id_set_no_rally_no_phase_active_key 
-  ON public.rallies (match_id, set_no, rally_no, phase) 
-  WHERE deleted_at IS NULL;
+```typescript
+if (actionType === 'block') {
+  if (!selectedBlocker1) {
+    toast.warning('Selecione um jogador primeiro');
+    return;
+  }
 ```
 
-Isto permite que registos soft-deleted coexistam com novos registos para o mesmo `(match_id, set_no, rally_no, phase)`, eliminando o erro sem alterar qualquer código da aplicação.
+Também ajustar a linha 271 para buscar o jogador correto do `blockersPool` em vez de `players`:
+
+```typescript
+const player = blockersPool.find(p => p.id === selectedBlocker1);
+```
 
 ### Ficheiros afetados
-- 1 nova migração SQL (apenas)
-- Zero alterações de código
+- `src/components/live/ActionEditor.tsx` (2 linhas alteradas)
 
