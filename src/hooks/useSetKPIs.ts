@@ -900,8 +900,8 @@ export function useSetKPIs(
     
     // Server counts - use RAW rallies to count ALL serve attempts (all phases, but typically phase 1)
     // FALLBACK: When s_player_id is NULL, infer server from serve_side + s_no
-    const serverCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
-    const serverCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
+    const serverCountsHome: Record<string, { count: number; aces: number; errors: number; playerNo: number | null }> = {};
+    const serverCountsAway: Record<string, { count: number; aces: number; errors: number; playerNo: number | null }> = {};
     
     for (const rally of rawSetRallies) {
       let serverId = rally.s_player_id;
@@ -909,11 +909,8 @@ export function useSetKPIs(
       let playerNo = rally.s_no;
       
       if (serverId) {
-        // We have s_player_id, use playerSideMap
         serverSide = playerSideMap[serverId];
       } else if (rally.serve_side && rally.s_no) {
-        // FALLBACK: s_player_id is NULL, but we have serve_side and s_no
-        // Infer the player from serve_side + jersey number
         serverSide = rally.serve_side as Side;
         const inferredPlayerId = playerByTeamAndNumber[`${serverSide}_${rally.s_no}`];
         if (inferredPlayerId) {
@@ -922,16 +919,23 @@ export function useSetKPIs(
       }
       
       if (serverId && serverSide) {
+        const isAce = rally.s_code === 3;
+        const isError = rally.s_code === 0;
+        
         if (serverSide === 'CASA') {
           if (!serverCountsHome[serverId]) {
-            serverCountsHome[serverId] = { count: 0, playerNo };
+            serverCountsHome[serverId] = { count: 0, aces: 0, errors: 0, playerNo };
           }
           serverCountsHome[serverId].count++;
+          if (isAce) serverCountsHome[serverId].aces++;
+          if (isError) serverCountsHome[serverId].errors++;
         } else if (serverSide === 'FORA') {
           if (!serverCountsAway[serverId]) {
-            serverCountsAway[serverId] = { count: 0, playerNo };
+            serverCountsAway[serverId] = { count: 0, aces: 0, errors: 0, playerNo };
           }
           serverCountsAway[serverId].count++;
+          if (isAce) serverCountsAway[serverId].aces++;
+          if (isError) serverCountsAway[serverId].errors++;
         }
       }
     }
