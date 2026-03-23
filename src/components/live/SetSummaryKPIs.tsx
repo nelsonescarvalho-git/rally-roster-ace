@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Rally, Side, MatchPlayer } from '@/types/volleyball';
-import { useSetKPIs, SetKPIs, TopAttackerEfficiency, TopServerEfficiency } from '@/hooks/useSetKPIs';
+import { useSetKPIs, SetKPIs, TopAttackerEfficiency, TopServerEfficiency, TopBlockerEfficiency } from '@/hooks/useSetKPIs';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -909,7 +909,78 @@ export function SetSummaryKPIs({
             </Card>
           )}
           
-          {/* Top Scorers */}
+          {/* Best Block Efficiency */}
+          {(kpis.bestBlockersHome.length > 0 || kpis.bestBlockersAway.length > 0) && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="h-4 w-4 text-amber-600" />
+                  <span className="text-xs font-medium">Melhor Eficácia (Bloco)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-home font-medium text-xs mb-1">{homeName}</div>
+                    {kpis.bestBlockersHome.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.bestBlockersHome.map((b) => (
+                          <div key={b.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{b.playerNo}</span>
+                            {b.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{b.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{b.points}/{b.participations}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                b.efficiency >= 30 && "border-green-500 text-green-600",
+                                b.efficiency >= 15 && b.efficiency < 30 && "border-yellow-500 text-yellow-600",
+                                b.efficiency < 15 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {b.efficiency}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-away font-medium text-xs mb-1">{awayName}</div>
+                    {kpis.bestBlockersAway.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {kpis.bestBlockersAway.map((b) => (
+                          <div key={b.playerId} className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">#{b.playerNo}</span>
+                            {b.playerName && (
+                              <span className="font-medium truncate max-w-[50px]">{b.playerName.split(' ')[0]}</span>
+                            )}
+                            <span>{b.points}/{b.participations}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1",
+                                b.efficiency >= 30 && "border-green-500 text-green-600",
+                                b.efficiency >= 15 && b.efficiency < 30 && "border-yellow-500 text-yellow-600",
+                                b.efficiency < 15 && "border-red-500 text-red-600"
+                              )}
+                            >
+                              {b.efficiency}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-xs">-</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           {(kpis.topScorersHome.length > 0 || kpis.topScorersAway.length > 0) && (
             <Card className="bg-muted/30">
               <CardContent className="p-3">
@@ -1080,7 +1151,9 @@ export function SetSummaryKPIs({
            kpis.topScorersHome.length === 0 &&
            kpis.topScorersAway.length === 0 &&
            kpis.topReceiversHome.length === 0 &&
-           kpis.topReceiversAway.length === 0 && (
+           kpis.topReceiversAway.length === 0 &&
+           kpis.bestBlockersHome.length === 0 &&
+           kpis.bestBlockersAway.length === 0 && (
             <div className="text-center text-sm text-muted-foreground py-4">
               Sem insights disponíveis para este set
             </div>

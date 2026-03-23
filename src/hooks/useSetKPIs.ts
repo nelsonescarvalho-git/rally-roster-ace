@@ -171,6 +171,15 @@ export interface TopServerEfficiency {
   efficiency: number;
 }
 
+export interface TopBlockerEfficiency {
+  playerId: string;
+  playerNo: number | null;
+  playerName: string | null;
+  points: number;
+  participations: number;
+  efficiency: number;
+}
+
 export interface SetKPIs {
   home: TeamKPIs;
   away: TeamKPIs;
@@ -196,6 +205,8 @@ export interface SetKPIs {
   bestAttackersAway: TopAttackerEfficiency[];
   bestServersHome: TopServerEfficiency[];
   bestServersAway: TopServerEfficiency[];
+  bestBlockersHome: TopBlockerEfficiency[];
+  bestBlockersAway: TopBlockerEfficiency[];
   
   // Delta from previous set
   deltaFromPrevious?: {
@@ -1213,6 +1224,45 @@ export function useSetKPIs(
     const bestServersHome = computeServeEfficiency(serverCountsHome);
     const bestServersAway = computeServeEfficiency(serverCountsAway);
     
+    // ========== BEST BLOCKERS BY EFFICIENCY ==========
+    const blockerCountsHome: Record<string, { participations: number; points: number; playerNo: number | null }> = {};
+    const blockerCountsAway: Record<string, { participations: number; points: number; playerNo: number | null }> = {};
+    
+    for (const rally of rawSetRallies) {
+      const blockerIds = [rally.b1_player_id, rally.b2_player_id, rally.b3_player_id].filter(Boolean) as string[];
+      const isBlockPoint = rally.b_code === 3;
+      
+      for (const blockerId of blockerIds) {
+        const blockerSide = playerSideMap[blockerId];
+        if (!blockerSide) continue;
+        const counts = blockerSide === 'CASA' ? blockerCountsHome : blockerCountsAway;
+        if (!counts[blockerId]) {
+          const meta = playerMetaMap[blockerId];
+          counts[blockerId] = { participations: 0, points: 0, playerNo: meta?.jerseyNumber ?? null };
+        }
+        counts[blockerId].participations++;
+        if (isBlockPoint) counts[blockerId].points++;
+      }
+    }
+    
+    const MIN_BLOCK_ATTEMPTS = 2;
+    const computeBlockEfficiency = (counts: typeof blockerCountsHome): TopBlockerEfficiency[] =>
+      Object.entries(counts)
+        .filter(([_, d]) => d.participations >= MIN_BLOCK_ATTEMPTS)
+        .map(([playerId, d]) => ({
+          playerId,
+          playerNo: d.playerNo,
+          playerName: playerMetaMap[playerId]?.name || null,
+          points: d.points,
+          participations: d.participations,
+          efficiency: Math.round((d.points / d.participations) * 100),
+        }))
+        .sort((a, b) => b.efficiency - a.efficiency)
+        .slice(0, 3);
+    
+    const bestBlockersHome = computeBlockEfficiency(blockerCountsHome);
+    const bestBlockersAway = computeBlockEfficiency(blockerCountsAway);
+    
     // Calculate new DataVolley percentages
     const calcPercent2 = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0;
     home.blkPointPercent = calcPercent2(home.blkPoints, home.blkParticipations);
@@ -1263,6 +1313,8 @@ export function useSetKPIs(
       bestAttackersAway,
       bestServersHome,
       bestServersAway,
+      bestBlockersHome,
+      bestBlockersAway,
       deltaFromPrevious,
       totalRallies: setRallies.length,
       allRotationsHome,
