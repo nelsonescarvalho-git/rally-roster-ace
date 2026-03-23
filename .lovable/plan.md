@@ -1,34 +1,40 @@
 
 
-## Corrigir Contagem de Kills por Destino (P4 0/5 → 1/5)
+## Corrigir Aviso "setters sem attack subsequente"
 
 ### Problema
 
-Em `useDestinationStatsFromActions.ts`, a lógica "Architecture 2 (Combo)" na linha 73 verifica `action.code` nas ações de setter. Mas o setter guarda a qualidade do passe em `pass_code`, não em `code`. Quando `code` existe no setter (pode ter valor residual), o hook interpreta-o como resultado do ataque (kill/erro/bloco/defendido), executa `continue`, e **nunca correlaciona com a ação de ataque real que se segue** (Architecture 1).
+O auto-fix (Step 3) infere o `code` do setter a partir do ataque seguinte do mesmo lado. Quando não existe ataque subsequente (ex: rally terminou com erro do setter, freeball sem ação de ataque registada, ou distribuição para contra-ataque não registado), o setter é contado como "skipped" e o aviso aparece.
 
-Resultado: kills (incluindo blockouts) não são contados — daí o "0/5 · 0%" no P4.
+Dois problemas:
+1. **Freeballs (code -1)** agora existem como ações de ataque — o auto-fix já deveria encontrá-las, mas copia o `-1` para o `code` do setter, o que não faz sentido (o setter code deve representar qualidade do passe, não resultado do ataque)
+2. O aviso é ruidoso — 7 setters sem ataque subsequente pode ser normal em muitos cenários
 
-### Correção — 1 ficheiro
+### Correção em `src/hooks/useRallyActions.ts`
 
-**`src/hooks/useDestinationStatsFromActions.ts`** (linhas 73-79):
+**Linha 485-501** — Melhorar a lógica de inferência:
 
-Substituir `action.code` por `action.pass_code` na verificação Combo, já que a qualidade da distribuição é armazenada em `pass_code`. Mas na verdade, a Architecture 2 (Combo) usava `code` do setter como proxy do resultado do ataque — isto é incorreto. O setter nunca armazena o resultado do ataque no seu `code`.
+1. **Excluir freeballs** da inferência: ao procurar `nextAttack`, filtrar `a.code !== -1` (freeball não indica qualidade do passe)
+2. **Para freeballs**, atribuir `code = 0` ao setter (passe fraco que resultou em bola fácil)
+3. **Não contar como "skipped"** setters que precedem freeballs — contar como corrigidos
+4. **Suprimir aviso** quando todos os skipped são casos legítimos (setter é última ação do rally)
 
-**Solução**: Remover completamente o bloco Architecture 2 (Combo). O resultado do ataque vem **sempre** da ação de ataque subsequente (Architecture 1). O setter apenas regista `pass_destination` e `pass_code`.
+### Lógica proposta
 
 ```typescript
-// ANTES (buggy):
-if (action.code !== null && action.code !== undefined) {
-  if (action.code === 3) stats[dest].kills++;
-  // ... interpreta code do setter como resultado de ataque
-  continue; // ← pula a correlação com o ataque real
+if (nextAttack && nextAttack.code !== null) {
+  if (nextAttack.code === -1) {
+    // Freeball → setter quality = 0 (fraco)
+    inferredCode = 0;
+  } else {
+    inferredCode = nextAttack.code;
+  }
+  // update setter code...
+} else {
+  results.settersSkipped++;
 }
-
-// DEPOIS (correto):
-// Remover este bloco inteiro. 
-// Manter apenas: attempts++ e pendingDestination tracking
 ```
 
 ### Ficheiros afetados
-- `src/hooks/useDestinationStatsFromActions.ts` — remover bloco Combo (linhas 72-80)
+- `src/hooks/useRallyActions.ts` — lógica de inferência do setter code (1 bloco, ~10 linhas)
 
