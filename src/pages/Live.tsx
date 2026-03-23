@@ -168,8 +168,14 @@ export default function Live() {
     away: { primary?: string; secondary?: string };
   }>({ home: {}, away: {} });
   
-  // Apply team colors via CSS variables
-  useTeamColors({ homeColors: teamColors.home, awayColors: teamColors.away });
+  // Apply team colors via CSS variables and get visibility-adjusted colors
+  const adjustedColors = useTeamColors({ homeColors: teamColors.home, awayColors: teamColors.away });
+  
+  // Use adjusted colors for inline styles (visibility-safe)
+  const safeTeamColors = {
+    home: { primary: adjustedColors.home.primary, secondary: adjustedColors.home.secondary },
+    away: { primary: adjustedColors.away.primary, secondary: adjustedColors.away.secondary },
+  };
   
   // Fixed mode state for serve/reception
   const [serveCompleted, setServeCompleted] = useState(false);
