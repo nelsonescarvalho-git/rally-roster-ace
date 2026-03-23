@@ -261,6 +261,7 @@ export default function Stats() {
               <TabsTrigger value="serve" className="text-xs flex-1">Serviço</TabsTrigger>
               <TabsTrigger value="reception" className="text-xs flex-1">Receção</TabsTrigger>
               <TabsTrigger value="defense" className="text-xs flex-1">Defesa</TabsTrigger>
+              <TabsTrigger value="block" className="text-xs flex-1">Bloco</TabsTrigger>
               <TabsTrigger value="attack" className="text-xs flex-1">Ataque</TabsTrigger>
               <TabsTrigger value="distribution" className="text-xs flex-1">Dist.</TabsTrigger>
               <TabsTrigger value="errors" className="text-xs flex-1">Erros</TabsTrigger>
