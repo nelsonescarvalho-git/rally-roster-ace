@@ -476,17 +476,27 @@ export function useComprehensiveAutoFix() {
           // Fix setter codes based on subsequent attack
           if (action.action_type === 'setter' && action.code === null) {
             // Find next attack from same side
-            const nextAttack = actions.find(a => 
+            // Find next attack from same side (exclude freeballs)
+            const nextRealAttack = actions.find(a => 
               a.sequence_no > action.sequence_no &&
               a.action_type === 'attack' &&
-              a.side === action.side
+              a.side === action.side &&
+              a.code !== -1
             );
+
+            // Check if there's a freeball instead
+            const nextFreeball = !nextRealAttack ? actions.find(a => 
+              a.sequence_no > action.sequence_no &&
+              a.action_type === 'attack' &&
+              a.side === action.side &&
+              a.code === -1
+            ) : null;
             
-            if (nextAttack && nextAttack.code !== null) {
-              // Infer code from attack result
+            if (nextRealAttack && nextRealAttack.code !== null) {
+              // Infer code from real attack result
               const { error } = await supabase
                 .from('rally_actions')
-                .update({ code: nextAttack.code })
+                .update({ code: nextRealAttack.code })
                 .eq('id', action.id);
               
               if (error) {
@@ -497,7 +507,24 @@ export function useComprehensiveAutoFix() {
                 // Sync to rallies table (pass_code)
                 await supabase
                   .from('rallies')
-                  .update({ pass_code: nextAttack.code })
+                  .update({ pass_code: nextRealAttack.code })
+                  .eq('id', rallyId);
+              }
+            } else if (nextFreeball) {
+              // Freeball → setter quality = 0 (fraco)
+              const { error } = await supabase
+                .from('rally_actions')
+                .update({ code: 0 })
+                .eq('id', action.id);
+              
+              if (error) {
+                results.errors++;
+              } else {
+                results.setterCodesFixed++;
+                
+                await supabase
+                  .from('rallies')
+                  .update({ pass_code: 0 })
                   .eq('id', rallyId);
               }
             } else {
