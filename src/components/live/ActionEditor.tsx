@@ -719,7 +719,6 @@ export function ActionEditor({
                 selectedPlayerId={selectedSetter || null}
                 onSelect={(id) => {
                   onSetterChange?.(id);
-                  onPassCodeChange?.(2); // Default quality = 2 (Boa)
                   setCurrentStep(2);
                 }}
                 teamSide={teamSide}
