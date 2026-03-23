@@ -514,7 +514,7 @@ export function useSetKPIs(
       
       if (actions && actions.length > 0 && !processedAttackRallyIds.has(rally.id)) {
         processedAttackRallyIds.add(rally.id);
-        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.code !== -1 && a.player_id);
         
         for (const attackAction of attackActions) {
           const attackerSide = playerSideMap[attackAction.player_id!];
