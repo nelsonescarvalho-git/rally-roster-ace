@@ -205,6 +205,8 @@ export interface SetKPIs {
   bestAttackersAway: TopAttackerEfficiency[];
   bestServersHome: TopServerEfficiency[];
   bestServersAway: TopServerEfficiency[];
+  bestBlockersHome: TopBlockerEfficiency[];
+  bestBlockersAway: TopBlockerEfficiency[];
   
   // Delta from previous set
   deltaFromPrevious?: {
