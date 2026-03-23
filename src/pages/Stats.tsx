@@ -18,6 +18,7 @@ import { DistributionTab } from '@/components/DistributionTab';
 import { AttackTab } from '@/components/AttackTab';
 import { ReceptionTab } from '@/components/ReceptionTab';
 import { DefenseTab } from '@/components/DefenseTab';
+import { BlockTab } from '@/components/BlockTab';
 import { ErrorsTab } from '@/components/ErrorsTab';
 import { Sanction } from '@/types/volleyball';
 import { EditRallyModal } from '@/components/EditRallyModal';
