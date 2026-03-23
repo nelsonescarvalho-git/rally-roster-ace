@@ -855,8 +855,8 @@ export function useSetKPIs(
     // Calculate top zones and attackers by team
     const zoneCountsHome: Record<string, number> = {};
     const zoneCountsAway: Record<string, number> = {};
-    const attackerCountsHome: Record<string, { count: number; playerNo: number | null }> = {};
-    const attackerCountsAway: Record<string, { count: number; playerNo: number | null }> = {};
+    const attackerCountsHome: Record<string, { count: number; kills: number; errors: number; blocked: number; playerNo: number | null }> = {};
+    const attackerCountsAway: Record<string, { count: number; kills: number; errors: number; blocked: number; playerNo: number | null }> = {};
     
     // Zone distribution uses consolidated rallies (one per point)
     for (const rally of setRallies) {
@@ -870,23 +870,30 @@ export function useSetKPIs(
     }
     
     // Attacker counts - use RAW rallies to count ALL attack attempts (all phases)
-    // This ensures we don't lose attacks from intermediate phases
     for (const rally of rawSetRallies) {
       if (rally.a_player_id) {
-        // Determine attacker's team from the player's actual side (from match_players)
         const attackerSide = playerSideMap[rally.a_player_id];
         const playerNo = rally.a_no;
+        const isKill = rally.a_code === 3;
+        const isError = rally.a_code === 0;
+        const isBlocked = rally.a_code === 1 && rally.b_code === 3;
         
         if (attackerSide === 'CASA') {
           if (!attackerCountsHome[rally.a_player_id]) {
-            attackerCountsHome[rally.a_player_id] = { count: 0, playerNo };
+            attackerCountsHome[rally.a_player_id] = { count: 0, kills: 0, errors: 0, blocked: 0, playerNo };
           }
           attackerCountsHome[rally.a_player_id].count++;
+          if (isKill) attackerCountsHome[rally.a_player_id].kills++;
+          if (isError) attackerCountsHome[rally.a_player_id].errors++;
+          if (isBlocked) attackerCountsHome[rally.a_player_id].blocked++;
         } else if (attackerSide === 'FORA') {
           if (!attackerCountsAway[rally.a_player_id]) {
-            attackerCountsAway[rally.a_player_id] = { count: 0, playerNo };
+            attackerCountsAway[rally.a_player_id] = { count: 0, kills: 0, errors: 0, blocked: 0, playerNo };
           }
           attackerCountsAway[rally.a_player_id].count++;
+          if (isKill) attackerCountsAway[rally.a_player_id].kills++;
+          if (isError) attackerCountsAway[rally.a_player_id].errors++;
+          if (isBlocked) attackerCountsAway[rally.a_player_id].blocked++;
         }
       }
     }
