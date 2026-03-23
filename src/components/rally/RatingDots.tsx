@@ -7,6 +7,7 @@ interface RatingDotsProps {
 }
 
 const codeLabels: Record<number, string> = {
+  [-1]: 'Freeball',
   0: 'Erro',
   1: 'Fraco',
   2: 'Bom',
@@ -15,7 +16,13 @@ const codeLabels: Record<number, string> = {
 
 export function RatingDots({ code, maxDots = 4, size = 'sm' }: RatingDotsProps) {
   if (code === null) return null;
-  
+  if (code === -1) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-warning font-medium">🎁 Freeball</span>
+      </div>
+    );
+  }
   const dotSize = size === 'sm' ? 'h-1.5 w-1.5' : 'h-2 w-2';
   
   const getColors = (code: number) => {

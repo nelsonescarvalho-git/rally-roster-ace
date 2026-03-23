@@ -514,7 +514,7 @@ export function useSetKPIs(
       
       if (actions && actions.length > 0 && !processedAttackRallyIds.has(rally.id)) {
         processedAttackRallyIds.add(rally.id);
-        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.code !== -1 && a.player_id);
         
         for (const attackAction of attackActions) {
           const attackerSide = playerSideMap[attackAction.player_id!];
@@ -541,7 +541,7 @@ export function useSetKPIs(
         }
       } else if (!processedAttackRallyIds.has(rally.id)) {
         // Fallback: flat rally fields
-        if (rally.a_player_id && rally.a_code !== null) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
           const attackerSide = playerSideMap[rally.a_player_id];
           if (attackerSide === 'CASA' || attackerSide === 'FORA') {
             const team = attackerSide === 'CASA' ? home : away;
@@ -638,7 +638,7 @@ export function useSetKPIs(
       
       if (actions && actions.length > 0 && !processedK1K2RallyIds.has(rally.id)) {
         processedK1K2RallyIds.add(rally.id);
-        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.code !== -1 && a.player_id);
         for (const attackAction of attackActions) {
           const attackerSide = playerSideMap[attackAction.player_id!];
           if (!attackerSide) continue;
@@ -653,7 +653,7 @@ export function useSetKPIs(
           }
         }
       } else if (!processedK1K2RallyIds.has(rally.id)) {
-        if (rally.a_player_id && rally.a_code !== null) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
           const attackerSide = playerSideMap[rally.a_player_id];
           if (attackerSide) {
             const team = attackerSide === 'CASA' ? home : away;

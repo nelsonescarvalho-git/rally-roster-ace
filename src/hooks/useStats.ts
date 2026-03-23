@@ -81,7 +81,7 @@ export function useStats(
               break;
 
             case 'attack':
-              if (action.code !== null) {
+              if (action.code !== null && action.code !== -1) {
                 stats[pid].attAttempts++;
                 if (action.code === 3) {
                   stats[pid].attPoints++;
@@ -145,7 +145,7 @@ export function useStats(
           if (rally.r_code === 0) stats[rally.r_player_id].recErrors++;
         }
 
-        if (rally.a_player_id && rally.a_code !== null && stats[rally.a_player_id]) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1 && stats[rally.a_player_id]) {
           stats[rally.a_player_id].attAttempts++;
           if (rally.a_code === 3) {
             stats[rally.a_player_id].attPoints++;

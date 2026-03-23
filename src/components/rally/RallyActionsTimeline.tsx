@@ -47,7 +47,9 @@ export function RallyActionsTimeline({ actions, homeName, awayName }: RallyActio
         
         // Build extra info for attacks/blocks
         let extra: string | undefined;
-        if (action.action_type === 'attack' && action.kill_type) {
+        if (action.action_type === 'attack' && action.code === -1) {
+          extra = '🎁 Freeball';
+        } else if (action.action_type === 'attack' && action.kill_type) {
           extra = action.kill_type;
         }
         if (action.action_type === 'setter' && action.pass_destination) {

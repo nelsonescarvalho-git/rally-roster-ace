@@ -99,7 +99,7 @@ export function useAttackStats(
 
       if (actions && actions.length > 0) {
         // Use rally_actions: iterate ALL attack actions
-        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.player_id);
+        const attackActions = actions.filter(a => a.action_type === 'attack' && a.code !== null && a.code !== -1 && a.player_id);
         
         for (const attackAction of attackActions) {
           // Find preceding setter action from same side for pass quality
@@ -128,7 +128,7 @@ export function useAttackStats(
         }
       } else {
         // Fallback: flat rally fields
-        if (rally.a_player_id && rally.a_code !== null) {
+        if (rally.a_player_id && rally.a_code !== null && rally.a_code !== -1) {
           const passCode = rally.a_pass_quality ?? rally.pass_code ?? 2;
           attackEvents.push({
             attackerId: rally.a_player_id,
