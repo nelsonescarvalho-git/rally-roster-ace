@@ -719,7 +719,6 @@ export function ActionEditor({
                 selectedPlayerId={selectedSetter || null}
                 onSelect={(id) => {
                   onSetterChange?.(id);
-                  onPassCodeChange?.(2); // Default quality = 2 (Boa)
                   setCurrentStep(2);
                 }}
                 teamSide={teamSide}
@@ -728,62 +727,47 @@ export function ActionEditor({
               />
             ) : (
               <div className="space-y-3">
-                {/* Quality toggle at top */}
+                {/* Quality selection */}
                 <div className="text-xs font-medium text-muted-foreground text-center">
                   Qualidade do Passe
                 </div>
-                <ToggleGroup 
-                  type="single" 
-                  value={String(selectedPassCode ?? 2)}
-                  onValueChange={(v) => {
-                    if (v) {
-                      const code = parseInt(v, 10);
-                      onPassCodeChange?.(code);
+                <QualityPad
+                  selectedCode={selectedPassCode ?? null}
+                  onSelect={(code) => {
+                    onPassCodeChange?.(code);
+                    
+                    if (code === 0) {
+                      // Erro de distribuição: auto-confirmar
+                      const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
+                      const player = players.find(p => p.id === selectedSetter);
                       
-                      if (code === 0) {
-                        // Erro de distribuição: auto-confirmar
-                        const opponent: Side = side === 'CASA' ? 'FORA' : 'CASA';
-                        const player = players.find(p => p.id === selectedSetter);
-                        
-                        requestAnimationFrame(() => {
-                          setTimeout(() => {
-                            toast.success(
-                              `#${player?.jersey_number || '?'} · Distribuição · Erro`,
-                              { duration: 2500 }
-                            );
-                            onConfirm({
-                              passCode: 0,
-                              setterId: selectedSetter,
-                              passDestination: null,
-                            });
-                            onAutoFinishPoint?.(opponent, 'OP');
-                          }, 0);
-                        });
-                      }
+                      requestAnimationFrame(() => {
+                        setTimeout(() => {
+                          toast.success(
+                            `#${player?.jersey_number || '?'} · Distribuição · Erro`,
+                            { duration: 2500 }
+                          );
+                          onConfirm({
+                            passCode: 0,
+                            setterId: selectedSetter,
+                            passDestination: null,
+                          });
+                          onAutoFinishPoint?.(opponent, 'OP');
+                        }, 0);
+                      });
                     }
                   }}
-                  className="justify-center"
-                >
-                  {[
-                    { code: 0, label: '✗ Erro', className: 'data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground' },
-                    { code: 1, label: '- Fraca', className: 'data-[state=on]:bg-warning data-[state=on]:text-warning-foreground' },
-                    { code: 2, label: '+ Boa', className: 'data-[state=on]:bg-primary data-[state=on]:text-primary-foreground' },
-                    { code: 3, label: '⭐ Excelente', className: 'data-[state=on]:bg-success data-[state=on]:text-success-foreground' },
-                  ].map(({ code, label, className }) => (
-                    <ToggleGroupItem
-                      key={code}
-                      value={String(code)}
-                      variant="outline"
-                      size="sm"
-                      className={cn('px-2.5 text-xs', className)}
-                    >
-                      {label}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+                />
                 
-                {/* Destination grid (only if quality > 0) */}
-                {(selectedPassCode ?? 2) > 0 && (
+                {/* Hint when quality not yet selected */}
+                {selectedPassCode === null && (
+                  <div className="text-center text-xs text-muted-foreground py-2 animate-pulse">
+                    👆 Seleciona a qualidade do passe primeiro
+                  </div>
+                )}
+                
+                {/* Destination grid (only if quality selected and > 0) */}
+                {selectedPassCode !== null && selectedPassCode > 0 && (
                   <>
                     <div className="text-xs font-medium text-muted-foreground text-center">
                       Destino do Passe

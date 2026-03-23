@@ -1,6 +1,4 @@
 import { useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { X, Minus, Plus, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface QualityPadProps {
@@ -24,10 +22,10 @@ const DEFAULT_LABELS = {
 };
 
 const QUALITY_CONFIG = [
-  { code: 0, icon: X, shortcut: '0' },
-  { code: 1, icon: Minus, shortcut: '1' },
-  { code: 2, icon: Plus, shortcut: '2' },
-  { code: 3, icon: Star, shortcut: '3' },
+  { code: 0, emoji: '✗', shortcut: '0' },
+  { code: 1, emoji: '−', shortcut: '1' },
+  { code: 2, emoji: '+', shortcut: '2' },
+  { code: 3, emoji: '⭐', shortcut: '3' },
 ] as const;
 
 export function QualityPad({
@@ -55,57 +53,67 @@ export function QualityPad({
     }
   }, [autoFocus, handleKeyDown]);
 
-  const getQualityClasses = (code: number, isSelected: boolean) => {
-    const baseClasses = 'transition-all duration-150 font-semibold';
+  const getStyles = (code: number, isSelected: boolean) => {
+    const base = 'relative flex flex-col items-center justify-center gap-0.5 rounded-xl border-2 cursor-pointer select-none transition-all duration-200 min-h-[64px] px-2 py-2';
     
     if (isSelected) {
       switch (code) {
-        case 0: return cn(baseClasses, 'bg-destructive text-destructive-foreground ring-2 ring-destructive ring-offset-2 ring-offset-background');
-        case 1: return cn(baseClasses, 'bg-warning text-warning-foreground ring-2 ring-warning ring-offset-2 ring-offset-background');
-        case 2: return cn(baseClasses, 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background');
-        case 3: return cn(baseClasses, 'bg-success text-success-foreground ring-2 ring-success ring-offset-2 ring-offset-background');
+        case 0: return cn(base, 'bg-destructive text-destructive-foreground border-destructive scale-105 shadow-lg shadow-destructive/30 ring-2 ring-destructive/50 ring-offset-2 ring-offset-background');
+        case 1: return cn(base, 'bg-warning text-warning-foreground border-warning scale-105 shadow-lg shadow-warning/30 ring-2 ring-warning/50 ring-offset-2 ring-offset-background');
+        case 2: return cn(base, 'bg-primary text-primary-foreground border-primary scale-105 shadow-lg shadow-primary/30 ring-2 ring-primary/50 ring-offset-2 ring-offset-background');
+        case 3: return cn(base, 'bg-success text-success-foreground border-success scale-105 shadow-lg shadow-success/30 ring-2 ring-success/50 ring-offset-2 ring-offset-background');
       }
     }
     
     switch (code) {
-      case 0: return cn(baseClasses, 'bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 hover:border-destructive/50');
-      case 1: return cn(baseClasses, 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/20 hover:border-warning/50');
-      case 2: return cn(baseClasses, 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 hover:border-primary/50');
-      case 3: return cn(baseClasses, 'bg-success/10 text-success border-success/30 hover:bg-success/20 hover:border-success/50');
+      case 0: return cn(base, 'bg-destructive/8 text-destructive border-destructive/20 hover:bg-destructive/15 hover:border-destructive/40 hover:scale-[1.02] active:scale-95');
+      case 1: return cn(base, 'bg-warning/8 text-warning border-warning/20 hover:bg-warning/15 hover:border-warning/40 hover:scale-[1.02] active:scale-95');
+      case 2: return cn(base, 'bg-primary/8 text-primary border-primary/20 hover:bg-primary/15 hover:border-primary/40 hover:scale-[1.02] active:scale-95');
+      case 3: return cn(base, 'bg-success/8 text-success border-success/20 hover:bg-success/15 hover:border-success/40 hover:scale-[1.02] active:scale-95');
     }
     
-    return baseClasses;
+    return base;
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {QUALITY_CONFIG.map(({ code, icon: Icon, shortcut }) => {
+    <div className="flex gap-2 w-full">
+      {QUALITY_CONFIG.map(({ code, emoji, shortcut }) => {
         const isSelected = selectedCode === code;
         const label = labels[code as keyof typeof labels] || DEFAULT_LABELS[code as keyof typeof DEFAULT_LABELS];
         
         return (
-          <Button
+          <button
             key={code}
-            variant="outline"
+            type="button"
             disabled={disabled}
             onClick={() => onSelect(code)}
             className={cn(
-              'h-20 flex-col gap-1 border-2 relative',
-              getQualityClasses(code, isSelected)
+              'flex-1',
+              getStyles(code, isSelected),
+              disabled && 'opacity-40 pointer-events-none',
             )}
           >
-            {/* Shortcut badge */}
-            <span className="absolute top-1.5 left-2 text-[10px] font-mono opacity-50">
+            {/* Shortcut hint */}
+            <span className="absolute top-0.5 right-1.5 text-[9px] font-mono opacity-40">
               {shortcut}
             </span>
             
-            {/* Main content */}
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{code}</span>
-              <Icon className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-medium">{label}</span>
-          </Button>
+            {/* Emoji / symbol */}
+            <span className={cn(
+              "text-xl font-bold leading-none",
+              isSelected && "animate-bounce-once"
+            )}>
+              {emoji}
+            </span>
+            
+            {/* Label */}
+            <span className={cn(
+              "text-[11px] font-semibold leading-tight whitespace-nowrap",
+              isSelected ? "opacity-100" : "opacity-80"
+            )}>
+              {label}
+            </span>
+          </button>
         );
       })}
     </div>
